@@ -7,11 +7,12 @@
   <title>Scenic Flight</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./gallery.js"></script>
+  <script type="module" src="./artwork.js"></script>
 </head>
 <body>
   <header class="masthead">
     <a class="brand" href="#" aria-label="Scenic Flight home"><span class="brand-mark" aria-hidden="true"></span>Scenic Flight</a>
-    <nav aria-label="Page sections"><a href="#gameplay">Gameplay</a><a href="#gallery">Artwork</a><a href="#project">Controls</a><a href="https://xn--sg8hhb.ws/flasher/?project=scenic-flight">Install</a></nav>
+    <nav aria-label="Page sections"><a href="./play.html">Play in browser</a><a href="#gameplay">Gameplay</a><a href="#gallery">Gallery</a><a href="#artwork">Artwork</a><a href="#project">Controls</a><a href="https://xn--sg8hhb.ws/flasher/?project=scenic-flight">Install</a></nav>
   </header>
   <main class="shell">
     <section class="hero" id="gameplay" aria-labelledby="title">
@@ -34,6 +35,15 @@
         </div>
       </div>
       <div id="cards" class="cards"></div>
+    </section>
+
+    <section id="artwork" aria-labelledby="artwork-title">
+      <div class="section-heading">
+        <h2 id="artwork-title">Scenery artwork</h2>
+        <p id="artwork-count" aria-live="polite"></p>
+      </div>
+      <div class="tabs" id="artwork-categories" aria-label="Scenery categories"></div>
+      <ul id="artwork-grid" class="artwork-grid" aria-label="Tree variants"></ul>
     </section>
 
     <section id="flight-reference">

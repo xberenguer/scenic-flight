@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Play Scenic Flight in your browser. Choose an aircraft and fly through a new procedurally generated world.">
+  <title>Play Scenic Flight</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./play.css">
+  <script type="module" src="./play.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./" aria-label="Scenic Flight home"><span class="brand-mark" aria-hidden="true"></span>Scenic Flight</a>
+    <nav aria-label="Scenic Flight"><a href="./#gallery">Gallery</a><a href="./#artwork">Artwork</a></nav>
+  </header>
+  <main class="flight-player">
+    <h1>Play Scenic Flight</h1>
+    <div class="flight-display">
+      <canvas id="flight-canvas" width="466" height="466" role="img" aria-label="Round Scenic Flight display">
+        Scenic Flight requires a browser with canvas support.
+      </canvas>
+      <div id="flight-notice" class="flight-notice">
+        <p id="flight-message" role="status">Loading Scenic Flight…</p>
+        <button type="button" id="flight-retry" class="button" hidden>Try again</button>
+      </div>
+      <noscript><p class="flight-noscript">Enable JavaScript to play Scenic Flight.</p></noscript>
+    </div>
+    <p id="flight-state" class="flight-state" role="status" hidden></p>
+    <div class="flight-buttons" role="group" aria-label="Flight controls" aria-describedby="flight-help">
+      <button type="button" id="flight-small" class="button flight-button" data-flight-button="0" aria-keyshortcuts="A ArrowLeft" disabled>
+        <span id="flight-small-label">Next aircraft</span><kbd aria-hidden="true">A</kbd>
+      </button>
+      <button type="button" id="flight-large" class="button flight-button flight-primary" data-flight-button="1" aria-keyshortcuts="F ArrowRight Enter" disabled>
+        <span>Fly</span><kbd aria-hidden="true">F</kbd>
+      </button>
+    </div>
+    <p id="flight-help" class="flight-help">Choose an aircraft, then select Fly. During flight, tap the small button for flight info or hold it for 1.2 seconds to start a new world.</p>
+  </main>
+</body>
+</html>

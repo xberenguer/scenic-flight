@@ -1,0 +1,91 @@
+.flight-player {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: clamp(20px, 4vh, 40px) 16px 38px;
+}
+.flight-player h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1.1;
+  letter-spacing: -.045em;
+  text-align: center;
+}
+.flight-display {
+  position: relative;
+  width: min(100%, 466px, max(260px, 64vh));
+  aspect-ratio: 1;
+  margin-block: 4px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--line);
+}
+#flight-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  image-rendering: pixelated;
+}
+.flight-notice, .flight-noscript {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 16%;
+  text-align: center;
+  background: var(--card);
+  color: var(--muted);
+}
+.flight-state {
+  color: var(--sky);
+  font-size: .85rem;
+  line-height: 1.1;
+}
+.flight-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: min(100%, 390px);
+}
+.flight-button {
+  min-height: 48px;
+  gap: 12px;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.flight-primary {
+  background: var(--accent);
+  color: var(--ground);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.flight-button kbd {
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  min-width: 1.3em;
+  padding: 0 3px;
+  line-height: 1.3;
+  font-size: .75em;
+}
+.flight-button[data-held="true"] {
+  transform: translateY(1px);
+  background: var(--sky);
+  color: var(--ground);
+}
+.flight-button:disabled {
+  opacity: .48;
+  cursor: default;
+}
+.flight-help {
+  max-width: 47ch;
+  color: var(--muted);
+  font-size: .9rem;
+  text-align: center;
+}
+@media (hover: none) {
+  .flight-button kbd { display: none; }
+}

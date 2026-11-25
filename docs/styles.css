@@ -86,3 +86,31 @@ dialog::backdrop { background:rgba(12,19,27,.81); }
 summary { width:fit-content; cursor:pointer; color:var(--sky); font-weight:700; }
 details[open] summary { margin-bottom:16px; }
 .section-heading p { color:var(--muted); }
+
+.artwork-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 7px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.artwork-tile {
+  width: 100%;
+  padding: 0 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background-color: var(--ground);
+  color: var(--muted);
+}
+.artwork-tile:is(:hover,:focus-visible) { border-color: var(--sky); }
+.artwork-sprite {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background-size: 1600% 1600%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.artwork-number { font-size: .72rem; font-variant-numeric: tabular-nums; }
+#viewer-media .artwork-sprite { width: min(384px, 80vw, 64vh); margin-inline: auto; }
