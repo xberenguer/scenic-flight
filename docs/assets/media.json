@@ -1,0 +1,172 @@
+[
+  {
+    "id": "mountain-pass",
+    "title": "Mountain pass",
+    "category": "Biomes",
+    "aircraft": "Bush Plane",
+    "biome": "Alpine",
+    "format": "Video",
+    "poster": "assets/current/mountain-pass.png",
+    "src": "assets/current/mountain-pass.mp4"
+  },
+  {
+    "id": "coastal-soaring",
+    "title": "Eagle along the cliffs",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Coast & Ocean",
+    "format": "Video",
+    "poster": "assets/current/coastal-soaring.png",
+    "src": "assets/current/coastal-soaring.mp4"
+  },
+  {
+    "id": "city-approach",
+    "title": "City flyby at dusk",
+    "category": "Built World",
+    "aircraft": "Sport Jet",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/city-approach.png",
+    "src": "assets/current/city-approach.mp4"
+  },
+  {
+    "id": "river-valley",
+    "title": "Low over the floodplain",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Rivers & Wetlands",
+    "format": "Video",
+    "poster": "assets/current/river-valley.png",
+    "src": "assets/current/river-valley.mp4"
+  },
+  {
+    "id": "fighter-afterburners",
+    "title": "Fighter orange afterburner",
+    "category": "Encounters",
+    "aircraft": "F/A-18 Fighter",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/fighter-afterburners.png",
+    "src": "assets/current/fighter-afterburners.mp4"
+  },
+  {
+    "id": "high-cruise",
+    "title": "High-altitude cruise",
+    "category": "Aircraft",
+    "aircraft": "SR-71 Blackbird",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/high-cruise.png",
+    "src": "assets/current/high-cruise.mp4"
+  },
+  {
+    "id": "glider-coast",
+    "title": "Glider on the coast",
+    "category": "Biomes",
+    "aircraft": "Glider",
+    "biome": "Coast & Ocean",
+    "format": "Video",
+    "poster": "assets/current/glider-coast.png",
+    "src": "assets/current/glider-coast.mp4"
+  },
+  {
+    "id": "racer-bank",
+    "title": "Racer banks around a ridge",
+    "category": "Aircraft",
+    "aircraft": "Racer",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/racer-bank.png",
+    "src": "assets/current/racer-bank.mp4"
+  },
+  {
+    "id": "blackbird-reheat",
+    "title": "Blackbird purple reheat",
+    "category": "Encounters",
+    "aircraft": "SR-71 Blackbird",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/blackbird-reheat.png",
+    "src": "assets/current/blackbird-reheat.mp4"
+  },
+  {
+    "id": "formation-pair",
+    "title": "Fighter formation · 2 wingmates",
+    "category": "Encounters",
+    "aircraft": "F/A-18 Fighter",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/formation-pair.png",
+    "src": "assets/current/formation-pair.mp4"
+  },
+  {
+    "id": "formation-four",
+    "title": "Fighter formation · 4 wingmates",
+    "category": "Encounters",
+    "aircraft": "F/A-18 Fighter",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/formation-four.png",
+    "src": "assets/current/formation-four.mp4"
+  },
+  {
+    "id": "bay-crossing",
+    "title": "Flight over the bay",
+    "category": "Biomes",
+    "aircraft": "Bush Plane",
+    "biome": "Coast & Ocean",
+    "format": "Video",
+    "poster": "assets/current/bay-crossing.png",
+    "src": "assets/current/bay-crossing.mp4"
+  },
+  {
+    "id": "blackbird-refueling",
+    "title": "Blackbird refueling",
+    "category": "Encounters",
+    "aircraft": "SR-71 Blackbird",
+    "biome": "",
+    "format": "GIF",
+    "poster": "assets/blackbird-refueling.png",
+    "src": "assets/blackbird-refueling.gif"
+  },
+  {
+    "id": "cliffside",
+    "title": "Cliffside flight",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/cliffside.png",
+    "src": "assets/current/cliffside.png"
+  },
+  {
+    "id": "dusk-sky",
+    "title": "Moon over the city",
+    "category": "Sky & Weather",
+    "aircraft": "Sport Jet",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/dusk-sky.png",
+    "src": "assets/current/dusk-sky.png"
+  },
+  {
+    "id": "bay-view",
+    "title": "Bay and headlands",
+    "category": "Biomes",
+    "aircraft": "Bush Plane",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/bay-view.png",
+    "src": "assets/current/bay-view.png"
+  },
+  {
+    "id": "ridge-view",
+    "title": "Ridge in daylight",
+    "category": "Biomes",
+    "aircraft": "Bush Plane",
+    "biome": "Alpine",
+    "format": "Still",
+    "poster": "assets/current/ridge-view.png",
+    "src": "assets/current/ridge-view.png"
+  }
+]
