@@ -23,13 +23,11 @@ const events = [
 const categories = ['All', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Sky & Weather', 'Interface'];
 const biomeNames = ['Alpine', 'Coast & Ocean', 'Drylands', 'Rivers & Wetlands', 'Woodlands & Grasslands'];
 const featuredIds = ['mountain-pass', 'coastal-soaring', 'city-approach', 'river-valley', 'fighter-afterburners'];
-const pageSize = 24;
 const qs = selector => document.querySelector(selector);
 const cards = qs('#cards');
 const dialog = qs('#viewer');
 const filters = ['#search', '#aircraft', '#biome', '#rarity'].map(qs);
 let filterCategory = 'All';
-let shown = pageSize;
 let records = [];
 
 function element(tag, text, className) {
@@ -114,19 +112,12 @@ function renderGallery() {
     (!rarity.value || (encounter(item)?.[1] || 'Routine') === rarity.value) &&
     (!needle || [item.title, item.category, item.aircraft, item.biome, item.note].join(' ').toLowerCase().includes(needle))
   );
-  const visible = filtered.slice(0, shown);
-  if (visible.length) cards.replaceChildren(...visible.map(createCard));
+  if (filtered.length) cards.replaceChildren(...filtered.map(createCard));
   else cards.replaceChildren(element('p', 'No captures match these filters.'));
-  qs('#more').hidden = visible.length >= filtered.length;
   qs('#media-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'visual' : 'visuals'}`;
   for (const tab of qs('#categories').children) {
     tab.setAttribute('aria-pressed', String(tab.textContent === filterCategory));
   }
-}
-
-function reset() {
-  shown = pageSize;
-  renderGallery();
 }
 
 function browsePlane(name) {
@@ -135,7 +126,7 @@ function browsePlane(name) {
   filters[2].value = '';
   filters[3].value = '';
   filterCategory = 'All';
-  reset();
+  renderGallery();
   qs('#gallery').scrollIntoView();
 }
 
@@ -169,13 +160,12 @@ async function get(file) {
 for (const name of categories) {
   const button = element('button', name);
   button.type = 'button';
-  button.addEventListener('click', () => { filterCategory = name; reset(); });
+  button.addEventListener('click', () => { filterCategory = name; renderGallery(); });
   qs('#categories').append(button);
 }
 qs('#aircraft').append(...planes.map(([name])=>option(name)));
 qs('#biome').append(...biomeNames.map(option));
-for (const filter of filters) filter.addEventListener(filter.type === 'search' ? 'input' : 'change', reset);
-qs('#more').addEventListener('click', () => { shown += pageSize; renderGallery(); });
+for (const filter of filters) filter.addEventListener(filter.type === 'search' ? 'input' : 'change', renderGallery);
 try {
   records = await (await get('./assets/media.json')).json();
   const figures = planes.map(([name],index)=>({id:`turntable-${index}`,title:`${name} turntable`,category:'Aircraft',

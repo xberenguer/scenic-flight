@@ -56,7 +56,6 @@ input,select { border:1px solid var(--line); color:var(--text); background:#202a
 .card-text small { color:var(--muted); font-size:.86rem; }
 .card-text b { font-size:1.02rem; }
 .card-text em { color:var(--accent); font-size:.86rem; font-style:normal; }
-.more { margin:20px auto 0; display:flex; }
 .table-wrap { overflow-x:auto; }
 table { width:100%; border-collapse:collapse; text-align:left; }
 th,td { padding:11px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
