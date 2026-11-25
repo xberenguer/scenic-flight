@@ -1,0 +1,58 @@
+[workspace]
+
+[package]
+name = "scenic-flight-waveshare"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+scene-probe = []
+parallel-terrain = ["regional-rail", "far-horizon", "scenic-flight/terrain-fork"]
+terrain-opportunistic = ["parallel-terrain"]
+small-raster-ray-budget = ["scenic-flight/small-raster-ray-budget"]
+ground-cover = ["scenic-flight/ground-cover"]
+regional-climate = ["scenic-flight/regional-climate"]
+sample-probe = ["scene-probe"]
+burst-capture = ["scene-probe", "logical-112", "transport-stream"]
+lineup-probe = ["scene-probe"]
+logical-112 = []
+buffered-terrain = []
+far-horizon = ["buffered-terrain"]
+distant-skyline = ["far-horizon", "streamed-land", "coastal-mesh"]
+distant-roads = ["highway-stream", "far-horizon"]
+distant-bridges = ["coastal-highways", "far-horizon"]
+panel-worker = ["dep:critical-section"]
+cooperative-sky = ["panel-worker", "buffered-terrain"]
+replay-ticks = []
+scenery = []
+streamed-land = ["scenery"]
+transport-stream = ["streamed-land", "coastal-mesh", "panel-worker"]
+native-flight-overlay = ["transport-stream"]
+native-airframe-probe = ["scene-probe", "transport-stream"]
+river-stream = ["transport-stream"]
+local-routes = ["river-stream"]
+natural-scenery = ["local-routes"]
+highway-stream = ["natural-scenery"]
+coastal-highways = ["highway-stream"]
+regional-rail = ["coastal-highways"]
+coastal-fixture = ["coastal-highways", "scene-probe"]
+cascade-fixture = ["natural-scenery", "scene-probe"]
+caprock-fixture = ["natural-scenery", "scene-probe"]
+outwash-fixture = ["natural-scenery", "scene-probe"]
+coastal-mesh = ["buffered-terrain", "scenery"]
+shore-details = ["coastal-mesh"]
+parity-scenery = ["scene-probe", "logical-112", "buffered-terrain", "panel-worker", "replay-ticks", "scenery"]
+parity-fixtures = ["parity-scenery"]
+
+[dependencies]
+scenic-flight = { path = ".." }
+esp-hal = { version = "=1.2.2", features = ["esp32s3", "unstable"] }
+esp-bootloader-esp-idf = { version = "=0.6.0", features = ["esp32s3"] }
+esp-println = { version = "=0.17.0", default-features = false, features = ["esp32s3", "jtag-serial"] }
+static_cell = "=2.1.1"
+critical-section = { version = "=1.2.0", optional = true }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"

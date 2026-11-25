@@ -1,0 +1,14 @@
+[package]
+name = "scenic-flight"
+version = "0.1.0"
+edition = "2021"
+description = "Procedural scenic flight for desktop and embedded displays"
+
+[features]
+terrain-fork = []
+small-raster-ray-budget = []
+ground-cover = []
+regional-climate = []
+
+[profile.release]
+lto = "thin"
