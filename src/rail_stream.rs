@@ -398,10 +398,14 @@ impl RailStream {
     }
 
     pub fn conflicts_with(&self, mut blocked: impl FnMut(Area) -> bool) -> bool {
+        self.reservation_footprints().any(&mut blocked)
+    }
+
+    pub(crate) fn reservation_footprints(&self) -> impl Iterator<Item = Area> + '_ {
         self.residents
             .iter()
             .flatten()
-            .any(|resident| resident.reserved_chunks().any(&mut blocked))
+            .flat_map(Resident::reserved_chunks)
     }
 
     pub fn sampler(&self) -> RailSampler<'_> {

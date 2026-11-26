@@ -611,6 +611,17 @@ impl<const ACTIVE: usize> LocalRouteStream<ACTIVE> {
         }
     }
 
+    pub(crate) fn urban_footprints(&self, mut emit: impl FnMut([f32; 4])) {
+        for record in self.residents.iter().flatten() {
+            if let State::Deferred(route) | State::Published(route) = &record.state {
+                route.conflicts_with(|bounds| {
+                    emit(bounds);
+                    false
+                });
+            }
+        }
+    }
+
     pub fn overlay(&self, x: f32, z: f32, ground: Sample) -> Sample {
         self.routes()
             .find(|(_, route)| inside(route.bounds(), x, z))

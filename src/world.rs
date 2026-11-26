@@ -91,7 +91,7 @@ pub struct Sample {
     pub surface: Surface,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct World {
     key: [u32; 2],
 }

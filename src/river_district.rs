@@ -70,17 +70,78 @@ impl RiverDistrict {
         blocked: impl FnMut(f32, f32) -> bool,
         pulse: &mut impl FnMut(),
     ) -> Option<Self> {
-        if water.streams().is_empty() {
+        let stream_count = water.streams().len();
+        if stream_count == 0 {
             return None;
         }
+        let mut blocked = blocked;
+        let (water, crossings, bounds) = match Self::certify(world, district, &water, &mut blocked, pulse) {
+            Some((crossings, bounds)) => (water, crossings, bounds),
+            None => {
+                let (mask, crossings, bounds) =
+                    Self::certify_subset(world, district, &water, &mut blocked, pulse)?;
+                (water.with_streams(mask), crossings, bounds)
+            }
+        };
         let road = district.and_then(DistrictRegion::road);
-        let crossings = road.map_or_else(Crossings::new, |road| {
-            Crossings::fit_cooperatively(world, road, Some(&water), false, pulse)
-        });
         let mut proof = Proof {
             world,
             road,
             water: &water,
+            crossings: &crossings,
+            towns: [Terminus::Start, Terminus::End].map(|end| {
+                let town = district?.town(end)?;
+                Some((town, town.bounds()))
+            }),
+            blocked: &mut blocked,
+        };
+        let floodplain = Floodplain::prepare(world, &water, |x, z| {
+            proof.floodplain_reserved(x, z)
+        }, pulse);
+        let bounds = floodplain.bounds().map_or(bounds, |area| union(bounds, area));
+        Some(Self { water, crossings, floodplain, bounds })
+    }
+
+    fn certify_subset(
+        world: &World,
+        district: Option<&DistrictRegion>,
+        water: &Watershed,
+        blocked: &mut impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<(usize, Crossings, [f32; 4])> {
+        let stream_count = water.streams().len();
+        let full = (1_usize << stream_count) - 1;
+        // Prefer the largest safe network, with original stream order breaking ties.
+        for count in (1..stream_count).rev() {
+            for mask in 1..full {
+                if mask.count_ones() as usize != count {
+                    continue;
+                }
+                pulse();
+                let subset = water.with_streams(mask);
+                if let Some((crossings, bounds)) = Self::certify(world, district, &subset, blocked, pulse) {
+                    return Some((mask, crossings, bounds));
+                }
+            }
+        }
+        None
+    }
+
+    fn certify(
+        world: &World,
+        district: Option<&DistrictRegion>,
+        water: &Watershed,
+        blocked: &mut impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<(Crossings, [f32; 4])> {
+        let road = district.and_then(DistrictRegion::road);
+        let crossings = road.map_or_else(Crossings::new, |road| {
+            Crossings::fit_cooperatively(world, road, Some(water), false, pulse)
+        });
+        let mut proof = Proof {
+            world,
+            road,
+            water,
             crossings: &crossings,
             towns: [Terminus::Start, Terminus::End].map(|end| {
                 let town = district?.town(end)?;
@@ -107,12 +168,7 @@ impl RiverDistrict {
             ];
             bounds = Some(bounds.map_or(area, |b| union(b, area)));
         }
-        let bounds = bounds?;
-        let floodplain = Floodplain::prepare(world, &water, |x, z| {
-            proof.floodplain_reserved(x, z)
-        }, pulse);
-        let bounds = floodplain.bounds().map_or(bounds, |area| union(bounds, area));
-        Some(Self { water, crossings, floodplain, bounds })
+        Some((crossings, bounds?))
     }
 
     pub fn watershed(&self) -> &Watershed {
@@ -161,17 +217,25 @@ impl RiverDistrict {
         }
         self.floodplain.intersects(area)
             || self.crossings.bridges().iter().any(|bridge| overlaps(bridge.bounds(), area))
-            || self.water.reaches().any(|reach| {
-                let mut previous = reach.start;
-                for step in 1..=8 {
-                    let next = reach.position(step as f32 / 8.0);
-                    if crosses_expanded_area(previous, next, area, BANK_REACH + 1.0) {
-                        return true;
-                    }
-                    previous = next;
-                }
-                false
+            || self.bank_chords().any(|(a, b)| crosses_expanded_area(a, b, area, BANK_REACH + 1.0))
+    }
+
+    pub(crate) fn scenery_rectangles(&self) -> impl Iterator<Item = [f32; 4]> + '_ {
+        self.floodplain.sites().map(|(_, bounds)| bounds)
+            .chain(self.crossings.bridges().iter().map(|bridge| bridge.bounds()))
+    }
+
+    pub(crate) fn bank_chords(&self) -> impl Iterator<Item = ([f32; 2], [f32; 2])> + '_ {
+        self.water.reaches().flat_map(|reach| {
+            (1..=8).scan(reach.start, move |previous, step| {
+                let next = reach.position(step as f32 / 8.0);
+                Some((core::mem::replace(previous, next), next))
             })
+        })
+    }
+
+    pub(crate) fn bank_intersects(&self, a: [f32; 2], b: [f32; 2], area: [f32; 4]) -> bool {
+        overlaps(self.bounds, area) && crosses_expanded_area(a, b, area, BANK_REACH + 1.0)
     }
 
     #[inline]
@@ -469,6 +533,34 @@ mod tests {
     }
 
     #[test]
+    fn unsafe_tributaries_do_not_remove_a_clear_river_by_town() {
+        let seed = 49;
+        let world = World::new(seed);
+        let district = DistrictRegion::build(&world, 0, 3);
+        let mut complete = Watershed::new();
+        complete.rebuild(&world, seed, 0, 3, &mut WatershedWork::new());
+        assert_eq!(complete.streams().len(), 3);
+        assert!(district.towns().next().is_some());
+        assert!(RiverDistrict::certify(&world, Some(&district), &complete, &mut |_, _| false, &mut || {}).is_none());
+
+        let plan = RiverDistrict::from_prepared(&world, &district, complete, |_, _| false)
+            .expect("the conflicting paths should leave a safe source-to-outlet river");
+        let kept = plan.watershed();
+        assert_eq!(kept.streams().len(), 1);
+        assert!(complete.streams().contains(&kept.streams()[0]));
+        assert_eq!(kept.reaches().count(), usize::from(kept.streams()[0].links_to_sea));
+        assert_eq!(kept.reaches().filter(|reach| reach.reaches_sea).count(), 1);
+        for reach in kept.reaches() {
+            let [x, z] = reach.position(0.5);
+            assert!(kept.sample(x, z).is_some_and(RiverSample::is_channel));
+        }
+        for stream in complete.streams().iter().filter(|stream| !kept.streams().contains(stream)) {
+            let [x, z] = stream.source;
+            assert!(kept.sample(x, z).is_none());
+        }
+    }
+
+    #[test]
     fn natural_rivers_publish_without_bridges_and_keep_their_channel_profile() {
         let seed = 14_692;
         let world = World::new(seed);
@@ -613,12 +705,18 @@ mod tests {
         let bridge = river.crossings().bridges()[0].sections()[1];
         let [rx, rz] = river.watershed().streams()[0].source;
         for [x, z] in [[bridge[0], bridge[2]], [rx, rz]] {
-            assert!(
-                RiverDistrict::prepare(&world, 1, &district, &mut work, |px, pz| {
-                    (px - x).abs() <= 1.2 && (pz - z).abs() <= 1.2
-                })
-                .is_none()
-            );
+            let reserved = |px: f32, pz: f32| (px - x).abs() <= 1.2 && (pz - z).abs() <= 1.2;
+            if let Some(retained) = RiverDistrict::prepare(&world, 1, &district, &mut work, reserved) {
+                assert!(retained.watershed().streams().len() < river.watershed().streams().len());
+                for dz in [-1.0, 0.0, 1.0] {
+                    for dx in [-1.0, 0.0, 1.0] {
+                        let (px, pz) = (x + dx, z + dz);
+                        let ground = district.overlay(px, pz, world.sample(px, pz));
+                        assert_eq!(retained.overlay(px, pz, ground), ground);
+                        assert!(retained.deck_height(px, pz).is_none());
+                    }
+                }
+            }
         }
         let far = RiverDistrict::prepare(&world, 1, &district, &mut work, |px, pz| {
             (px - 200.0).abs() < 8.0 && (pz + 5000.0).abs() < 8.0

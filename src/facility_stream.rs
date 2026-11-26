@@ -126,6 +126,12 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
             .map(|record| &record.facilities)
     }
 
+    pub(crate) fn urban_footprints(&self, mut emit: impl FnMut([f32; 4])) {
+        for record in self.prepared.iter().flatten() {
+            record.facilities.urban_footprints(&mut emit);
+        }
+    }
+
     #[inline(never)]
     pub fn preflight(&mut self, land: &LandStream<ACTIVE>) {
         self.clear();
@@ -280,6 +286,10 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
 
     pub fn solar_sites(&self) -> impl Iterator<Item = &SolarSite> {
         self.prepared.iter().flatten().filter_map(|record| record.facilities.solar_site())
+    }
+
+    pub fn waterfront_silhouettes(&self) -> impl Iterator<Item = crate::skyline::SkylineTower> + '_ {
+        self.quaysides().flat_map(Quayside::roof_silhouettes)
     }
 
     pub fn quaysides(&self) -> impl Iterator<Item = &Quayside> {
@@ -617,6 +627,41 @@ mod quarry_tests {
                 && Train::at(line, seed, tick, view, (128, 128)).is_some()
         });
         assert!(tick.is_some(), "the published freight timetable never moved a visible train");
+    }
+
+    #[test]
+    fn roadside_survey_retains_new_stops_without_replacing_primary_facilities() {
+        use crate::scenic_turnout::TurnoutKind;
+
+        let seed = 4;
+        let world = World::new(seed);
+        for (key, kind) in [((1, -2), TurnoutKind::Trailhead), ((-3, -4), TurnoutKind::RestStop)] {
+            let district = DistrictRegion::build(&world, key.0, key.1);
+            let road = district.road().unwrap();
+            let mut owner = RegionalFacilities::prepare(&world, seed, road, towns(&district));
+            let primary = (owner.ports().count(), owner.airfield().is_some(), owner.rail().is_some());
+            let proposed = prepare_roadside(&world, seed, key, road, towns(&district), &owner, &mut || {});
+            let Some(RoadsideSite::ScenicTurnout(site)) = proposed else {
+                panic!("missing {kind:?} at {key:?}");
+            };
+            assert_eq!(site.kind(), kind);
+            owner.install_roadside(proposed.unwrap());
+            assert_eq!((owner.ports().count(), owner.airfield().is_some(), owner.rail().is_some()), primary);
+            let [x, _, z] = site.road_contact();
+            let [dx, dz] = site.downhill();
+            std::eprintln!("fixture {kind:?} key={key:?} contact={:?} outward=({dx},{dz})", site.road_contact());
+            let has_roof = (-6..=6).any(|i| {
+                (5..=12).any(|offset| {
+                    let across = offset as f32;
+                    let [px, pz] = [x + dx * across + dz * i as f32, z + dz * across - dx * i as f32];
+                    let raw = world.sample(px, pz);
+                    let developed = district.overlay(px, pz, raw);
+                    matches!(overlay_facilities(&owner, px, pz, raw, developed).surface,
+                        crate::world::Surface::PitchedRoof | crate::world::Surface::FlatRoof)
+                })
+            });
+            assert!(has_roof, "{kind:?} did not add a visible roof");
+        }
     }
 
     #[test]

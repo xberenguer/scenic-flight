@@ -1020,7 +1020,11 @@ fn draw_joined_bands(
 
 fn distant_stride_growth(diameter: usize) -> f32 {
     if cfg!(feature = "small-raster-ray-budget") && diameter <= 112 {
-        0.70 + ((diameter as f32 - 64.0) / 24.0).clamp(0.0, 0.35)
+        if diameter == 48 {
+            1.05
+        } else {
+            0.70 + ((diameter as f32 - 64.0) / 24.0).clamp(0.0, 0.35)
+        }
     } else {
         0.0
     }

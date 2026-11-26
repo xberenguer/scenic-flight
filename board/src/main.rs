@@ -25,6 +25,8 @@ mod button_capture;
 mod scene_memory;
 #[cfg(feature = "transport-stream")]
 mod surveys;
+#[cfg(feature = "urban-background")]
+mod urban_survey;
 #[cfg(feature = "scene-probe")]
 mod probe;
 #[cfg(feature = "sample-probe")]
@@ -309,8 +311,9 @@ fn land_stream() -> &'static mut scenic_flight::land_stream::LandStream {
 fn update_surveys(
     display: &mut Display,
     facilities: &mut scenic_flight::facility_stream::FacilityStream<8>,
-    land: &scenic_flight::land_stream::LandStream,
+    land: &mut scenic_flight::land_stream::LandStream,
     camera: Camera,
+    #[cfg(feature = "urban-background")] mut urban: urban_survey::Context<'_>,
     #[cfg(feature = "river-stream")] rivers: &mut RiverStream<3>,
     #[cfg(feature = "local-routes")] routes: &mut LocalRouteStream<8>,
     #[cfg(feature = "local-routes")] world: &scenic_flight::world::World,
@@ -323,6 +326,16 @@ fn update_surveys(
 ) {
     if let Some(result) = display.collect_survey() {
         match result {
+            #[cfg(feature = "urban-background")]
+            SurveyResult::Urban(result) => urban.receive(result),
+            #[cfg(feature = "urban-background")]
+            SurveyResult::Settlement(result) => {
+                let accepted = land.commit_settlement(result);
+                #[cfg(feature = "scene-probe")]
+                esp_println::println!("town worker frame={} accepted={accepted}", urban.frame);
+                #[cfg(not(feature = "scene-probe"))]
+                let _ = accepted;
+            }
             SurveyResult::Facility(result) => { facilities.commit(result, land, camera); }
             #[cfg(feature = "river-stream")]
             SurveyResult::River(result) => {
@@ -374,6 +387,17 @@ fn update_surveys(
             }
         }
     }
+    #[cfg(feature = "urban-background")]
+    if display.survey_ready() {
+        if let Some(request) = land.request_settlement() {
+            display.survey(Survey::Settlement(request));
+        }
+    }
+    #[cfg(feature = "urban-background")]
+    urban.service(display, land, world, camera,
+        &scenic_flight::land_stream::UrbanAuthorities {
+            facilities, rivers, routes, highways, rail, natural, summits: Some(summits),
+        });
     #[cfg(feature = "natural-scenery")]
     if summit_scan_due && display.survey_ready() {
         if let Some(request) = summits.request(*world, camera) {
@@ -752,6 +776,10 @@ fn main() -> ! {
     esp_println::println!("transport boot terrain");
     #[cfg(feature = "streamed-land")]
     let land = land_stream();
+    #[cfg(feature = "urban-expansion")]
+    let urban = scene_memory.place(scenic_flight::land_stream::UrbanStream::<8>::new);
+    #[cfg(feature = "urban-background")]
+    let mut urban_background = urban_survey::Background::new();
     #[cfg(feature = "coastal-mesh")]
     let coastal_mesh = COASTAL_MESH.init_with(scenic_flight::coastal_landforms::CoastalLandmarks::new);
     #[cfg(all(feature = "coastal-mesh", not(feature = "river-stream")))]
@@ -819,6 +847,8 @@ fn main() -> ! {
     let mut detail_phases = [0_u64; 4];
     let mut window_started = 0;
     let mut scenery_raster = scene_raster::SceneRaster::new();
+    #[cfg(feature = "urban-background")]
+    let mut terrain_worker = scene_raster::TerrainWorker::new();
     #[cfg(feature = "scene-probe")]
     let report_interval = option_env!("SCENIC_PROFILE_REPORT_INTERVAL")
         .and_then(|value| value.parse::<u32>().ok()).filter(|&value| value >= 2).unwrap_or(60);
@@ -1032,12 +1062,19 @@ fn main() -> ! {
                 facilities.publish_roadside_sites(launch, true, |bounds| {
                     scenic_flight::facility_stream::roadside_reservation(land, rivers, routes, highways, natural, bounds)
                 });
+                #[cfg(feature = "urban-background")]
+                urban_background.reset(urban);
+                #[cfg(all(feature = "urban-expansion", not(feature = "urban-background")))]
+                prepare_urban_launch(urban, land, facilities, rivers, routes, highways, regional_rail, natural, summits,
+                    coastal_mesh, shore, &world, seed);
                 detail_reset_us = micros() - detail_reset_at + land_reset_us;
             }
             buffered_seed = Some(seed);
             next_tick = micros() + PERIOD_US;
             frame = 0;
             scenery_raster = scene_raster::SceneRaster::new();
+            #[cfg(feature = "urban-background")]
+            { terrain_worker = scene_raster::TerrainWorker::new(); }
             phase_total = [0; 12];
             steps_total = 0;
             #[cfg(feature = "scene-probe")]
@@ -1076,6 +1113,8 @@ fn main() -> ! {
                     let height = height.max(coastal_mesh.obstruction(x, z));
                     #[cfg(feature = "streamed-land")]
                     let height = height.max(land.obstruction(x, z));
+                    #[cfg(feature = "urban-expansion")]
+                    let height = height.max(urban.obstruction(land, x, z));
                     #[cfg(feature = "shore-details")]
                     let height = height.max(shore.obstruction(x, z, |_light| {
                         #[cfg(feature = "transport-stream")]
@@ -1161,9 +1200,7 @@ fn main() -> ! {
             land.service(camera, LandBudget {
                 expansions: 8,
                 terrain_samples: 32,
-                // Town foundations are surveyed on the main core. Offset that
-                // work from the transport survey commits on every fourth frame.
-                settlement_jobs: u8::from(frame % 16 == 2),
+                settlement_jobs: u8::from(!cfg!(feature = "urban-background") && frame % 16 == 2),
             });
         }
         #[cfg(feature = "streamed-land")]
@@ -1176,6 +1213,11 @@ fn main() -> ! {
             #[cfg(feature = "natural-scenery")]
             let summit_scan_due = frame % 32 == 0;
             update_surveys(&mut display, facilities, land, camera,
+                #[cfg(feature = "urban-background")]
+                urban_survey::Context {
+                    stream: urban, background: &mut urban_background, coast: coastal_mesh,
+                    shore, seed, frame,
+                },
                 #[cfg(feature = "river-stream")] rivers,
                 #[cfg(feature = "local-routes")] routes,
                 #[cfg(feature = "local-routes")] _world,
@@ -1193,8 +1235,10 @@ fn main() -> ! {
         let visible_facilities = facilities.has_visible_facilities(camera);
         #[cfg(feature = "transport-stream")]
         let facility_sampler = visible_facilities.then(|| facilities.sampler());
-        #[cfg(feature = "streamed-land")]
+        #[cfg(all(feature = "streamed-land", not(feature = "urban-expansion")))]
         let land_sampler = visible_land.then(|| land.paint_sampler());
+        #[cfg(feature = "urban-expansion")]
+        let land_sampler = visible_land.then(|| urban.paint_sampler(land, camera));
         #[cfg(feature = "coastal-mesh")]
         let visible_mesh = |form: &scenic_flight::coastal_landforms::CoastalLandform| {
             scenic_flight::world_mesh::bounds_in_view(camera, form.bounds()) && {
@@ -1212,9 +1256,12 @@ fn main() -> ! {
         let tower_region: Option<scenic_flight::render::ScreenRect> = None;
         #[cfg(feature = "coastal-mesh")]
         let has_towers = tower_region.is_some();
-        #[cfg(feature = "distant-skyline")]
+        #[cfg(all(feature = "distant-skyline", not(feature = "urban-expansion")))]
         let distant_skyline = skyline.prepare(land, camera, ticks, &sky, scene_dimensions,
             |x, z| horizon.backdrop(x, z));
+        #[cfg(feature = "urban-expansion")]
+        let distant_skyline = skyline.prepare_with_additions(land, camera, ticks, &sky, scene_dimensions,
+            urban.skyline(land).chain(facilities.waterfront_silhouettes()), |x, z| horizon.backdrop(x, z));
         #[cfg(feature = "distant-skyline")]
         let tower_region = tower_region.into_iter().chain(distant_skyline.bounds())
             .reduce(scenic_flight::render::ScreenRect::union);
@@ -1552,10 +1599,22 @@ fn main() -> ! {
             #[cfg(not(feature = "parallel-terrain"))]
             let result = serial_terrain!();
             #[cfg(feature = "parallel-terrain")]
-            let packed_60 = cfg!(feature = "packed-60-terrain") && scene_side == 60;
+            let packed_60 = cfg!(feature = "packed-60-terrain")
+                && matches!(scene_side, scene_raster::REDUCED_SIDE | scene_raster::FULL_SIDE);
+            #[cfg(feature = "urban-background")]
+            let packed_60 = {
+                // DMA and terrain both preempt surveys on the worker. Give a
+                // queued survey regular uninterrupted slices during city passes.
+                let survey_turn = !display.survey_ready() && frame % 16 == 5;
+                let complex_terrain = land_sampler.as_ref().is_some_and(|land| land.has_expansion())
+                    || (terrain_worker.wants_help() && (frame >= 24 || urban.pending_region().is_none()));
+                packed_60 && complex_terrain && !survey_turn
+            };
             #[cfg(all(feature = "scene-probe", feature = "packed-60-terrain"))]
             let packed_60 = packed_60 && terrain_comparison.as_ref()
                 .is_none_or(|_| probe::TerrainComparison::use_worker(frame));
+            #[cfg(feature = "urban-background")]
+            let terrain_started = micros();
             #[cfg(feature = "parallel-terrain")]
             let result = if (scene_side == 466 || packed_60)
                 && display.terrain_ready() && !cfg!(feature = "sample-probe") {
@@ -1564,7 +1623,10 @@ fn main() -> ! {
                 let worker_trees = details.tree_sampler().for_view(camera.x, camera.altitude, camera.z);
                 let worker_highways = visible_highways.then(|| highways.sampler());
                 let worker_natural = visible_nature.then(|| natural.sampler());
+                #[cfg(not(feature = "urban-expansion"))]
                 let worker_land = visible_land.then(|| land.paint_sampler());
+                #[cfg(feature = "urban-expansion")]
+                let worker_land = visible_land.then(|| urban.paint_sampler(land, camera));
                 let worker_water = visible_rivers.then(|| rivers.sampler());
                 let worker_sites = visible_facilities.then(|| facilities.sampler());
                 let worker_routes = &*routes;
@@ -1587,17 +1649,35 @@ fn main() -> ! {
                     worker_rail.as_ref().map_or(base, |r| r.overlay(x, z, base))
                 };
                 let worker_material = move |x, z, sample| worker_details.material(x, z, sample);
-                scenic_flight::render::render_with_packed_terrain_fork_sized::<LOGICAL_SIDE>(
-                    &mut display, &sample, material, worker_sample, worker_material,
-                    camera, &sky, scene, terrain_work, depth, checkpoint,
-                    ready_sky_tile, |x, z| horizon.backdrop(x, z),
-                )
+                macro_rules! packed_terrain {
+                    ($side:expr) => {
+                        scenic_flight::render::render_with_packed_terrain_fork_sized::<{ $side }>(
+                            &mut display, &sample, material, worker_sample, worker_material,
+                            camera, &sky, scene, terrain_work, depth, checkpoint,
+                            ready_sky_tile, |x, z| horizon.backdrop(x, z),
+                        )
+                    };
+                }
+                if ADAPTIVE_SCENERY && scene_side == scene_raster::REDUCED_SIDE {
+                    packed_terrain!(scene_raster::REDUCED_SIDE)
+                } else {
+                    packed_terrain!(LOGICAL_SIDE)
+                }
             } else {
                 serial_terrain!()
             };
 
             #[cfg(feature = "parallel-terrain")]
             let fork_timing = display.take_terrain_timing();
+            #[cfg(feature = "urban-background")]
+            if !cfg!(feature = "sample-probe") {
+                match fork_timing {
+                    Some(timing) => terrain_worker.observe_split(
+                        timing.left_us, timing.right_us, timing.join_us, timing.background,
+                    ),
+                    None => terrain_worker.observe_serial(micros() - terrain_started),
+                }
+            }
             #[cfg(all(feature = "scene-probe", feature = "packed-60-terrain"))]
             if let Some(comparison) = terrain_comparison.as_mut() {
                 if let Some(timing) = fork_timing {
@@ -1955,6 +2035,15 @@ fn main() -> ! {
             }
             #[cfg(feature = "sample-probe")]
             samples.report(frame);
+            #[cfg(all(feature = "scene-probe", feature = "transport-stream"))]
+            if fixed_probe_camera.is_some() {
+                for (key, _) in land.districts() {
+                    if let Some(site) = facilities.planned(key).and_then(|owner| owner.scenic_turnout()) {
+                        esp_println::println!("roadside frame={} kind={:?} contact={:?} bounds={:?}",
+                            frame, site.kind(), site.road_contact(), site.bounds());
+                    }
+                }
+            }
             #[cfg(all(feature = "scene-probe", feature = "coastal-mesh"))]
             esp_println::println!("scenery frame={} coastal={} towers={} light={} rain={}", frame, has_landmark, has_towers, has_light, rain.is_some());
             #[cfg(all(feature = "scene-probe", feature = "coastal-mesh"))]
@@ -2056,4 +2145,57 @@ fn create_game() -> Game {
 #[cfg(feature = "scene-probe")]
 fn create_game() -> Game {
     probe::initial_game()
+}
+
+#[cfg(all(feature = "urban-expansion", not(feature = "urban-background")))]
+#[inline(never)]
+fn prepare_urban_launch(
+    urban: &mut scenic_flight::land_stream::UrbanStream,
+    land: &scenic_flight::land_stream::LandStream,
+    facilities: &scenic_flight::facility_stream::FacilityStream<8>,
+    rivers: &RiverStream<3>,
+    routes: &LocalRouteStream<8>,
+    highways: &HighwayStream<4>,
+    rail: &RailStream,
+    natural: &NaturalStream,
+    summits: &SummitStream,
+    coast: &scenic_flight::coastal_landforms::CoastalLandmarks,
+    shore: &shore::Shore,
+    world: &scenic_flight::world::World,
+    seed: u64,
+) {
+    use scenic_flight::land_stream::{UrbanAuthorities, UrbanPublication};
+    let started = micros();
+    urban.reset();
+    let authorities = UrbanAuthorities {
+        facilities, rivers, routes, highways, rail, natural, summits: Some(summits),
+    };
+    let mut count = 0_u8;
+    for ((x, z), _) in land.districts() {
+        let Some(mut mask) = authorities.start([x, z], 0) else { continue };
+        let Some(job) = urban.claim(land, [x, z], 0) else { continue };
+        if let Some(grain) = facilities.planned((x, z)).and_then(|facility| facility.rail())
+            .and_then(|rail| rail.grain_terminal())
+        {
+            let mut fields = scenic_flight::ground_details::GroundDetails::new();
+            fields.reset(world, seed, grain.origin[0], grain.origin[2]);
+            for bounds in fields.grain_field_bounds(grain.origin) {
+                mask.reserve_area(bounds);
+            }
+        }
+        for form in coast.forms().filter(|form| facilities.retains_landmark(form)) {
+            mask.reserve_area(form.bounds());
+        }
+        for light in shore.lights().filter(|light| facilities.retains_lighthouse(light)) {
+            mask.reserve_area(light.bounds());
+        }
+        authorities.advance(&mut mask, usize::MAX, |_| false);
+        let result = job.prepare_reserved(&mask, || {}).unwrap();
+        if urban.commit_reserved(land, result, &mask, None) == UrbanPublication::Published
+            && urban.approved(land, [x, z]).is_some_and(|plan| plan.bounds().is_some())
+        {
+            count += 1;
+        }
+    }
+    esp_println::println!("urban launched regions={} survey_us={}", count, micros() - started);
 }

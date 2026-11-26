@@ -11,6 +11,9 @@ use crate::roads::{ROAD_HALF_WIDTH, ROAD_REGION_SIZE, RoadNetwork};
 use crate::settlement::{Settlement, SettlementSurface, Terminus};
 use crate::world::{Sample, Surface, World};
 
+mod expansion;
+pub use expansion::{DistrictExpansion, DistrictExpansionRequest};
+
 #[derive(Clone)]
 pub struct DistrictRegion {
     region_x: i32,
@@ -105,18 +108,22 @@ impl DistrictRegion {
                 town.sample(x, z)
             };
             let Some(detail) = detail else { continue };
-            let surface = match detail.surface {
-                SettlementSurface::Street => Surface::Pavement,
-                SettlementSurface::Park => Surface::Park,
-                SettlementSurface::WaterfrontPlaza => Surface::Gravel,
-                SettlementSurface::PitchedRoof => Surface::PitchedRoof,
-                SettlementSurface::FlatRoof => Surface::FlatRoof,
-                SettlementSurface::TowerRoof => Surface::TowerRoof,
-            };
-            return Sample { surface, elevation: detail.elevation.unwrap_or(ground.elevation) };
+            return cover_settlement(detail, ground);
         }
         ground
     }
+}
+
+pub(crate) fn cover_settlement(detail: crate::settlement::SettlementSample, ground: Sample) -> Sample {
+    let surface = match detail.surface {
+        SettlementSurface::Street => Surface::Pavement,
+        SettlementSurface::Park => Surface::Park,
+        SettlementSurface::WaterfrontPlaza => Surface::Gravel,
+        SettlementSurface::PitchedRoof => Surface::PitchedRoof,
+        SettlementSurface::FlatRoof => Surface::FlatRoof,
+        SettlementSurface::TowerRoof => Surface::TowerRoof,
+    };
+    Sample { surface, elevation: detail.elevation.unwrap_or(ground.elevation) }
 }
 
 pub fn overlay_airfield(field: &AirfieldSite, x: f32, z: f32, ground: Sample) -> Sample {

@@ -294,25 +294,21 @@ impl<const ACTIVE: usize> RiverStream<ACTIVE> {
         allow_wilderness: bool,
     ) -> Option<RiverRequest> {
         self.follow(land, camera);
-        if self.pending.is_some() || !valid(camera) || self.slot(camera).is_none() {
+        if self.pending.is_some() || !valid(camera) {
             return None;
         }
+        let slot = self.slot(camera)?;
         let (sin, cos) = sin_cos(camera.heading);
+        let score = |key| river_priority(key, camera, sin, cos);
+        // At a fixed camera, replacing a river must move the cache closer to
+        // the flight. Otherwise startup can evict and re-survey the same tiles.
+        let cutoff = self.residents[slot].as_ref().map_or(f32::INFINITY, |river| score(river.key));
         let available = |key| {
-            self.rejected[directory(key)] != Some(key)
+            score(key) < cutoff
+                && self.rejected[directory(key)] != Some(key)
                 && self.residents.iter().flatten().all(|record| record.key != key)
         };
-        let closest = |a: &RegionKey, b: &RegionKey| {
-            let score = |key| {
-                let [x, z] = tile_center(key);
-                let dx = x - camera.x;
-                let dz = z - camera.z;
-                let ahead = dx * sin + dz * cos;
-                let behind = ahead.min(0.0);
-                dx * dx + dz * dz + behind * behind * 0.38
-            };
-            score(*a).total_cmp(&score(*b))
-        };
+        let closest = |a: &RegionKey, b: &RegionKey| score(*a).total_cmp(&score(*b));
         let (key, owner) = land.districts()
             .filter_map(|(key, _)| (available(key) && facilities.planned(key).is_some()).then_some(key))
             .min_by(closest)
@@ -406,10 +402,11 @@ impl<const ACTIVE: usize> RiverStream<ACTIVE> {
 
     /// Keep a new transport route out of both placed and pending riverbanks.
     pub fn reserves_scenery(&self, bounds: [f32; 4]) -> bool {
-        self.residents
-            .iter()
-            .flatten()
-            .any(|record| record.plan.intersects_scenery(bounds))
+        self.scenery_plans().any(|plan| plan.intersects_scenery(bounds))
+    }
+
+    pub(crate) fn scenery_plans(&self) -> impl Iterator<Item = &RiverDistrict> {
+        self.residents.iter().flatten().map(|record| &record.plan)
     }
 
     pub fn wetland_sites(&self, camera: Camera) -> impl Iterator<Item = FloodplainKind> + '_ {
@@ -537,6 +534,12 @@ impl<const ACTIVE: usize> RiverStream<ACTIVE> {
         let Some(index) = self.slot(camera) else {
             return RiverCommit::Capacity;
         };
+        if let Some(resident) = &self.residents[index] {
+            let (sin, cos) = sin_cos(camera.heading);
+            if river_priority(key, camera, sin, cos) >= river_priority(resident.key, camera, sin, cos) {
+                return RiverCommit::Capacity;
+            }
+        }
         let geometry = geometry_bounds(plan.crossings().bridges());
         let published =
             owner_is_ready(land, key) && (before_first_frame || !visible(&plan, camera));
@@ -602,6 +605,14 @@ fn tile_center((x, z): RegionKey) -> [f32; 2] {
         (x as f32 + 0.5) * REGION_SIZE as f32,
         (z as f32 + 0.5) * REGION_SIZE as f32,
     ]
+}
+
+fn river_priority(key: RegionKey, camera: Camera, sin: f32, cos: f32) -> f32 {
+    let [x, z] = tile_center(key);
+    let dx = x - camera.x;
+    let dz = z - camera.z;
+    let behind = (dx * sin + dz * cos).min(0.0);
+    dx * dx + dz * dz + behind * behind * 0.38
 }
 
 fn directory((x, z): RegionKey) -> usize {

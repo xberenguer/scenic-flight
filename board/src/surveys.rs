@@ -3,6 +3,8 @@
 use core::mem::MaybeUninit;
 
 use scenic_flight::facility_stream::{FacilityRequest, FacilityResult};
+#[cfg(feature = "urban-background")]
+use scenic_flight::land_stream::{SettlementRequest, SettlementResult, UrbanExpansionJob, UrbanExpansionResult, UrbanReservations};
 #[cfg(feature = "coastal-highways")]
 use scenic_flight::coastal_highways::CoastalHighwayWork;
 #[cfg(feature = "coastal-highways")]
@@ -31,6 +33,10 @@ use scenic_flight::{
 
 pub enum Survey {
     Facility(FacilityRequest),
+    #[cfg(feature = "urban-background")]
+    Urban(UrbanExpansionJob, UrbanReservations),
+    #[cfg(feature = "urban-background")]
+    Settlement(SettlementRequest),
     #[cfg(feature = "local-routes")]
     Route(RouteRequest),
     #[cfg(feature = "natural-scenery")]
@@ -55,6 +61,10 @@ pub enum Survey {
 
 pub enum SurveyResult {
     Facility(FacilityResult),
+    #[cfg(feature = "urban-background")]
+    Urban(Option<UrbanExpansionResult>),
+    #[cfg(feature = "urban-background")]
+    Settlement(SettlementResult),
     #[cfg(feature = "local-routes")]
     Route(RouteResult),
     #[cfg(feature = "natural-scenery")]
@@ -97,6 +107,12 @@ impl Survey {
     ) {
         match self {
             Self::Facility(request) => prepare_one(slot, || request.prepare(pulse), SurveyResult::Facility),
+            #[cfg(feature = "urban-background")]
+            Self::Settlement(request) => prepare_one(slot, || request.prepare(pulse), SurveyResult::Settlement),
+            #[cfg(feature = "urban-background")]
+            Self::Urban(request, reservation) => prepare_one(
+                slot, || request.prepare_reserved(reservation, pulse), SurveyResult::Urban,
+            ),
             #[cfg(feature = "local-routes")]
             Self::Route(request) => prepare_one(slot, || request.prepare(pulse), SurveyResult::Route),
             #[cfg(feature = "natural-scenery")]

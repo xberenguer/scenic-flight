@@ -15,6 +15,11 @@ pub struct Shore {
 }
 
 impl Shore {
+    #[cfg(feature = "urban-expansion")]
+    pub fn lights(&self) -> impl Iterator<Item = &Lighthouse> {
+        self.lights.sites()
+    }
+
     pub const fn new() -> Self {
         Self { beaches: FeatureTiles::new(BEACH_TILE_SIZE), lights: FeatureTiles::new(LIGHTHOUSE_TILE) }
     }

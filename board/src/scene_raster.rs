@@ -60,6 +60,51 @@ impl SceneRaster {
     }
 }
 
+/// Use the second core when serial terrain threatens the frame budget.
+#[cfg(feature = "urban-background")]
+pub struct TerrainWorker {
+    average_serial_us: u32,
+    split: bool,
+    retry_in: u8,
+}
+
+#[cfg(feature = "urban-background")]
+impl TerrainWorker {
+    const ENGAGE_US: u32 = 24_000;
+    const RELEASE_US: u32 = 19_500;
+
+    pub const fn new() -> Self {
+        Self { average_serial_us: Self::RELEASE_US, split: false, retry_in: 0 }
+    }
+
+    pub fn wants_help(&self) -> bool {
+        self.split && self.retry_in == 0
+    }
+
+    pub fn observe_serial(&mut self, elapsed_us: u64) {
+        self.retry_in = self.retry_in.saturating_sub(1);
+        self.observe(elapsed_us.min(50_000) as u32);
+    }
+
+    pub fn observe_split(&mut self, left_us: u32, right_us: u32, join_us: u32, background: bool) {
+        // A missed handoff can be more expensive than a serial frame.
+        // Let the survey worker advance for a few frames before trying again.
+        if !background || join_us >= right_us {
+            self.retry_in = 8;
+        }
+        self.observe(left_us.saturating_add(right_us).min(50_000));
+    }
+
+    fn observe(&mut self, estimated_serial_us: u32) {
+        self.average_serial_us = (3 * self.average_serial_us + estimated_serial_us) / 4;
+        self.split = if self.split {
+            self.average_serial_us >= Self::RELEASE_US
+        } else {
+            self.average_serial_us >= Self::ENGAGE_US
+        };
+    }
+}
+
 const fn circle_insets<const SIDE: usize>() -> [usize; SIDE] {
     let mut insets = [0; SIDE];
     let mut row = 0;
@@ -117,6 +162,32 @@ pub fn expand_reduced(pixels: &mut [u16]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "urban-background")]
+    #[test]
+    fn worker_follows_sustained_render_cost_and_backs_off_after_a_missed_handoff() {
+        let mut worker = TerrainWorker::new();
+        worker.observe_serial(100_000);
+        // A cold launch can be expensive, but the worker stops once the
+        // measured cost falls below its release threshold.
+        for _ in 0..12 {
+            worker.observe_serial(14_000);
+        }
+        assert!(!worker.wants_help());
+        for _ in 0..8 {
+            worker.observe_serial(31_000);
+        }
+        assert!(worker.wants_help());
+        worker.observe_split(13_000, 14_000, 3_000, true);
+        assert!(worker.wants_help());
+        worker.observe_split(13_000, 14_000, 14_000, false);
+        for _ in 0..7 {
+            worker.observe_serial(29_000);
+            assert!(!worker.wants_help());
+        }
+        worker.observe_serial(29_000);
+        assert!(worker.wants_help());
+    }
 
     #[test]
     fn isolated_stall_never_changes_quality_and_sustained_work_does() {

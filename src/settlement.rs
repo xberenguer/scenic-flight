@@ -6,6 +6,9 @@ use crate::world::{World, SEA_LEVEL};
 use crate::world_mesh::{bounds_in_view, WorldMesh};
 
 mod neighborhoods;
+mod building_forms;
+mod expansion;
+pub(crate) use expansion::{BoroughPaintCache, TownExpansion};
 
 use neighborhoods::Neighborhoods;
 
@@ -76,6 +79,12 @@ pub struct Settlement {
 
 impl Settlement {
     pub fn generate(world: &World, road: &RoadNetwork, end: Terminus) -> Option<Self> {
+        Self::generate_with_pulse(world, road, end, || {})
+    }
+
+    pub(crate) fn generate_with_pulse(
+        world: &World, road: &RoadNetwork, end: Terminus, mut pulse: impl FnMut(),
+    ) -> Option<Self> {
         let points = road.polyline();
         let first = *points.first()?;
         let last = *points.last()?;
@@ -89,7 +98,7 @@ impl Settlement {
         if layout & 7 == 0 {
             return None;
         }
-        let (streets, street_count) = grow_streets(world, local, layout);
+        let (streets, street_count) = grow_streets(world, local, layout, &mut pulse);
         if street_count < 7 || streets[ENTRY_COL] & FORWARD == 0 {
             return None;
         }
@@ -103,14 +112,14 @@ impl Settlement {
             skyline_roofs: [NO_ROOF; 4],
             neighborhoods: Neighborhoods::EMPTY,
         };
-        town.site_blocks(world, road, layout);
+        town.site_blocks(world, road, layout, &mut pulse);
         if town.building_count < 3 {
             return None;
         }
-        town.shape_streets(world, layout);
-        town.extend_hillside(world, road, layout);
+        town.shape_streets(world, layout, &mut pulse);
+        town.extend_hillside(world, road, layout, &mut pulse);
         town.select_skyline_roofs();
-        town.neighborhoods = Neighborhoods::survey(world, road, &town, layout);
+        town.neighborhoods = Neighborhoods::survey(world, road, &town, layout, &mut pulse);
         Some(town)
     }
 
@@ -207,7 +216,7 @@ impl Settlement {
 
     pub fn skyline_towers(&self) -> impl Iterator<Item = crate::skyline::SkylineTower> + '_ {
         self.parcels.iter().take(if self.tower_count==0 {0}else{self.parcels.len()})
-            .flat_map(|parcel| parcel.buildings()).filter(|building| building.form==Form::Tower)
+            .flat_map(|parcel| parcel.buildings()).filter(|building| matches!(building.form, Form::Tower(_)))
             .map(|building| {
                 let area=building.area;
                 let (x,z)=self.local.world(area.x,area.z);
@@ -229,7 +238,7 @@ impl Settlement {
             let quarter = usize::from(col >= (COLS - 1) / 2)
                 + 2 * usize::from(row >= (ROWS - 1) / 2);
             for (index, building) in parcel.buildings().iter().enumerate() {
-                if building.form == Form::Tower {
+                if matches!(building.form, Form::Tower(_)) {
                     continue;
                 }
                 let area = building.area;
@@ -298,7 +307,7 @@ impl Settlement {
 
     fn visible_towers(&self, camera: Camera) -> impl Iterator<Item = (Building, f32)> + '_ {
         self.parcels.iter().flat_map(|parcel| parcel.buildings().iter().copied())
-            .filter(|building| building.form == Form::Tower)
+            .filter(|building| matches!(building.form, Form::Tower(_)))
             .filter_map(move |building| {
                 let (x, z) = self.local.world(building.area.x, building.area.z);
                 let radius = building.area.half_width + building.area.half_depth;
@@ -342,20 +351,26 @@ impl Settlement {
             let fade = fade * fade_factor(x, z);
             if fade < 0.015 { continue; }
             let mut previous = 0.0;
-            for (upper, [width, depth]) in crate::skyline::tower_tiers(tower.tower_profile()) {
+            let design = crate::skyline::tower_forms::design(tower.tower_profile());
+            for tier in design.tiers {
                 let lower = tower.base + tower.height * previous;
-                previous = upper;
-                let upper = tower.base + tower.height * upper;
+                previous = tier.top;
+                let upper = tower.base + tower.height * tier.top;
                 let ring = [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]].map(|[x, z]| {
-                    self.local.world(area.x + x * area.half_width * width, area.z + z * area.half_depth * depth)
+                    self.local.world(
+                        area.x + (tier.center[0] + x * tier.half[0]) * area.half_width,
+                        area.z + (tier.center[1] + z * tier.half[1]) * area.half_depth,
+                    )
                 });
                 let [a, b, c, d] = ring.map(|(x, z)| [x, upper, z]);
-                mesh.faded_triangle([a, b, c], [151, 166, 178], fade);
-                mesh.faded_triangle([a, c, d], [151, 166, 178], fade);
+                let roof_color = design.wall.map(|channel| channel.saturating_add(24));
+                mesh.faded_triangle([a, b, c], roof_color, fade);
+                mesh.faded_triangle([a, c, d], roof_color, fade);
                 for side in 0..4 {
                     let (x0, z0) = ring[side];
                     let (x1, z1) = ring[(side + 1) % 4];
-                    let color = if side % 2 == 0 { [118, 142, 156] } else { [101, 120, 138] };
+                    let shade = if side % 2 == 0 { 0 } else { 19 };
+                    let color = design.wall.map(|channel| channel.saturating_sub(shade));
                     let a = [x0, lower, z0];
                     let b = [x0, upper, z0];
                     let c = [x1, upper, z1];
@@ -400,7 +415,7 @@ impl Settlement {
 
     pub fn sample(&self, x: f32, z: f32) -> Option<SettlementSample> {
         let (across, ahead) = self.local.grid(x, z);
-        self.sample_core(across, ahead).or_else(|| self.neighborhoods.sample(across, ahead))
+        self.sample_existing(across, ahead)
     }
 
     /// Regional routes reserve the established town core. New neighborhoods
@@ -408,6 +423,10 @@ impl Settlement {
     pub(crate) fn sample_transport_reservation(&self, x: f32, z: f32) -> Option<SettlementSample> {
         let (across, ahead) = self.local.grid(x, z);
         self.sample_core(across, ahead)
+    }
+
+    fn sample_existing(&self, across: f32, ahead: f32) -> Option<SettlementSample> {
+        self.sample_core(across, ahead).or_else(|| self.neighborhoods.sample(across, ahead))
     }
 
     fn sample_core(&self, across: f32, ahead: f32) -> Option<SettlementSample> {
@@ -460,7 +479,7 @@ impl Settlement {
         false
     }
 
-    fn shape_streets(&mut self, world: &World, layout: u32) {
+    fn shape_streets(&mut self, world: &World, layout: u32, pulse: &mut impl FnMut()) {
         let budget = (self.street_count / 10).min(6);
         if budget < 2 {
             return;
@@ -479,6 +498,7 @@ impl Settlement {
         }
 
         for _ in 0..budget {
+            pulse();
             let removable = (0..JUNCTIONS).flat_map(|node| {
                 [EAST, FORWARD].into_iter().map(move |direction| (node, direction))
             }).filter_map(|(node, direction)| {
@@ -504,7 +524,7 @@ impl Settlement {
     }
 
     /// Grow a quiet housing row on a dry bench beyond a dense town.
-    fn extend_hillside(&mut self, world: &World, road: &RoadNetwork, layout: u32) {
+    fn extend_hillside(&mut self, world: &World, road: &RoadNetwork, layout: u32, pulse: &mut impl FnMut()) {
         const LOTS: usize = 3;
         const FIRST_REAR_ROW: usize = CORE_ROWS - 1;
         const LAST_ROW: usize = ROWS - 1;
@@ -535,6 +555,7 @@ impl Settlement {
         let starts = COLS - LOTS;
         let first = (layout >> 21) as usize % starts;
         for offset in 0..starts {
+            pulse();
             let start = (first + offset) % starts;
             let middle = (start as f32 + LOTS as f32 * 0.5) * SPACING;
             let rise = self.local.ground(world, middle, outer_z) - downtown;
@@ -588,13 +609,14 @@ impl Settlement {
         }
     }
 
-    fn site_blocks(&mut self, world: &World, road: &RoadNetwork, layout: u32) {
+    fn site_blocks(&mut self, world: &World, road: &RoadNetwork, layout: u32, pulse: &mut impl FnMut()) {
         let metropolitan = self.street_count >= 32 && layout & 0x30 != 0;
         let mut civic_available = layout & 0x1800_0000 != 0;
         let mut parks = 0;
         let mut waterfront = false;
         for row in 0..CORE_ROWS - 1 {
             for col in 0..COLS - 1 {
+                pulse();
                 let sides = frontages(&self.streets, col, row);
                 if sides == 0 {
                     continue;
@@ -611,7 +633,7 @@ impl Settlement {
                 if !waterfront
                     && ground < SEA_LEVEL + 10.0
                     && key & 3 != 0
-                    && shore_near(world, lx, lz, ground)
+                    && shore_near(world, lx, lz, ground, pulse)
                 {
                     let plaza = frontage.lot(x, z, 0.0, 1.8, 6.0, 4.8);
                     if frontage.site(world, road, self.local, plaza, 2.2).is_some() {
@@ -637,10 +659,11 @@ impl Settlement {
                     && self.tower_count < 4
                     && (key & 3 != 0 || self.tower_count == 0)
                 {
-                    let tower = frontage.lot(x, z, 0.0, 0.5, 5.15, 4.85);
+                    let profile = crate::skyline::tower_forms::select(layout, key, self.tower_count);
+                    let design = crate::skyline::tower_forms::design(profile);
+                    let tower = frontage.lot(x, z, 0.0, 0.5, 5.15 * design.size[0], 4.85 * design.size[1]);
                     if let Some(base) = frontage.site(world, road, self.local, tower, 1.35) {
-                        let height = 22.0 + (key >> 20 & 15) as f32;
-                        parcel.add(Building::new(tower, base, height, Form::Tower));
+                        parcel.add(Building::new(tower, base, design.height, Form::Tower(profile)));
                         self.tower_count += 1;
                     }
                 }
@@ -652,7 +675,15 @@ impl Settlement {
                             civic_available = false;
                             Form::Civic(frontage)
                         } else {
-                            Form::Hall
+                            let variant = (key >> 10) as u8;
+                            match (middle, row >= CORE_ROWS - 3, (key >> 7) & 3) {
+                                (true, _, 0) => Form::Hall,
+                                (true, _, 1) => Form::Rowhouse(frontage, variant),
+                                (true, _, _) => Form::Shop(frontage, variant),
+                                (false, true, 0..=2) => Form::Industrial(frontage, variant),
+                                (false, _, 0..=1) => Form::Rowhouse(frontage, variant),
+                                (false, _, _) => Form::Shop(frontage, variant),
+                            }
                         };
                         parcel.add(Building::new(hall, base, height, form));
                     }
@@ -663,7 +694,13 @@ impl Settlement {
                         let lot = frontage.lot(x, z, edge * 3.45, setback, 2.55, 3.05);
                         if let Some(base) = frontage.site(world, road, self.local, lot, 2.15) {
                             let height = 4.6 + (key >> (20 + 3 * i) & 7) as f32 * 0.39;
-                            parcel.add(Building::new(lot, base, height, Form::House));
+                            let variant = (key >> (4 + i * 8)) as u8;
+                            let form = if row < 2 && variant & 3 == 0 {
+                                Form::Duplex(variant >> 2)
+                            } else {
+                                Form::Cottage(variant)
+                            };
+                            parcel.add(Building::new(lot, base, height + 0.8, form));
                         }
                     }
                 }
@@ -755,11 +792,16 @@ impl Area {
 enum Form {
     House,
     Hall,
-    Tower,
+    Tower(u8),
     Civic(Frontage),
     Terrace(Frontage),
     CourtWing(Frontage),
     Workshop(Frontage),
+    Cottage(u8),
+    Duplex(u8),
+    Rowhouse(Frontage, u8),
+    Industrial(Frontage, u8),
+    Shop(Frontage, u8),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -783,9 +825,13 @@ impl Building {
     }
 
     fn tower_profile(self) -> u8 {
-        let key = (u64::from(self.height.to_bits()) << 32)
-            ^ u64::from(self.base.to_bits()) ^ u64::from(self.area.x.to_bits().rotate_left(7));
-        (crate::math::mix(key) % 25) as u8
+        let Form::Tower(profile) = self.form else { unreachable!() };
+        profile
+    }
+
+    fn detached_axes(self, x: f32, z: f32, wide: bool) -> [f32; 2] {
+        let [u, v] = [(x - self.area.x) / self.area.half_width, (z - self.area.z) / self.area.half_depth];
+        if (self.area.half_width >= self.area.half_depth) == wide { [u, v] } else { [v, u] }
     }
 
     fn sample(self, x: f32, z: f32) -> Option<SettlementSample> {
@@ -807,6 +853,26 @@ impl Building {
                 )
             }
             Form::Hall => (SettlementSurface::FlatRoof, self.height),
+            Form::Cottage(variant) => {
+                let (surface, profile) = building_forms::cottage(variant, self.detached_axes(x, z, false))?;
+                (surface, self.height * profile)
+            }
+            Form::Duplex(variant) => {
+                let (surface, profile) = building_forms::duplex(variant, self.detached_axes(x, z, true))?;
+                (surface, self.height * profile)
+            }
+            Form::Rowhouse(frontage, variant) => {
+                let (surface, profile) = building_forms::rowhouse(variant, frontage.roof_axes(self.area, x, z))?;
+                (surface, self.height * profile)
+            }
+            Form::Industrial(frontage, variant) => {
+                let (surface, profile) = building_forms::industrial(variant, frontage.roof_axes(self.area, x, z))?;
+                (surface, self.height * profile)
+            }
+            Form::Shop(frontage, variant) => {
+                let (surface, profile) = building_forms::shop(variant, frontage.roof_axes(self.area, x, z))?;
+                (surface, self.height * profile)
+            }
             Form::Terrace(frontage) => {
                 let [face, row] = frontage.roof_axes(self.area, x, z);
                 let along = ((row + 1.0) * 1.5).min(2.9999);
@@ -858,12 +924,19 @@ impl Building {
                     (SettlementSurface::PitchedRoof, self.height * (0.52 + 0.19 * (1.0 - front.abs())))
                 }
             }
-            Form::Tower => {
-                let [(podium, _), (shaft, [shaft_x, shaft_z]), (crown, [crown_x, crown_z])] =
-                    crate::skyline::tower_tiers(self.tower_profile());
-                let roof = if across < crown_x && along < crown_z { crown }
-                    else if across < shaft_x && along < shaft_z { shaft }
-                    else { podium };
+            Form::Tower(profile) => {
+                let [u, v] = [
+                    (x - self.area.x) / self.area.half_width,
+                    (z - self.area.z) / self.area.half_depth,
+                ];
+                let [podium, shaft, crown] = crate::skyline::tower_forms::design(profile).tiers;
+                let within = |tier: crate::skyline::tower_forms::Tier| {
+                    (u - tier.center[0]).abs() < tier.half[0]
+                        && (v - tier.center[1]).abs() < tier.half[1]
+                };
+                let roof = if within(crown) { crown.top }
+                    else if within(shaft) { shaft.top }
+                    else { podium.top };
                 (SettlementSurface::TowerRoof, self.height * roof)
             }
         };
@@ -1161,13 +1234,14 @@ fn has_block_detour(streets: &[u8; JUNCTIONS], node: usize, direction: u8) -> bo
     }
 }
 
-fn grow_streets(world: &World, local: Local, layout: u32) -> ([u8; JUNCTIONS], u8) {
+fn grow_streets(world: &World, local: Local, layout: u32, pulse: &mut impl FnMut()) -> ([u8; JUNCTIONS], u8) {
     let mut street = [0; JUNCTIONS];
     let mut tested = [0; JUNCTIONS];
     let mut seen = [false; JUNCTIONS];
     let mut queue = [0u8; JUNCTIONS];
     let mut viable = [false; JUNCTIONS];
     for (i, usable) in viable.iter_mut().enumerate() {
+        pulse();
         let col = i % COLS;
         let row = i / COLS;
         // Let the outer blocks taper where a district reaches open country.
@@ -1200,6 +1274,7 @@ fn grow_streets(world: &World, local: Local, layout: u32) -> ([u8; JUNCTIONS], u
     let (mut start, mut end) = (0, 1);
     let mut count = 0;
     while start < end {
+        pulse();
         let index = queue[start] as usize;
         start += 1;
         let col = (index % COLS) as i32;
@@ -1242,6 +1317,12 @@ fn grow_streets(world: &World, local: Local, layout: u32) -> ([u8; JUNCTIONS], u
 }
 
 fn street_fits(world: &World, local: Local, x: f32, z: f32, dc: i32, dr: i32) -> bool {
+    street_fits_with_grade(world, local, [x, z], [dc, dr], STREET_GRADE)
+}
+
+fn street_fits_with_grade(
+    world: &World, local: Local, [x, z]: [f32; 2], [dc, dr]: [i32; 2], grade: f32,
+) -> bool {
     const STEPS: usize = 12;
     let dx = dc as f32;
     let dz = dr as f32;
@@ -1258,7 +1339,7 @@ fn street_fits(world: &World, local: Local, x: f32, z: f32, dc: i32, dr: i32) ->
             let h = local.ground(world, across - dz * side, ahead + dx * side);
             if !(DRY_HEIGHT..=SEA_LEVEL + 51.0).contains(&h)
                 || (step != 0
-                    && (h - previous[index]).abs() > STREET_GRADE * SPACING / STEPS as f32)
+                    && (h - previous[index]).abs() > grade * SPACING / STEPS as f32)
             {
                 return false;
             }
@@ -1310,7 +1391,7 @@ fn highway_overlaps(road: &RoadNetwork, local: Local, area: Area) -> bool {
     })
 }
 
-fn shore_near(world: &World, x: f32, z: f32, ground: f32) -> bool {
+fn shore_near(world: &World, x: f32, z: f32, ground: f32, pulse: &mut impl FnMut()) -> bool {
     const DIAGONAL: f32 = core::f32::consts::FRAC_1_SQRT_2;
     const OUTWARD: [(f32, f32); 8] = [
         (1.0, 0.0),
@@ -1323,6 +1404,7 @@ fn shore_near(world: &World, x: f32, z: f32, ground: f32) -> bool {
         (DIAGONAL, -DIAGONAL),
     ];
     for (dx, dz) in OUTWARD {
+        pulse();
         let mut previous = ground;
         for step in 1..=10 {
             let distance = step as f32 * 6.0;
@@ -1451,14 +1533,14 @@ mod tests {
             let road = RoadNetwork::generate(&world, rx, rz).unwrap();
             let town = Settlement::generate(&world, &road, end).unwrap();
             let key = town_key(&world, town.local);
-            let (streets, street_count) = grow_streets(&world, town.local, key);
+            let (streets, street_count) = grow_streets(&world, town.local, key, &mut || {});
             let mut original = Settlement {
                 local: town.local, streets, street_count,
                 parcels: [Parcel::EMPTY; BLOCKS], building_count: 0, tower_count: 0,
                 skyline_roofs: [NO_ROOF; 4],
                 neighborhoods: Neighborhoods::EMPTY,
             };
-            original.site_blocks(&world, &road, key);
+            original.site_blocks(&world, &road, key, &mut || {});
             assert_eq!(town.parcels[..block_index(0, CORE_ROWS - 1)], original.parcels[..block_index(0, CORE_ROWS - 1)]);
             let core_links = town.streets[..COLS * CORE_ROWS].iter().enumerate()
                 .map(|(node, flags)| u8::from(flags & EAST != 0)
@@ -1520,6 +1602,7 @@ mod tests {
 
     #[test]
     fn parcels_are_dry_and_have_connected_frontages() {
+        let mut street_styles = 0;
         for (seed, rx, rz, end) in FIXTURES {
             let world = World::new(seed);
             let road = RoadNetwork::generate(&world, rx, rz).unwrap();
@@ -1535,13 +1618,22 @@ mod tests {
                 for building in parcel.buildings() {
                     structures += 1;
                     let tolerance = match building.form {
-                        Form::House => 2.15,
-                        Form::Hall | Form::Civic(_) => 1.9,
-                        Form::Tower => {
+                        Form::House | Form::Cottage(_) | Form::Duplex(_) => 2.15,
+                        Form::Hall | Form::Civic(_) | Form::Rowhouse(_, _)
+                        | Form::Shop(_, _) | Form::Industrial(_, _) => 1.9,
+                        Form::Tower(_) => {
                             towers += 1;
                             1.35
                         }
-                        _ => panic!("neighborhood roof in the core: {:?}", building.form),
+                        _ => panic!("unexpected form in core: {:?}", building.form),
+                    };
+                    street_styles |= match building.form {
+                        Form::Cottage(_) => 1,
+                        Form::Duplex(_) => 2,
+                        Form::Rowhouse(_, _) => 4,
+                        Form::Shop(_, _) => 8,
+                        Form::Industrial(_, _) => 16,
+                        _ => 0,
                     };
                     let area = building.area;
                     assert_eq!(
@@ -1549,14 +1641,17 @@ mod tests {
                         Some(building.base)
                     );
                     assert!(!highway_overlaps(&road, town.local, area));
-                    let (x, z) = town.local.world(area.x, area.z);
-                    let center = town.sample(x, z).unwrap();
-                    assert!(center.elevation.unwrap() > world.elevation(x, z) + 4.0);
+                    let roof_height = [-0.4, 0.0, 0.4].into_iter().filter_map(|offset| {
+                        let (x, z) = town.local.world(area.x + offset * area.half_width, area.z);
+                        Some(town.sample(x, z)?.elevation? - world.elevation(x, z))
+                    }).fold(0.0_f32, f32::max);
+                    assert!(roof_height > 4.0);
                 }
             }
             assert_eq!(town.building_count(), structures);
             assert_eq!(town.tower_count(), towers);
         }
+        assert_eq!(street_styles, 31);
     }
 
     #[test]
@@ -1606,10 +1701,11 @@ mod tests {
         for (index, parcel) in town.parcels.iter().enumerate() {
             for building in parcel.buildings() {
                 let kind = match building.form {
-                    Form::House => 0,
-                    Form::Hall | Form::Civic(_) => 1,
-                    Form::Tower => 2,
-                    _ => panic!("neighborhood roof in the core: {:?}", building.form),
+                    Form::House | Form::Cottage(_) | Form::Duplex(_) => 0,
+                    Form::Hall | Form::Civic(_) | Form::Rowhouse(_, _)
+                    | Form::Shop(_, _) | Form::Industrial(_, _) => 1,
+                    Form::Tower(_) => 2,
+                    _ => panic!("unexpected form in core: {:?}", building.form),
                 };
                 roof_count[kind] += 1;
             }
@@ -1628,7 +1724,7 @@ mod tests {
                         let cx = ((index % (COLS - 1)) as f32 + 0.5) * SPACING;
                         let cz = ((index / (COLS - 1)) as f32 + 0.5) * SPACING;
                         let (x, z) = town.local.world(cx, cz);
-                        assert!(shore_near(&world, x, z, world.elevation(x, z)));
+                        assert!(shore_near(&world, x, z, world.elevation(x, z), &mut || {}));
                         plazas += 1;
                     }
                     _ => panic!("unexpected open-space surface"),

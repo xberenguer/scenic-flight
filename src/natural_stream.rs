@@ -897,7 +897,7 @@ impl NaturalStream {
             .chain(self.mesa_site().filter(|site| site.approved()).map(|site| site.bounds))
     }
 
-    fn active_bounds(&self) -> impl Iterator<Item = NaturalBounds> + '_ {
+    pub(crate) fn active_bounds(&self) -> impl Iterator<Item = NaturalBounds> + '_ {
         self.lakes
             .sites()
             .filter(|site| site.active())

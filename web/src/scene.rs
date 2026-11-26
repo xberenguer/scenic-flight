@@ -360,11 +360,10 @@ impl Scene {
         let mist =
             self.valley_mist
                 .observe(&self.world, self.seed, flight.ticks, view, &sky, DIMENSIONS);
-        let skyline =
-            self.skyline
-                .prepare(&self.land, view, flight.ticks, &sky, DIMENSIONS, |x, z| {
-                    self.horizon.backdrop(x, z)
-                });
+        let skyline = self.skyline.prepare_with_additions(
+            &self.land, view, flight.ticks, &sky, DIMENSIONS, self.facilities.waterfront_silhouettes(),
+            |x, z| self.horizon.backdrop(x, z),
+        );
         self.distant_roads.prepare(
             &self.land,
             &self.highways,

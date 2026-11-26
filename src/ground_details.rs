@@ -210,6 +210,26 @@ impl GroundDetails {
         if geometry.surface == Surface::Grass { self.field(x, z) } else { geometry.surface }
     }
 
+    /// Retain the cultivated headlands and rows around a grain facility together.
+    pub fn grain_field_bounds(&self, [x, _, z]: [f32; 3]) -> impl Iterator<Item = [f32; 4]> + '_ {
+        self.tiles.iter().flatten().filter_map(move |tile| {
+            tile.fields.then(|| grain_tile_bounds(tile.x, tile.z, x, z)).flatten()
+        })
+    }
+
+    /// Survey just the plots in range of a terminal outside the flight cache.
+    pub fn survey_grain_fields(
+        world: &World, seed: u64, [x, _, z]: [f32; 3],
+    ) -> impl Iterator<Item = [f32; 4]> + '_ {
+        let [tx, tz] = [x, z].map(|position| grid_index(position, 1.0 / TILE));
+        (tz - 2..=tz + 2).flat_map(move |row| {
+            (tx - 2..=tx + 2).filter_map(move |column| {
+                let bounds = grain_tile_bounds(column, row, x, z)?;
+                GroundTile::prepare(world, seed, column, row).fields.then_some(bounds)
+            })
+        })
+    }
+
     fn field(&self, x: f32, z: f32) -> Surface {
         let tx = grid_index(x, 1.0 / TILE);
         let tz = grid_index(z, 1.0 / TILE);
@@ -228,6 +248,12 @@ impl GroundDetails {
             seed: self.seed ^ 0x27a4_2dec, last: core::cell::Cell::new(None), view: None,
         }
     }
+}
+
+fn grain_tile_bounds(column: i32, row: i32, x: f32, z: f32) -> Option<[f32; 4]> {
+    let [left, near] = [column as f32 * TILE, row as f32 * TILE];
+    ((left + TILE * 0.5 - x).abs().max((near + TILE * 0.5 - z).abs()) <= 96.0)
+        .then_some([left, near, left + TILE, near + TILE])
 }
 
 /// Retains the prepared crown while consecutive rays sample its world tile.
@@ -513,6 +539,21 @@ fn wrap(index: i32) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_grain_survey_matches_the_full_ground_cache() {
+        for seed in [9, 49, 165] {
+            let world = World::new(seed);
+            for origin in [[-384.0, 20.0, 256.0], [22.3, 46.0, 1150.75], [1904.5, 8.0, -610.0]] {
+                let mut cache = GroundDetails::new();
+                cache.reset(&world, seed, origin[0], origin[2]);
+                let expected: std::vec::Vec<_> = cache.grain_field_bounds(origin).collect();
+                let found: std::vec::Vec<_> = GroundDetails::survey_grain_fields(&world, seed, origin).collect();
+                assert_eq!(found.len(), expected.len());
+                assert!(found.iter().all(|bounds| expected.contains(bounds)));
+            }
+        }
+    }
     use std::collections::HashSet;
 
     const FLAT_FOREST: Sample = Sample { elevation: 0.0, surface: Surface::Forest };

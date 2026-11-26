@@ -363,6 +363,46 @@ impl Watershed {
         &self.streams[..self.stream_count]
     }
 
+    /// Keep whole source-to-outlet paths, including shared downstream links.
+    /// Rebuild spatial coverage so a discarded tributary leaves no wet cells.
+    pub(crate) fn with_streams(&self, mask: usize) -> Self {
+        let mut kept = Self::new();
+        kept.seed = self.seed;
+        kept.coverage.origin = self.coverage.origin;
+        let mut selected = [false; MAX_LINKS];
+        let [ox, oz] = self.coverage.origin;
+        for (index, &stream) in self.streams().iter().enumerate() {
+            if mask & (1 << index) == 0 {
+                continue;
+            }
+            kept.streams[kept.stream_count] = stream;
+            kept.stream_count += 1;
+            let [x, z] = stream.source;
+            let mut cell = ((z - oz) / STEP) as usize * SIDE + ((x - ox) / STEP) as usize;
+            for _ in 0..stream.links_to_sea {
+                let index = usize::from(self.link_at[cell]) - 1;
+                if selected[index] {
+                    break;
+                }
+                selected[index] = true;
+                let link = self.links[index];
+                if link.sea {
+                    break;
+                }
+                cell = downstream(cell, link.direction);
+            }
+        }
+        for (&link, retain) in self.links[..self.link_count].iter().zip(selected) {
+            if retain {
+                kept.links[kept.link_count] = link;
+                kept.link_count += 1;
+                kept.link_at[usize::from(link.cell)] = kept.link_count as u8;
+                kept.add_coverage(link);
+            }
+        }
+        kept
+    }
+
     pub(crate) fn seed(&self) -> u64 {
         self.seed
     }

@@ -22,7 +22,13 @@ rustc --edition 2024 -O "$tools/artwork/vessels/export.rs" \
     -L "dependency=$game/target/release/deps" -o "$scratch/export-vessels"
 "$scratch/export-vessels" "$scratch/vessels.json" > "$scratch/vessels.ppm"
 ffmpeg -hide_banner -loglevel error -y -i "$scratch/vessels.ppm" -frames:v 1 "$scratch/vessels.png"
+rustc --edition 2024 -O "$tools/artwork/towers/export.rs" \
+    --extern "scenic_flight=$game/target/release/libscenic_flight.rlib" \
+    -L "dependency=$game/target/release/deps" -o "$scratch/export-towers"
+"$scratch/export-towers" > "$scratch/towers.ppm"
+ffmpeg -hide_banner -loglevel error -y -i "$scratch/towers.ppm" -frames:v 1 "$scratch/towers.png"
 mkdir -p "$assets"
+cp "$scratch/towers.png" "$assets/"
 cp "$scratch/tree-crown-atlas.png" "$assets/trees.png"
 cp "$scratch/wagons.png" "$scratch/wagons.json" "$scratch/locomotives.png" "$assets/"
 cp "$scratch/vessels.png" "$scratch/vessels.json" "$assets/"

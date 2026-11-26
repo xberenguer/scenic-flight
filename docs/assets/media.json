@@ -31,10 +31,10 @@
   },
   {
     "id": "river-valley",
-    "title": "Ultralight along the bay",
+    "title": "Ultralight over a river town",
     "category": "Biomes",
     "aircraft": "Ultralight",
-    "biome": "Coast & Ocean",
+    "biome": "Rivers & Wetlands",
     "format": "Video",
     "poster": "assets/current/river-valley.png",
     "src": "assets/current/river-valley.mp4"
@@ -566,5 +566,25 @@
     "poster": "assets/current/shower-rainbow.png",
     "src": "assets/current/shower-rainbow.png",
     "note": "Sunlight catches a distant, terrain-occluded rain shaft."
+  },
+  {
+    "id": "riverside-town",
+    "title": "River through the foothills",
+    "category": "Biomes",
+    "aircraft": "",
+    "biome": "Rivers & Wetlands",
+    "format": "Still",
+    "poster": "assets/current/riverside-town.png",
+    "src": "assets/current/riverside-town.png"
+  },
+  {
+    "id": "ferry-quayside",
+    "title": "Ferry quay and workshops",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/ferry-quayside.png",
+    "src": "assets/current/ferry-quayside.png"
   }
 ]

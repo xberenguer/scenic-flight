@@ -16,6 +16,12 @@ const FADE_TICKS: u8 = 36;
 const CIVIC_ROOF_REACH: f32 = 2240.0;
 const CITY_FADE_WIDTH: f32 = 700.0;
 
+pub(crate) const COTTAGE_GROUP: u8 = 4;
+pub(crate) const DUPLEX_GROUP: u8 = 5;
+pub(crate) const ROWHOUSE_GROUP: u8 = 6;
+pub(crate) const INDUSTRIAL_GROUP: u8 = 7;
+pub(crate) const SHOP_GROUP: u8 = 8;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SkylineTower {
     pub center: [f32; 2],
@@ -26,48 +32,7 @@ pub struct SkylineTower {
     pub(crate) profile: u8,
 }
 
-// Heights and setbacks describe the same three volumes at every render distance.
-const TOWER_TOPS: [[f32; 3]; 5] = [
-    [0.48, 0.79, 1.0],
-    [0.19, 0.92, 1.0],
-    [0.72, 0.91, 1.0],
-    [0.24, 0.81, 1.0],
-    [0.41, 0.71, 1.0],
-];
-
-const TOWER_UPPER_FOOTPRINTS: [[[f32; 2]; 2]; 5] = [
-    [[0.72, 0.89], [0.43, 0.67]], // Terraced slab
-    [[0.94, 0.52], [0.80, 0.44]], // Narrow office slab over a podium
-    [[0.88, 0.80], [0.36, 0.58]], // Broad shaft and penthouse
-    [[0.59, 0.73], [0.27, 0.43]], // Needle and shoulder
-    [[0.94, 0.68], [0.65, 0.38]], // Two different setbacks
-];
-
-fn tower_roof_levels(profile: u8) -> [f32; 3] {
-    let mut heights = TOWER_TOPS[usize::from(profile / 5)];
-    heights[0] += f32::from(profile % 5) * 0.018 - 0.036;
-    heights
-}
-
-fn upper_footprints(profile: u8) -> [[f32; 2]; 2] {
-    let mut upper = TOWER_UPPER_FOOTPRINTS[usize::from(profile / 5)];
-    let variant = profile % 5;
-    let offset = f32::from(variant) * 0.018 - 0.036;
-    upper[1][0] -= offset;
-    upper[1][1] += offset;
-    if variant % 2 == 1 {
-        for footprint in &mut upper {
-            footprint.swap(0, 1);
-        }
-    }
-    upper
-}
-
-pub(crate) fn tower_tiers(profile: u8) -> [(f32, [f32; 2]); 3] {
-    let [base, shoulder, roof] = tower_roof_levels(profile);
-    let [shaft, crown] = upper_footprints(profile);
-    [(base, [1.0; 2]), (shoulder, shaft), (roof, crown)]
-}
+pub(crate) mod tower_forms;
 
 #[derive(Clone, Copy)]
 pub(crate) struct SkylineRoof {
@@ -122,6 +87,19 @@ impl Skyline {
         ticks: u64,
         sky: &Sky,
         dimensions: (usize, usize),
+        far_ground: impl FnMut(f32, f32) -> f32,
+    ) -> SkylineFrame {
+        self.prepare_with_additions(land, camera, ticks, sky, dimensions, core::iter::empty(), far_ground)
+    }
+
+    pub fn prepare_with_additions<const LAND: usize>(
+        &mut self,
+        land: &LandStream<LAND>,
+        camera: Camera,
+        ticks: u64,
+        sky: &Sky,
+        dimensions: (usize, usize),
+        additions: impl Iterator<Item = SkylineTower>,
         mut far_ground: impl FnMut(f32, f32) -> f32,
     ) -> SkylineFrame {
         if ticks < self.last_tick {
@@ -164,6 +142,11 @@ impl Skyline {
                         retain(&mut self.neighborhoods, group, Form::Neighborhood, view.outer(group.center));
                     }
                 }
+            }
+        }
+        for group in additions {
+            if view.potential(group.center) || view.roof_potential(group.center) {
+                retain(&mut self.neighborhoods, group, Form::Neighborhood, view.outer(group.center));
             }
         }
         let mut frame = SkylineFrame {
@@ -390,6 +373,7 @@ struct Glyph {
     origin: [f32; 2],
     half: f32,
     tier_halves: [f32; 2],
+    tier_centers: [f32; 2],
     height: f32,
     alpha: f32,
     z: u16,
@@ -416,17 +400,22 @@ impl Glyph {
                 let mut value = 0.0;
                 let mut from = 0.0;
                 let [shaft, crown] = self.tier_halves;
-                for (fraction, half) in tower_roof_levels(self.profile).into_iter()
-                    .zip([self.half, shaft, crown])
+                let [shaft_center, crown_center] = self.tier_centers;
+                let tiers = &tower_forms::design(self.profile).tiers;
+                for ((tier, half), center) in tiers.iter().zip([self.half, shaft, crown])
+                    .zip([0.0, shaft_center, crown_center])
                 {
-                    let across = overlap(u, -half, half);
-                    let down = overlap(v, -self.height * fraction, -self.height * from);
+                    let across = overlap(u, center - half, center + half);
+                    let down = overlap(v, -self.height * tier.top, -self.height * from);
                     value += across * down;
-                    from = fraction;
+                    from = tier.top;
                 }
                 value
             }
             Form::Hall => overlap(u, -self.half, self.half) * overlap(v, -self.height, 0.0),
+            Form::Neighborhood if (COTTAGE_GROUP..=SHOP_GROUP).contains(&self.profile) => {
+                borough_roof_coverage(u, v, self.half, self.height, self.profile)
+            }
             Form::Neighborhood => {
                 // Break the mass into offset rooflines. Gaps keep a row of
                 // blocks legible at a distance without drawing each house.
@@ -457,6 +446,40 @@ impl Glyph {
             }
         }
     }
+}
+
+// Left and right limits, eave and ridge heights, and position of the ridge within each mass.
+// The same three small silhouettes fit the existing neighborhood glyph budget.
+const fn roof_mass(left: f32, right: f32, eave: f32, ridge: f32, crest: f32) -> [f32; 6] {
+    [left, right, eave, ridge, crest, 1.0 / (ridge - eave)]
+}
+
+const BOROUGH_ROOFS: [[[f32; 6]; 3]; 5] = [
+    [roof_mass(-0.96, -0.41, 0.49, 0.68, 0.47), roof_mass(-0.31, 0.27, 0.61, 0.90, 0.50), roof_mass(0.39, 0.90, 0.52, 0.76, 0.54)],
+    [roof_mass(-0.96, -0.40, 0.57, 0.81, 0.57), roof_mass(-0.39, 0.16, 0.65, 0.91, 0.44), roof_mass(0.30, 0.93, 0.59, 0.80, 0.49)],
+    [roof_mass(-0.97, -0.34, 0.69, 0.78, 0.47), roof_mass(-0.32, 0.32, 0.78, 0.92, 0.56), roof_mass(0.33, 0.96, 0.64, 0.76, 0.52)],
+    [roof_mass(-0.98, -0.35, 0.57, 0.86, 0.84), roof_mass(-0.34, 0.33, 0.57, 0.86, 0.84), roof_mass(0.34, 0.98, 0.53, 0.81, 0.85)],
+    [roof_mass(-0.96, -0.42, 0.58, 0.68, 0.45), roof_mass(-0.40, 0.25, 0.70, 0.85, 0.53), roof_mass(0.34, 0.97, 0.72, 0.79, 0.41)],
+];
+
+#[inline(never)]
+fn borough_roof_coverage(u: f32, v: f32, half: f32, height: f32, profile: u8) -> f32 {
+    let shape = &BOROUGH_ROOFS[usize::from(profile - COTTAGE_GROUP)];
+    let elevation = -v / height;
+    let mut amount = 0.0;
+    for &[left, right, eave, ridge, crest, inverse_rise] in shape {
+        let left = left * half;
+        let right = right * half;
+        let slope = ((elevation - eave) * inverse_rise).clamp(0.0, 1.0);
+        let eave = -eave * height;
+        let ridge = -ridge * height;
+        let eaves = overlap(u, left, right) * overlap(v, eave, 0.0);
+        let crest = left + (right - left) * crest;
+        let roof_left = left + (crest - left) * slope;
+        let roof_right = right + (crest - right) * slope;
+        amount += eaves + overlap(u, roof_left, roof_right) * overlap(v, ridge, eave);
+    }
+    amount
 }
 
 struct Projection {
@@ -602,10 +625,17 @@ impl Projection {
         let x_width = tower.footprint[0] * right.abs() * projection;
         let z_width = tower.footprint[1] * model_side.abs() * projection;
         let half = x_width + z_width;
-        let tier_halves = if form == Form::Tower {
-            upper_footprints(tower.profile).map(|[x, z]| x_width * x + z_width * z)
+        let (tier_halves, tier_centers) = if form == Form::Tower {
+            let [_, shaft, crown] = tower_forms::design(tower.profile).tiers;
+            (
+                [shaft, crown].map(|tier| x_width * tier.half[0] + z_width * tier.half[1]),
+                [shaft, crown].map(|tier| projection * (
+                    tower.footprint[0] * right * tier.center[0]
+                    + tower.footprint[1] * model_side * tier.center[1]
+                )),
+            )
         } else {
-            [0.0; 2]
+            ([0.0; 2], [0.0; 2])
         };
         let h =
             tower.height * projection * (self.pitch[1] - screen[1] * self.pitch[0] / self.focal);
@@ -625,7 +655,9 @@ impl Projection {
         }
         let dusk = sky.daylight.clamp(0.0, 1.0);
         let wall = match form {
-            Form::Tower => [32.0 + 92.0 * dusk, 44.0 + 104.0 * dusk, 60.0 + 111.0 * dusk],
+            Form::Tower => tower_forms::design(tower.profile).wall.map(|value| {
+                27.0 + f32::from(value) * (0.20 + 0.58 * dusk)
+            }),
             Form::Hall => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
             Form::Gable => [46.0 + 115.0 * dusk, 42.0 + 86.0 * dusk, 49.0 + 66.0 * dusk],
             Form::Neighborhood => [48.0 + 103.0 * dusk, 48.0 + 97.0 * dusk, 54.0 + 91.0 * dusk],
@@ -654,6 +686,7 @@ impl Projection {
             origin,
             half,
             tier_halves,
+            tier_centers,
             height: h,
             alpha,
             z: encoded_depth(depth),
@@ -692,16 +725,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn all_25_tower_profiles_have_distinct_continuous_tiers() {
+    fn all_250_tower_profiles_have_distinct_geometry_and_grounded_tiers() {
         let mut seen = std::collections::HashSet::new();
-        for variant in 0..25 {
-            let tiers = tower_tiers(variant);
-            assert_eq!(tiers[0].1, [1.0; 2]);
-            assert_eq!(tiers[2].0, 1.0);
-            assert!(tiers.windows(2).all(|w| w[0].0 < w[1].0
-                && w[0].1.into_iter().zip(w[1].1).all(|(lower, upper)| lower > upper)));
-            assert!(tiers[2].1[0] != tiers[2].1[1]);
-            assert!(seen.insert(tiers.map(|(height, [x, z])| [height.to_bits(), x.to_bits(), z.to_bits()])));
+        for id in 0..tower_forms::TOWER_DESIGN_COUNT {
+            let design = tower_forms::design(id as u8);
+            assert_eq!(design.tiers[0].half, [1.0; 2]);
+            assert_eq!(design.tiers[2].top, 1.0);
+            for pair in design.tiers.windows(2) {
+                let [lower, upper] = [pair[0], pair[1]];
+                assert!(lower.top < upper.top);
+                for axis in 0..2 {
+                    assert!(
+                        (upper.center[axis] - lower.center[axis]).abs() + upper.half[axis]
+                            <= lower.half[axis] + 0.0001
+                    );
+                }
+            }
+            let signature = design.tiers.map(|tier| [
+                (tier.top * design.height * 4.0).round() as i32,
+                (tier.half[0] * design.size[0] * 24.0).round() as i32,
+                (tier.half[1] * design.size[1] * 24.0).round() as i32,
+                (tier.center[0] * design.size[0] * 24.0).round() as i32,
+                (tier.center[1] * design.size[1] * 24.0).round() as i32,
+            ]);
+            assert!(seen.insert(signature), "duplicated geometry for tower {id}");
         }
     }
     use crate::horizon_cache::HorizonCache;
@@ -733,7 +780,7 @@ mod tests {
         let sky = sky_at(view);
         let tower = SkylineTower {
             center: [0.0, 700.0], footprint: [5.0; 2], direction: [0.0, 1.0],
-            base: 20.0, height: 35.0, profile: 5,
+            base: 20.0, height: 35.0, profile: 200,
         };
         let broad = projection.glyph(tower, Form::Tower, 1.0, &sky, &mut |_, _| 20.0).unwrap();
         let narrow = projection.glyph(SkylineTower { direction: [1.0, 0.0], ..tower },

@@ -8,6 +8,9 @@ use crate::scenery::DistrictRegion;
 use crate::settlement::{Settlement, Terminus};
 use crate::world::{Sample, World};
 
+mod urban;
+pub use urban::{UrbanAuthorities, UrbanExpansionJob, UrbanExpansionResult, UrbanPaintSampler, UrbanPublication, UrbanReservations, UrbanStream};
+
 const LOOKAHEAD: f32 = 1024.0;
 const REGION: f32 = ROAD_REGION_SIZE as f32;
 const INVERSE_REGION: f32 = 1.0 / REGION;
@@ -41,12 +44,36 @@ pub enum LandProgress {
     Capacity,
 }
 
+/// Owned foundation survey for the next unchecked terminus of a pending road.
+pub struct SettlementRequest {
+    world: World,
+    road: RoadNetwork,
+    end: Terminus,
+    serial: u64,
+}
+
+pub struct SettlementResult {
+    serial: u64,
+    town: Option<Settlement>,
+}
+
+impl SettlementRequest {
+    pub fn prepare(&self, pulse: impl FnMut()) -> SettlementResult {
+        SettlementResult {
+            serial: self.serial,
+            town: Settlement::generate_with_pulse(&self.world, &self.road, self.end, pulse),
+        }
+    }
+}
+
 pub struct LandStream<const ACTIVE: usize = 8> {
     world: World,
     ready: bool,
     directory: [Record; SIDE * SIDE],
     residents: [Option<Resident>; ACTIVE],
     pending: Option<Pending>,
+    next_ownership: u64,
+    next_settlement: u64,
     tick: u8,
 }
 
@@ -59,6 +86,8 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
             directory: [Record::EMPTY; SIDE * SIDE],
             residents: [const { None }; ACTIVE],
             pending: None,
+            next_ownership: 0,
+            next_settlement: 0,
             tick: 0,
         }
     }
@@ -341,15 +370,16 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
                             road,
                             towns: [None, None],
                             next: 0,
+                            queued: None,
                         });
                         LandProgress::AwaitingSettlement
                     }
                 }
             }
             Some(Pending::Towns {
-                road, towns, next, ..
+                road, towns, next, queued, ..
             }) => {
-                if *next < 2 && budget.settlement_jobs == 0 {
+                if queued.is_some() || (*next < 2 && budget.settlement_jobs == 0) {
                     return LandProgress::AwaitingSettlement;
                 }
                 for _ in 0..budget.settlement_jobs.min(2) {
@@ -372,6 +402,34 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
             }
             None => LandProgress::Idle,
         }
+    }
+
+    pub fn request_settlement(&mut self) -> Option<SettlementRequest> {
+        let Pending::Towns { road, next, queued, .. } = self.pending.as_mut()? else {
+            return None;
+        };
+        if *next >= 2 || queued.is_some() {
+            return None;
+        }
+        let end = if *next == 0 { Terminus::Start } else { Terminus::End };
+        let serial = self.next_settlement;
+        self.next_settlement = self.next_settlement.wrapping_add(1);
+        *queued = Some(serial);
+        Some(SettlementRequest { world: self.world, road: road.clone(), end, serial })
+    }
+
+    /// A turn or new world can discard the owner while the worker is busy.
+    pub fn commit_settlement(&mut self, result: SettlementResult) -> bool {
+        let Some(Pending::Towns { towns, next, queued, .. }) = self.pending.as_mut() else {
+            return false;
+        };
+        if *queued != Some(result.serial) {
+            return false;
+        }
+        towns[usize::from(*next)] = result.town;
+        *next += 1;
+        *queued = None;
+        true
     }
 
     fn publish_pending(&mut self, view: Window) -> LandProgress {
@@ -426,8 +484,10 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
                 *entry = Record::EMPTY;
             }
         }
+        self.next_ownership = self.next_ownership.wrapping_add(1);
         self.residents[slot] = Some(Resident {
             key,
+            ownership: self.next_ownership,
             region: DistrictRegion::from_prepared(key.x, key.z, road, towns),
             published,
         });
@@ -539,6 +599,7 @@ impl<const ACTIVE: usize> Default for LandStream<ACTIVE> {
 
 struct Resident {
     key: Key,
+    ownership: u64,
     region: DistrictRegion,
     published: bool,
 }
@@ -555,6 +616,7 @@ enum Pending {
         road: RoadNetwork,
         towns: [Option<Settlement>; 2],
         next: u8,
+        queued: Option<u64>,
     },
 }
 
@@ -931,6 +993,7 @@ mod tests {
             road,
             towns: [None, None],
             next: 0,
+            queued: None,
         });
         assert_eq!(
             stream.service(incoming, LandBudget::default()),
@@ -953,6 +1016,36 @@ mod tests {
             stream.overlay(anchor.x, anchor.z, natural).surface,
             Surface::Pavement
         );
+    }
+
+    #[test]
+    fn worker_foundations_match_direct_survey_and_reject_previous_world() {
+        let world = World::new(1);
+        let key = Key { x: 3, z: -3 };
+        let road = RoadNetwork::generate(&world, key.x, key.z).unwrap();
+        let mut stream = LandStream::<8>::new();
+        let pending = || Pending::Towns {
+            key, road: road.clone(), towns: [None, None], next: 0, queued: None,
+        };
+
+        stream.reset(world);
+        stream.pending = Some(pending());
+        let stale = stream.request_settlement().unwrap().prepare(|| {});
+        assert!(stream.request_settlement().is_none());
+
+        stream.reset(world);
+        stream.pending = Some(pending());
+        let request = stream.request_settlement().unwrap();
+        assert!(!stream.commit_settlement(stale));
+        let mut yields = 0;
+        let first = request.prepare(|| yields += 1);
+        assert_eq!(first.town, Settlement::generate(&world, &road, Terminus::Start));
+        assert!(yields > 10);
+        assert!(stream.commit_settlement(first));
+        let second = stream.request_settlement().unwrap().prepare(|| {});
+        assert_eq!(second.town, Settlement::generate(&world, &road, Terminus::End));
+        assert!(stream.commit_settlement(second));
+        assert!(stream.request_settlement().is_none());
     }
 
     #[test]

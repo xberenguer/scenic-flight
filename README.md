@@ -18,7 +18,7 @@ Select a preview to open the full-size clip or screenshot.
   </tr>
   <tr>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/high-cruise.mp4"><img src="docs/assets/readme/high-cruise.gif" width="220" alt="High-altitude cruise"></a><br>High-altitude cruise</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/river-valley.mp4"><img src="docs/assets/readme/river-valley.gif" width="220" alt="Ultralight along the bay"></a><br>Ultralight along the bay</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/river-valley.mp4"><img src="docs/assets/readme/river-valley.gif" width="220" alt="Ultralight over a river town"></a><br>Ultralight over a river town</td>
   </tr>
 </table>
 
@@ -53,6 +53,7 @@ Select a preview to open the full-size clip or screenshot.
   <tr>
     <td align="center"><a href="docs/assets/current/alluvial-fan.png"><img src="docs/assets/current/alluvial-fan.png" width="220" alt="Desert alluvial fan"></a><br>Desert alluvial fan</td>
     <td align="center"><a href="docs/assets/current/cove-dune.png"><img src="docs/assets/current/cove-dune.png" width="220" alt="Cove dune"></a><br>Cove dune</td>
+    <td align="center"><a href="docs/assets/current/riverside-town.png"><img src="docs/assets/current/riverside-town.png" width="220" alt="River through the foothills"></a><br>River through the foothills</td>
   </tr>
 </table>
 
@@ -92,6 +93,7 @@ Select a preview to open the full-size clip or screenshot.
   <tr>
     <td align="center"><a href="docs/assets/current/coastal-lighthouse.png"><img src="docs/assets/current/coastal-lighthouse.png" width="220" alt="Coastal lighthouse"></a><br>Coastal lighthouse</td>
     <td align="center"><a href="docs/assets/current/beach-umbrellas.png"><img src="docs/assets/current/beach-umbrellas.png" width="220" alt="Beach umbrellas and towels"></a><br>Beach umbrellas and towels</td>
+    <td align="center"><a href="docs/assets/current/ferry-quayside.png"><img src="docs/assets/current/ferry-quayside.png" width="220" alt="Ferry quay and workshops"></a><br>Ferry quay and workshops</td>
   </tr>
 </table>
 
@@ -160,6 +162,10 @@ Select a preview to open the full-size clip or screenshot.
 </table>
 
 ### Scenery sprites
+
+#### City towers · 250 variants
+
+<a href="docs/assets/artwork/towers.png"><img src="docs/assets/artwork/towers.png" width="780" alt="City towers"></a>
 
 #### Trees · 256 variants
 

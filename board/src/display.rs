@@ -177,8 +177,8 @@ mod background {
             let join = Join(&packet.done);
             left();
             let left_finished = micros() as u32;
-            // The worker only takes jobs in its top-level loop. If the right
-            // lane is still queued, it cannot be using any of the slab.
+            // If the right lane is still queued, the worker cannot be using
+            // any of the slab.
             #[cfg(feature = "terrain-opportunistic")]
             let background = !poll();
             #[cfg(not(feature = "terrain-opportunistic"))]
@@ -417,6 +417,8 @@ mod background {
                 #[cfg(feature = "native-airframe-probe")]
                 frame.capture.as_deref_mut(),
                 || {
+                    #[cfg(feature = "packed-60-terrain")]
+                    if terrain_task::poll() { return; }
                     #[cfg(feature = "cooperative-sky")]
                     let _ = self.sky.poll();
                 },
@@ -458,6 +460,12 @@ mod background {
                     #[cfg(feature = "scene-probe")]
                     { longest = longest.max(micros() - last); }
                     if !self.send_frame() {
+                        #[cfg(feature = "packed-60-terrain")]
+                        if terrain_task::poll() {
+                            #[cfg(feature = "scene-probe")]
+                            { last = micros(); }
+                            return;
+                        }
                         #[cfg(feature = "cooperative-sky")]
                         let _ = self.sky.poll();
                     }

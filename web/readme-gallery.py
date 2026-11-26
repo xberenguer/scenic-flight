@@ -14,7 +14,7 @@ PAGES = "https://xberenguer.github.io/scenic-flight/"
 FEATURED = ("mountain-pass", "coastal-soaring", "city-approach", "high-cruise", "river-valley")
 AIRCRAFT = ("Bush Plane", "Racer", "Sport Jet", "Ultralight", "Glider",
             "F/A-18 Fighter", "SR-71 Blackbird", "Bald Eagle")
-ARTWORK = (("Trees", "trees", 256), ("Rocks", "rocks", 256), ("Bushes", "bushes", 256),
+ARTWORK = (("City towers", "towers", 250), ("Trees", "trees", 256), ("Rocks", "rocks", 256), ("Bushes", "bushes", 256),
            ("Cacti", "cacti", 256), ("Freight wagons", "wagons", 250), ("Vessels", "vessels", 250),
            ("Wetland plants", "wetlands", 256), ("Lighthouse forms", "lighthouses", 3),
            ("Locomotives", "locomotives", 6))

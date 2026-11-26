@@ -32,7 +32,17 @@ const [wagonMetadata, vesselMetadata] = await Promise.all(
     .catch(() => [])),
 );
 
+const towerFamilies = [
+  'Office slab', 'Art Deco shoulder', 'Rear terraces', 'Pencil tower', 'Grid block',
+  'Offset penthouse', 'Thin end wall', 'Broad hotel', 'Stacked terraces', 'Edge spire',
+  'Compact stack', 'End-set crown', 'Portal block', 'Library terraces', 'Observatory',
+  'Diagonal slabs', 'Setback warehouse', 'Corner block', 'Twin setbacks', 'Tall glass',
+  'Stone shaft', 'Brick stair tower', 'Side-mounted crown', 'Narrow plan', 'Civic podium',
+];
+
 const categories = [
+  { title: 'City towers', label: 'Tower', atlas: 'towers.png', columns: 10, rows: 25,
+    family: index => towerFamilies[Math.floor(index / 10)] },
   { title: 'Trees', label: 'Tree', atlas: 'trees.png', family: index => treeSpecies[index & 15] },
   { title: 'Rocks', label: 'Rock', atlas: 'rocks.png', family: index => rockForms[index >> 6], traits: ['Width', 'Depth', 'Relief'] },
   { title: 'Bushes and grasses', label: 'Shrub', atlas: 'bushes.png', family: index => shrubForms[index >> 6], traits: ['Width', 'Height', 'Spread'] },

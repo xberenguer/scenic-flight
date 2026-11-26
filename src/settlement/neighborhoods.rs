@@ -87,7 +87,7 @@ impl Neighborhoods {
         key: 0,
     };
 
-    pub(super) fn survey(world: &World, road: &RoadNetwork, town: &Settlement, key: u32) -> Self {
+    pub(super) fn survey(world: &World, road: &RoadNetwork, town: &Settlement, key: u32, pulse: &mut impl FnMut()) -> Self {
         if town.tower_count < 2 {
             return Self::EMPTY;
         }
@@ -121,6 +121,7 @@ impl Neighborhoods {
 
         let mut head = 0;
         while head < tail {
+            pulse();
             let node = usize::from(queue[head]);
             head += 1;
             let col = node as i32 % SIDE as i32 + LEFT;
@@ -163,6 +164,7 @@ impl Neighborhoods {
         }
         let mut groups = [RoofGroup::EMPTY; GROUP_COLS * GROUP_ROWS];
         for block in 0..BLOCKS {
+            pulse();
             let col = block % (SIDE - 1);
             let row = block / (SIDE - 1);
             let core_col = col as i32 + LEFT;

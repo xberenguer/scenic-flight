@@ -227,6 +227,21 @@ impl RegionalFacilities {
             })
     }
 
+    pub(crate) fn urban_footprints(&self, mut emit: impl FnMut([f32; 4])) {
+        for port in self.ports() {
+            emit(port.bounds());
+        }
+        if let Some(field) = self.airfield() {
+            emit(airfield_bounds(field).0);
+        }
+        if let Some(rail) = self.rail() {
+            rail.sample_bounds(&mut emit);
+        }
+        if let Some(roadside) = self.roadside() {
+            emit(roadside.bounds());
+        }
+    }
+
     /// The paved highway cell shared by a port road and rail platform access.
     pub fn port_transfer(&self, end: Terminus, road: &RoadNetwork) -> Option<(f32, f32)> {
         self.port(end)?;

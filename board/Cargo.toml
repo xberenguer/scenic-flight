@@ -2,10 +2,12 @@
 
 [package]
 name = "scenic-flight-waveshare"
-version = "0.1.39"
+version = "0.1.49"
 edition = "2024"
 
 [features]
+urban-expansion = ["regional-rail", "distant-skyline", "shore-details"]
+urban-background = ["urban-expansion"]
 scene-probe = []
 parallel-terrain = ["regional-rail", "far-horizon", "scenic-flight/terrain-fork"]
 terrain-opportunistic = ["parallel-terrain"]

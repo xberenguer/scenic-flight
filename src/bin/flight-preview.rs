@@ -21,7 +21,7 @@ use scenic_flight::highway_stream::HighwayStream;
 use scenic_flight::horizon_cache::HorizonCache;
 use scenic_flight::distant_roads::DistantRoads;
 use scenic_flight::distant_airfields::DistantAirfields;
-use scenic_flight::land_stream::{LandBudget, LandStream};
+use scenic_flight::land_stream::{LandBudget, LandStream, UrbanAuthorities, UrbanPublication, UrbanReservations, UrbanStream};
 use scenic_flight::lighthouses::{Lighthouse, LIGHTHOUSE_TILE};
 use scenic_flight::local_routes::{LocalRouteStream, route_reservation};
 use scenic_flight::maritime::{ANCHORAGE_TILE, Anchorage};
@@ -451,6 +451,36 @@ fn basin(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     }
 }
 
+fn urban_reservations(
+    authorities: &UrbanAuthorities<'_>,
+    [x, z]: [i32; 2],
+    world: &World,
+    seed: u64,
+    cliffs: &CoastalLandmarks,
+    lights: &FeatureTiles<Lighthouse, 9, 12>,
+) -> Option<UrbanReservations> {
+    let mut mask = authorities.start([x, z], 0)?;
+    let facilities = authorities.facilities;
+    if let Some(grain) = facilities.planned((x, z))
+        .and_then(|facility| facility.rail())
+        .and_then(|rail| rail.grain_terminal())
+    {
+        let mut farm = GroundDetails::new();
+        farm.reset(world, seed, grain.origin[0], grain.origin[2]);
+        for bounds in farm.grain_field_bounds(grain.origin) {
+            mask.reserve_area(bounds);
+        }
+    }
+    for form in cliffs.forms().filter(|form| facilities.retains_landmark(form)) {
+        mask.reserve_area(form.bounds());
+    }
+    for light in lights.sites().filter(|light| facilities.retains_lighthouse(light)) {
+        mask.reserve_area(light.bounds());
+    }
+    authorities.advance(&mut mask, usize::MAX, |_| false);
+    Some(mask)
+}
+
 fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     let [seed, aircraft, advance, duration, directory] = arguments else {
         return Err("Use replay SEED AIRCRAFT START_SECONDS DURATION_SECONDS DIRECTORY".into());
@@ -478,6 +508,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     let mut skyline = Skyline::new();
     let mut bridge_silhouettes = BridgeSilhouettes::new();
     let mut district = LandStream::<8>::new();
+    let mut urban = UrbanStream::new();
     let mut facilities = FacilityStream::<8>::new(world, seed);
     let mut rivers = RiverStream::<3>::new(world, seed);
     let mut river_work = WatershedWork::new();
@@ -520,6 +551,29 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     });
     lights.reset(first_view.x, first_view.z, |x, z| Lighthouse::generate(&world, seed, x, z));
     beaches.reset(first_view.x, first_view.z, |x, z| BeachSite::generate(&world, seed, x, z));
+    let authorities = UrbanAuthorities {
+        facilities: &facilities,
+        rivers: &rivers,
+        routes: &routes,
+        highways: &highways,
+        rail: &regional_rail,
+        natural: &natural,
+        summits: None,
+    };
+    let started = std::time::Instant::now();
+    let mut urban_districts = 0;
+    for ((x, z), _) in district.districts() {
+        let Some(mask) = urban_reservations(&authorities, [x, z], &world, seed, &cliffs, &lights) else {
+            continue;
+        };
+        let Some(job) = urban.claim(&district, [x, z], 0) else { continue };
+        let result = job.prepare_reserved(&mask, || {}).expect("completed reservation snapshot");
+        assert_eq!(urban.commit_reserved(&district, result, &mask, None), UrbanPublication::Published);
+        if urban.approved(&district, [x, z]).is_some_and(|town| town.bounds().is_some()) {
+            urban_districts += 1;
+        }
+    }
+    eprintln!("Prepared {urban_districts} urban expansions in {} ms", started.elapsed().as_millis());
     std::fs::create_dir_all(directory)?;
     let mut landmark_frames = 0;
     let mut district_frames = 0;
@@ -541,6 +595,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         if frame > 0 {
             flight.update_with_obstacles(&world, |x, z| {
                 cliffs.obstruction(x, z).max(district.obstruction(x, z)).max(facilities.obstruction(x, z))
+                    .max(urban.obstruction(&district, x, z))
                     .max(rivers.obstruction(x, z)).max(routes.obstruction(x, z)).max(natural.obstruction(x, z))
                     .max(highways.obstruction(x, z))
                     .max(lights.at(x, z).map_or(0.0, |site| site.clearance(x, z)))
@@ -640,6 +695,35 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             }
         });
         regional_rail.connect_quarries(&district, &facilities, view);
+        if frame % u64::from(TICKS_PER_SECOND) == 0 {
+            let authorities = UrbanAuthorities {
+                facilities: &facilities, rivers: &rivers, routes: &routes,
+                highways: &highways, rail: &regional_rail, natural: &natural, summits: None,
+            };
+            let mask = |region| urban_reservations(&authorities, region, &world, seed, &cliffs, &lights);
+            let publication = if let Some(region) = urban.pending_region() {
+                if let Some(mask) = mask(region) {
+                    Some((region, urban.publish_reserved(&district, 0, Some(view), &mask)))
+                } else {
+                    urban.abort();
+                    None
+                }
+            } else {
+                urban.upcoming_region(&district, view, |region| authorities.ready(region))
+                    .and_then(|region| {
+                        let mask = mask(region)?;
+                        let job = urban.claim(&district, region, 0)?;
+                        let result = job.prepare_reserved(&mask, || {}).expect("completed reservation snapshot");
+                        Some((region, urban.commit_reserved(&district, result, &mask, Some(view))))
+                    })
+            };
+            if let Some((region, UrbanPublication::Published)) = publication {
+                let groups = urban.approved(&district, region).map_or(0, |plan| plan.skyline().count());
+                if groups != 0 {
+                    eprintln!("Published approaching urban district {region:?} at tick {frame} with {groups} skyline groups");
+                }
+            }
+        }
         if frame < start {
             continue;
         }
@@ -660,7 +744,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         let rain = conditions.distant_rain;
         let mist = valley_mist.observe(&world, seed, flight.ticks, view, &sky, dimensions);
         let has_land = district.has_visible_scenery(view);
-        let land_sampler = has_land.then(|| district.paint_sampler());
+        let land_sampler = has_land.then(|| urban.paint_sampler(&district, view));
         let has_facilities = facilities.has_visible_facilities(view);
         let has_river = rivers.has_visible_rivers(view);
         let has_routes = routes.routes().next().is_some();
@@ -674,7 +758,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         let light_region = lights.sites().filter(|site| visible_light(site))
             .filter_map(|site| site.screen_bounds(view, dimensions)).reduce(ScreenRect::union);
         let tower_region = district.distant_tower_region(view, dimensions);
-        let distant_skyline = skyline.prepare(&district, view, flight.ticks, &sky, dimensions,
+        let distant_skyline = skyline.prepare_with_additions(&district, view, flight.ticks, &sky, dimensions, urban.skyline(&district).chain(facilities.waterfront_silhouettes()),
             |x, z| horizon.backdrop(x, z));
         let skyline_region = distant_skyline.bounds();
         let bridge_region = rivers.bridge_region(view, dimensions);

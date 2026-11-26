@@ -29,10 +29,10 @@ pub fn render_with_packed_terrain_fork(
     )
 }
 
-/// Render a 60- or 466-pixel square through the packed terrain fork.
+/// Render a 48-, 60-, or 466-pixel square through the packed terrain fork.
 ///
-/// A banked view with depth uses two full planes in `work`. An unbanked
-/// view, or depth with only one available work plane, uses the serial path.
+/// Depth uses two full planes in `work`. The upright 48- and 60-pixel views copy
+/// the joined rows directly. Upright native frames keep the serial path.
 #[inline(never)]
 pub fn render_with_packed_terrain_fork_sized<const SIDE: usize>(
     executor: &mut impl TerrainFork,
@@ -49,14 +49,15 @@ pub fn render_with_packed_terrain_fork_sized<const SIDE: usize>(
     ready_sky_tile: impl FnMut(usize) -> Option<u16>,
     mut ground_horizon: impl FnMut(f32, f32) -> f32,
 ) -> Result<(), RenderError> {
-    if !matches!(SIDE, 60 | 466) {
+    if !matches!(SIDE, 48 | 60 | 466) {
         return Err(RenderError::InvalidDimensions);
     }
     let count = SIDE * SIDE;
     let split = split_column(SIDE);
     let right_columns = SIDE - split;
     let view = View::new(camera, SIDE, SIDE);
-    if (view.roll_sin.abs() < 0.000_001 && view.roll_cos > 0.0)
+    let unbanked = view.roll_sin.abs() < 0.000_001 && view.roll_cos > 0.0;
+    if (unbanked && SIDE == 466)
         || (depth.is_some() && work.len() < 2 * count)
     {
         return render_terrain_layer_region_with_horizon(
@@ -90,7 +91,7 @@ pub fn render_with_packed_terrain_fork_sized<const SIDE: usize>(
         let work = &mut depth_work[..count];
         work.fill(u16::MAX);
         let (left, right) = work.split_at_mut(split * SIDE);
-        ([left, right], rect.upright(&view, SIDE, SIDE))
+        ([left, right], if unbanked { *rect } else { rect.upright(&view, SIDE, SIDE) })
     });
     executor.terrain_checkpoint(TerrainForkPhase::UprightPrepared);
     let (left, right) = depth_work.as_mut().map_or((None, None), |([left, right], rect)| {
@@ -145,7 +146,12 @@ pub fn render_with_packed_terrain_fork_sized<const SIDE: usize>(
     let first_ground = edge[..SIDE].iter().copied().min().unwrap_or(SIDE as i16) as usize;
     let full = ScreenRect::full((SIDE, SIDE));
     let color_source = [&*left_color, &*right_color];
-    if let (Some(([left, right], _)), Some((depth, rect))) = (depth_work, depth) {
+    if unbanked {
+        copy_upright::<SIDE>(color_source, pixels, &aperture, full, first_ground);
+        if let (Some(([left, right], _)), Some((depth, rect))) = (depth_work, depth) {
+            copy_upright::<SIDE>([&*left, &*right], depth, &aperture, rect, first_ground);
+        }
+    } else if let (Some(([left, right], _)), Some((depth, rect))) = (depth_work, depth) {
         let depth_source = [&*left, &*right];
         if rect.left == 0 && rect.top == 0 && rect.right == SIDE && rect.bottom == SIDE {
             rotate_packed::<SIDE, true>(color_source, pixels, Some((depth_source, depth)), &aperture, &view, full, first_ground);
@@ -190,6 +196,30 @@ pub fn render_with_packed_terrain_fork_sized<const SIDE: usize>(
 }
 
 type Slabs<'a> = [&'a [u16]; 2];
+
+fn copy_upright<const SIDE: usize>(
+    source: Slabs<'_>,
+    output: &mut [u16],
+    aperture: &Aperture,
+    rect: ScreenRect,
+    first_ground: usize,
+) {
+    let split = split_column(SIDE);
+    for row in rect.top.max(first_ground)..rect.bottom {
+        let left = usize::from(aperture.left[row]).max(rect.left);
+        let right = usize::from(aperture.right[row]).min(rect.right);
+        if left < right.min(split) {
+            let range = left..right.min(split);
+            output[row * SIDE + range.start..row * SIDE + range.end]
+                .copy_from_slice(&source[0][row * split + range.start..row * split + range.end]);
+        }
+        if left.max(split) < right {
+            let offset = row * (SIDE - split);
+            output[row * SIDE + left.max(split)..row * SIDE + right]
+                .copy_from_slice(&source[1][offset + left.max(split) - split..offset + right - split]);
+        }
+    }
+}
 
 fn rotate_packed<const SIDE: usize, const PAIRED: bool>(
     source: Slabs<'_>,
@@ -397,7 +427,8 @@ mod tests {
             )
             .unwrap();
 
-            let expect_fork = camera.bank.abs() > 0.000_001 && (spare_plane || region.is_none());
+            let expect_fork = (SIDE != 466 || camera.bank.abs() > 0.000_001)
+                && (spare_plane || region.is_none());
             assert_eq!(
                 fork.count,
                 usize::from(expect_fork),
@@ -417,15 +448,23 @@ mod tests {
 
     #[test]
     fn packed_sixty_matches_serial_color_and_depth() {
-        const SIDE: usize = 60;
+        check_adaptive_raster::<60>();
+    }
+
+    #[test]
+    fn packed_forty_eight_matches_serial_color_and_depth() {
+        check_adaptive_raster::<48>();
+    }
+
+    fn check_adaptive_raster<const SIDE: usize>() {
         let regions = [
             None,
             Some(ScreenRect::full((SIDE, SIDE))),
             Some(ScreenRect {
-                left: 7, right: 53, top: 11, bottom: 49,
+                left: 7, right: SIDE - 7, top: 11, bottom: SIDE - 11,
             }),
             Some(ScreenRect {
-                left: 31, right: 58, top: 4, bottom: 33,
+                left: SIDE / 2 + 1, right: SIDE - 2, top: 4, bottom: 33,
             }),
         ];
 
