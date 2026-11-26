@@ -41,7 +41,7 @@ const fn building(
 
 pub(crate) const LANDMARKS: [Landmark; 100] = [
     building(
-        "Twin needles",
+        "Twin slender towers",
         1.16,
         0.91,
         55.0,
@@ -53,7 +53,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Three brothers",
+        "Three matching towers",
         1.24,
         0.91,
         45.0,
@@ -66,7 +66,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Crescent exchange",
+        "Curved commercial building",
         1.18,
         1.02,
         28.0,
@@ -93,7 +93,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "East stair",
+        "Stepped apartment tower",
         1.23,
         0.89,
         41.0,
@@ -107,7 +107,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Cross axis offices",
+        "Cross-shaped office building",
         1.10,
         1.04,
         36.0,
@@ -119,7 +119,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Obelisk court",
+        "Tower with courtyard",
         0.86,
         0.83,
         65.0,
@@ -132,7 +132,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Library courtyards",
+        "Library with courtyards",
         1.21,
         1.11,
         24.0,
@@ -145,7 +145,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Seven bays",
+        "Seven-bay building",
         1.24,
         0.95,
         29.0,
@@ -160,7 +160,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Broadcast lantern",
+        "Broadcast mast",
         0.92,
         0.87,
         64.0,
@@ -172,7 +172,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Back-to-back hotels",
+        "Paired hotels",
         1.17,
         0.94,
         46.0,
@@ -186,7 +186,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Sail house",
+        "Sloped-roof house",
         0.98,
         1.05,
         53.0,
@@ -200,7 +200,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Spiral terraces",
+        "Spiral terrace building",
         1.15,
         1.11,
         48.0,
@@ -214,7 +214,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Four-point terminal",
+        "Four-wing terminal",
         1.17,
         1.16,
         26.0,
@@ -229,7 +229,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Gate towers",
+        "Entrance towers",
         1.21,
         0.97,
         49.0,
@@ -243,7 +243,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Waterfront cliff",
+        "Stepped waterfront building",
         1.24,
         1.10,
         40.0,
@@ -256,7 +256,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Market chimney block",
+        "Market building with chimney",
         1.20,
         1.06,
         39.0,
@@ -269,7 +269,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Folded housing court",
+        "Angled courtyard housing",
         1.20,
         1.09,
         38.0,
@@ -282,7 +282,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Signal head",
+        "Signal tower",
         0.95,
         0.86,
         58.0,
@@ -295,7 +295,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Radar quarter",
+        "Radar complex",
         1.12,
         1.01,
         33.0,
@@ -308,7 +308,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Needle and annex",
+        "Slender tower with annex",
         1.20,
         0.87,
         61.0,
@@ -320,7 +320,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Cascade hotel",
+        "Stepped hotel",
         1.19,
         1.08,
         44.0,
@@ -333,7 +333,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "The comb",
+        "Parallel-wing building",
         1.21,
         0.96,
         35.0,
@@ -347,7 +347,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Split crown",
+        "Tower with split roof",
         1.13,
         0.91,
         53.0,
@@ -360,7 +360,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Corner citadel",
+        "Fortified corner block",
         1.24,
         1.15,
         43.0,
@@ -375,7 +375,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
     ),
     // Civic gateways and linked towers use open space as part of their skyline.
     building(
-        "Exchange gate",
+        "Commercial building with gateway",
         1.25,
         0.86,
         53.0,
@@ -387,7 +387,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Double skywalk",
+        "Buildings with two skywalks",
         1.21,
         0.99,
         48.0,
@@ -400,7 +400,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Suspended archive",
+        "Raised archive building",
         1.24,
         1.12,
         30.0,
@@ -413,7 +413,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Court of two lintels",
+        "Courtyard with two portals",
         1.25,
         1.13,
         31.0,
@@ -428,7 +428,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Overhanging council chamber",
+        "Council building with overhang",
         1.24,
         0.94,
         42.0,
@@ -441,7 +441,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
     ),
     // Institutional roofs favor broad forms rather than the office-tower profile.
     building(
-        "Museum roof lanterns",
+        "Museum with raised skylights",
         1.23,
         1.12,
         24.0,
@@ -455,7 +455,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Ribbon concert hall",
+        "Curved concert hall",
         1.25,
         1.06,
         27.0,
@@ -469,7 +469,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Astronomy drum",
+        "Round astronomy building",
         1.10,
         1.07,
         36.0,
@@ -482,7 +482,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Fan concourse",
+        "Fan-shaped concourse",
         1.25,
         1.10,
         23.0,
@@ -495,7 +495,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Split forum",
+        "Two-wing civic hall",
         1.24,
         1.12,
         29.0,
@@ -509,7 +509,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
     ),
     // Industrial districts have chimneys, elevators, and plant enclosures.
     building(
-        "Four-stack powerhouse",
+        "Power station with four chimneys",
         1.25,
         1.09,
         49.0,
@@ -550,7 +550,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Foundry ridge",
+        "Foundry with ridge roof",
         1.23,
         1.12,
         36.0,
@@ -564,7 +564,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Waterworks towers",
+        "Water treatment towers",
         1.20,
         1.06,
         43.0,
@@ -592,7 +592,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Forked apartments",
+        "Forked apartment block",
         1.25,
         1.00,
         53.0,
@@ -605,7 +605,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Garden ziggurat",
+        "Stepped building with gardens",
         1.25,
         1.19,
         34.0,
@@ -619,7 +619,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Diagonal hotel ensemble",
+        "Diagonal hotel complex",
         1.23,
         1.16,
         47.0,
@@ -648,7 +648,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
     ),
     // Tall commercial silhouettes break up the office slabs.
     building(
-        "Crowned octagon",
+        "Octagonal tower with raised top",
         1.18,
         1.12,
         56.0,
@@ -662,7 +662,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Twin offset pennants",
+        "Pair of offset towers",
         1.25,
         0.96,
         58.0,
@@ -676,7 +676,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Clipped crystal",
+        "Faceted glass tower",
         1.17,
         1.11,
         60.0,
@@ -704,7 +704,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Cantilevered crown",
+        "Tower with cantilevered top",
         1.24,
         0.94,
         67.0,
@@ -717,7 +717,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Civic balance",
+        "Balanced civic wings",
         1.31,
         0.89,
         64.0,
@@ -730,7 +730,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Glass hourglass",
+        "Glass tower with recessed middle floors",
         1.18,
         0.91,
         75.0,
@@ -744,7 +744,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Crown furnace",
+        "Furnace building with raised roof",
         1.22,
         1.08,
         48.0,
@@ -770,7 +770,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Library of steps",
+        "Terraced library",
         1.42,
         1.12,
         36.0,
@@ -784,7 +784,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Overlook drum",
+        "Round lookout tower",
         1.1,
         1.08,
         70.0,
@@ -798,7 +798,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Paper mill crown",
+        "Paper mill with raised roof",
         1.31,
         1.19,
         44.0,
@@ -812,7 +812,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Longbow residences",
+        "Curved apartment towers",
         1.28,
         0.99,
         66.0,
@@ -826,7 +826,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Northbank gantry",
+        "Riverside gantry",
         1.3,
         0.96,
         52.0,
@@ -840,7 +840,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Ridge relay",
+        "Ridge relay station",
         0.87,
         0.98,
         78.0,
@@ -853,7 +853,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Amphitheater rim",
+        "Amphitheater",
         1.34,
         1.29,
         33.0,
@@ -867,7 +867,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Port customs bridge",
+        "Port customs building with bridge",
         1.41,
         0.98,
         47.0,
@@ -881,7 +881,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Scholars' perches",
+        "Raised university buildings",
         1.06,
         0.97,
         68.0,
@@ -908,7 +908,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Palace of sound",
+        "Acoustic performance hall",
         1.31,
         1.17,
         39.0,
@@ -923,7 +923,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Terrace lantern hotel",
+        "Terraced hotel with skylights",
         1.08,
         1.28,
         60.0,
@@ -937,7 +937,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Glass sail terminal",
+        "Sloped glass terminal",
         1.4,
         0.86,
         54.0,
@@ -951,7 +951,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Chamber on columns",
+        "Council building on columns",
         1.18,
         1.08,
         57.0,
@@ -966,7 +966,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Founders' keep",
+        "Masonry tower",
         1.29,
         1.19,
         59.0,
@@ -980,7 +980,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Junction wheelhouse",
+        "Rail junction building",
         1.28,
         1.03,
         41.0,
@@ -994,7 +994,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Arcade of cranes",
+        "Row of cargo cranes",
         1.4,
         0.93,
         55.0,
@@ -1009,7 +1009,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Violet ridge museum",
+        "Ridge museum",
         1.43,
         1.21,
         35.0,
@@ -1024,7 +1024,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "River needle twins",
+        "Twin riverside towers",
         0.93,
         1.31,
         72.0,
@@ -1038,7 +1038,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Open square embassy",
+        "Embassy with open courtyard",
         1.3,
         1.32,
         48.0,
@@ -1052,7 +1052,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Capsule tower",
+        "Rounded tower",
         1.02,
         0.9,
         76.0,
@@ -1066,7 +1066,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Viaduct atrium",
+        "Atrium over viaduct",
         1.29,
         0.98,
         60.00,
@@ -1079,7 +1079,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Railway clock pier",
+        "Railway clock tower",
         0.94,
         1.17,
         55.00,
@@ -1092,7 +1092,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Northlight sawtooth",
+        "Sawtooth-roof building",
         1.34,
         1.18,
         31.00,
@@ -1107,7 +1107,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Sundial annex",
+        "Annex with rooftop sundial",
         1.19,
         0.89,
         48.00,
@@ -1120,7 +1120,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Printworks gantry",
+        "Printworks with loading gantry",
         1.28,
         1.17,
         43.00,
@@ -1135,7 +1135,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "East and West courts",
+        "Paired courtyards",
         1.36,
         1.12,
         45.00,
@@ -1148,7 +1148,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Broken pediment hall",
+        "Civic hall with split pediment",
         1.24,
         0.89,
         42.00,
@@ -1162,7 +1162,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Observatory paddock",
+        "Observatory with enclosure",
         0.96,
         1.27,
         57.00,
@@ -1176,7 +1176,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Triangle district archive",
+        "Triangular archive",
         1.35,
         1.02,
         38.00,
@@ -1189,7 +1189,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "The long signal",
+        "Tall signal mast",
         0.83,
         0.96,
         78.00,
@@ -1203,7 +1203,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Mariners guild stair",
+        "Stepped maritime building",
         1.18,
         1.31,
         40.00,
@@ -1217,7 +1217,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Satellite switchboard",
+        "Satellite relay station",
         1.12,
         0.94,
         70.00,
@@ -1230,7 +1230,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Limestone gateway trio",
+        "Three limestone entrance towers",
         1.32,
         1.07,
         63.00,
@@ -1244,7 +1244,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Dockside customs clock",
+        "Dockside customs building with clock",
         1.06,
         1.32,
         32.00,
@@ -1257,7 +1257,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Inclined glass belfry",
+        "Slanted glass bell tower",
         0.82,
         1.11,
         73.00,
@@ -1272,7 +1272,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Council wings",
+        "Council building with side wings",
         1.31,
         1.18,
         34.00,
@@ -1286,7 +1286,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Tandem water offices",
+        "Paired water utility offices",
         1.34,
         0.95,
         58.00,
@@ -1314,7 +1314,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Telescoping lift shaft",
+        "Tiered elevator tower",
         0.89,
         0.88,
         80.00,
@@ -1328,7 +1328,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Lantern bridge hotel",
+        "Hotel with an enclosed skybridge",
         1.32,
         1.03,
         66.00,
@@ -1341,7 +1341,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "North market gables",
+        "Market with gabled roofs",
         1.24,
         1.27,
         34.00,
@@ -1357,7 +1357,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Tidal exchange island",
+        "Island commercial building",
         1.34,
         1.19,
         54.00,
@@ -1371,7 +1371,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "The counterweight",
+        "Offset cantilevered tower",
         1.16,
         0.98,
         70.00,
@@ -1385,7 +1385,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Braided studio towers",
+        "Interlinked studio towers",
         1.20,
         1.14,
         56.00,
@@ -1400,7 +1400,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Hillcrest city forum",
+        "Hillside civic center",
         1.38,
         1.29,
         49.00,
