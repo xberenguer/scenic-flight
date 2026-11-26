@@ -29,6 +29,7 @@ pub fn overlay_rail(line: &RailLine, x: f32, z: f32, ground: Sample) -> Sample {
 
 pub(crate) fn cover_rail(piece: RailSample, ground: Sample) -> Sample {
     if ground.elevation <= SEA_LEVEL
+        || ground.surface.is_station_roof()
         || matches!(
             ground.surface,
             Surface::RiverWater
@@ -56,19 +57,48 @@ pub(crate) fn cover_rail(piece: RailSample, ground: Sample) -> Sample {
     let surface = match piece.material {
         RailMaterial::Ballast | RailMaterial::Sleepers | RailMaterial::Steel => Surface::Gravel,
         RailMaterial::StationPlatform => Surface::Pavement,
-        RailMaterial::FreightPlatform | RailMaterial::StationAccess => {
+        RailMaterial::FreightPlatform => Surface::RailApron,
+        RailMaterial::StationAccess => {
             if ground.surface == Surface::Pavement {
                 Surface::Pavement
             } else {
                 Surface::Gravel
             }
         }
-        RailMaterial::StationRoof => Surface::FlatRoof,
+        RailMaterial::StationTimber => Surface::RailTimber,
+        RailMaterial::StationMetal => Surface::RailMetal,
+        RailMaterial::StationGlass => Surface::RailGlass,
+        RailMaterial::StationRust => Surface::RailRust,
     };
     Sample {
         surface,
         elevation: piece.elevation.unwrap_or(ground.elevation),
     }
+}
+
+/// Dress the corridor's surveyed cuts and fills without changing its grade.
+/// The signed displacement gives continuous bands in the actual cross-section
+/// and returns gradually to the native surface at the toe of the earthwork.
+pub(crate) fn cover_rail_earthwork(elevation: f32, ground: Sample) -> Option<Sample> {
+    use Surface::{Desert, Forest, Grass, Gravel, Rock, Sand, ScreeCoarse, ScreeEdge, Snow};
+    if ground.elevation <= SEA_LEVEL
+        || !matches!(ground.surface, Grass | Forest | Rock | Sand | Snow | Desert | Gravel)
+    {
+        return None;
+    }
+    let change = elevation - ground.elevation;
+    let surface = if change <= -0.66 {
+        Rock
+    } else if change <= -0.33 {
+        ScreeCoarse
+    } else if change >= 0.57 {
+        Gravel
+    } else if change.abs() >= 0.22 && matches!(ground.surface, Grass | Forest) {
+        ScreeEdge
+    } else {
+        ground.surface
+    };
+    Some(Sample { elevation, surface })
 }
 
 /// Add nearby rail heads and sleepers after the terrain and its depth buffer.
@@ -81,7 +111,7 @@ pub fn draw_rail(
 ) {
     draw_tracks(mesh, line.bounds(), [line.polyline(), line.siding().map_or(&[], |points| &points[..])], camera, dimensions);
     draw_station_fixtures(
-        mesh, line.stations().map(|station| station.fixtures()), camera, dimensions,
+        mesh, line.stations().map(|station| station.fixtures(line.service)), camera, dimensions,
     );
 }
 
@@ -99,7 +129,7 @@ pub fn draw_rail_corridor(
     }
     draw_tracks(mesh, line.bounds(), [line.polyline(), &[]], camera, dimensions);
     draw_station_fixtures(
-        mesh, line.stations().map(|station| station.fixtures()), camera, dimensions,
+        mesh, line.stations().map(|station| station.fixtures(line.service)), camera, dimensions,
     );
 }
 
@@ -167,7 +197,7 @@ pub fn rail_screen_region(
     tracks_screen_region(line.bounds(), [line.polyline(), line.siding().map_or(&[], |points| &points[..])], camera, dimensions)
         .into_iter()
         .chain(station_screen_region(
-            line.stations().map(|station| station.fixtures()), camera, dimensions,
+            line.stations().map(|station| station.fixtures(line.service)), camera, dimensions,
         ))
         .reduce(ScreenRect::union)
 }
@@ -188,7 +218,7 @@ pub fn corridor_screen_region(
     corridor_bed(line.polyline(), &view, camera, |quad, _| coverage.include(quad));
     coverage.region.into_iter()
         .chain(station_screen_region(
-            line.stations().map(|station| station.fixtures()), camera, dimensions,
+            line.stations().map(|station| station.fixtures(line.service)), camera, dimensions,
         ))
         .reduce(ScreenRect::union)
 }

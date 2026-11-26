@@ -91,7 +91,7 @@
   },
   {
     "id": "formation-pair",
-    "title": "Fighter formation · 2 wingmates",
+    "title": "Fighter line abreast",
     "category": "Encounters",
     "aircraft": "F/A-18 Fighter",
     "biome": "",
@@ -101,13 +101,33 @@
   },
   {
     "id": "formation-four",
-    "title": "Fighter formation · 4 wingmates",
+    "title": "Fighter wedge · 4 wingmates",
     "category": "Encounters",
     "aircraft": "F/A-18 Fighter",
     "biome": "",
     "format": "Video",
     "poster": "assets/current/formation-four.png",
     "src": "assets/current/formation-four.mp4"
+  },
+  {
+    "id": "formation-echelon",
+    "title": "Fighter echelon and peel-away",
+    "category": "Encounters",
+    "aircraft": "F/A-18 Fighter",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/formation-echelon.png",
+    "src": "assets/current/formation-echelon.mp4"
+  },
+  {
+    "id": "woodland-stands",
+    "title": "Ultralight along the wooded slopes",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Woodland",
+    "format": "Video",
+    "poster": "assets/current/woodland-stands.png",
+    "src": "assets/current/woodland-stands.mp4"
   },
   {
     "id": "bay-crossing",
@@ -125,9 +145,9 @@
     "category": "Encounters",
     "aircraft": "SR-71 Blackbird",
     "biome": "",
-    "format": "GIF",
-    "poster": "assets/blackbird-refueling.png",
-    "src": "assets/blackbird-refueling.gif"
+    "format": "Video",
+    "poster": "assets/current/blackbird-refueling.png",
+    "src": "assets/current/blackbird-refueling.mp4"
   },
   {
     "id": "cliffside",
@@ -223,6 +243,76 @@
     "poster": "assets/current/ferry-terminal.png",
     "src": "assets/current/ferry-terminal.png",
     "note": "A ferry berth, apron, and terminal on the shore."
+  },
+  {
+    "id": "freight-containers",
+    "title": "Container train below the Ultralight",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coast & Ocean",
+    "format": "GIF",
+    "poster": "assets/current/freight-containers.png",
+    "src": "assets/current/freight-containers.gif"
+  },
+  {
+    "id": "freight-tankers",
+    "title": "Food-oil tank cars",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/freight-tankers.png",
+    "src": "assets/current/freight-tankers.png"
+  },
+  {
+    "id": "freight-cold-storage",
+    "title": "Frozen-food reefers",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/freight-cold-storage.png",
+    "src": "assets/current/freight-cold-storage.png"
+  },
+  {
+    "id": "freight-steel-coils",
+    "title": "Hot-rolled steel coil cars",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/freight-steel-coils.png",
+    "src": "assets/current/freight-steel-coils.png"
+  },
+  {
+    "id": "freight-platforms",
+    "title": "Rail loading apron and inland transfer shed",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/freight-platforms.png",
+    "src": "assets/current/freight-platforms.png"
+  },
+  {
+    "id": "gravel-freight",
+    "title": "Gravel pit and aggregate freight",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/gravel-freight.png",
+    "src": "assets/current/gravel-freight.png"
+  },
+  {
+    "id": "rail-earthworks",
+    "title": "Rail cutting and gravel embankment",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/rail-earthworks.png",
+    "src": "assets/current/rail-earthworks.png"
   },
   {
     "id": "freight-harbor",

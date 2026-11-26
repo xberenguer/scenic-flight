@@ -92,16 +92,14 @@ pub fn draw_flight_scene_on(
         }
     }
     if let Some(event) = formation(flight.aircraft, seed, flight.ticks) {
-        let departure = 19.0 * smoothstep((event.progress - 0.70) / 0.30);
         let mut wingmates = [(player, 0, 0.0); 4];
         for (index, mate) in event.aircraft[..event.count].iter().enumerate() {
-            let lateral = mate.right + departure.copysign(mate.right);
-            let outer = if index >= 2 { 1.0 } else { 0.0 };
-            let forward = mate.forward + outer * 4.8;
+            let lateral = mate.right;
+            let forward = mate.forward;
             let projection = Projection {
                 origin: [
                     player.origin[0] + player.yaw.1 * lateral + player.yaw.0 * forward,
-                    player.origin[1] + mate.above + outer * 2.6,
+                    player.origin[1] + mate.above,
                     player.origin[2] + player.yaw.1 * forward - player.yaw.0 * lateral,
                 ],
                 yaw: sin_cos(flight.heading - flight.view.heading + mate.heading_offset),

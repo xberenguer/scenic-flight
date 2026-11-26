@@ -6,6 +6,8 @@ use crate::world::{SEA_LEVEL, Sample, Surface, World};
 const SIDE: i32 = 19;
 const TILE: f32 = 64.0;
 const TREE_TILE: f32 = 5.5;
+const CROWN_BLEND_START: f32 = 54.0 * 54.0;
+const CROWN_BLEND_END: f32 = 122.0 * 122.0;
 const FARM_DISTRICT_TILES: i32 = 5;
 
 #[derive(Clone, Copy)]
@@ -167,7 +169,9 @@ impl GroundDetails {
     }
 
     pub fn tree_sampler(&self) -> TreeSampler {
-        TreeSampler { seed: self.seed ^ 0x27a4_2dec, last: core::cell::Cell::new(None) }
+        TreeSampler {
+            seed: self.seed ^ 0x27a4_2dec, last: core::cell::Cell::new(None), view: None,
+        }
     }
 }
 
@@ -175,13 +179,27 @@ impl GroundDetails {
 pub struct TreeSampler {
     seed: u64,
     last: core::cell::Cell<Option<TreeCrown>>,
+    view: Option<[f32; 3]>,
 }
 
 impl TreeSampler {
+    /// Use individual crowns near the eye and a continuous canopy farther out.
+    pub fn for_view(mut self, x: f32, altitude: f32, z: f32) -> Self {
+        self.view = Some([x, altitude, z]);
+        self
+    }
+
     #[inline]
     pub fn geometry(&self, x: f32, z: f32, ground: Sample) -> Sample {
         if ground.surface != Surface::Forest {
             return ground;
+        }
+        let distance = self.view.map_or(0.0, |[eye_x, eye_y, eye_z]| {
+            let [dx, dy, dz] = [x - eye_x, ground.elevation - eye_y, z - eye_z];
+            dx * dx + dy * dy + dz * dz
+        });
+        if distance >= CROWN_BLEND_END {
+            return Sample { elevation: ground.elevation + stand_height(ground.elevation), ..ground };
         }
         let tx = grid_index(x, 1.0 / TREE_TILE);
         let tz = grid_index(z, 1.0 / TREE_TILE);
@@ -193,8 +211,20 @@ impl TreeSampler {
                 crown
             }
         };
-        crown.overlay(x, z, ground)
+        let tree = crown.overlay(x, z, ground);
+        if distance <= CROWN_BLEND_START {
+            return tree;
+        }
+        let weight = smoothstep((distance - CROWN_BLEND_START) * (1.0 / (CROWN_BLEND_END - CROWN_BLEND_START)));
+        let stand = ground.elevation + stand_height(ground.elevation);
+        Sample { elevation: tree.elevation + (stand - tree.elevation) * weight, ..tree }
     }
+}
+
+// At low altitude distant woods read as a canopy above the ground.
+// It thins as the terrain rises toward the tree line.
+fn stand_height(elevation: f32) -> f32 {
+    (0.66 - (elevation - 38.0).max(0.0) * (0.43 / 38.0)).max(0.23)
 }
 
 #[derive(Clone, Copy)]
@@ -227,6 +257,44 @@ enum CrownForm {
     Cushion,
 }
 
+fn grove_variant(seed: u64, tx: i32, tz: i32, state: u64) -> u8 {
+    let variant = (state >> 20) as u8;
+    // Keep occasional volunteers from all five families between the stands.
+    if (state >> 32) & 15 < 3 {
+        return variant;
+    }
+    // Oblique coordinates prevent alignment with the crown pitch. Small
+    // per-tree offsets interleave the groves at their edges.
+    let jitter_u = ((state >> 48) & 7) as i32 - 3;
+    let jitter_v = ((state >> 54) & 15) as i32 - 7;
+    let grove_x = tx.wrapping_mul(3).wrapping_add(tz).wrapping_add(jitter_u) >> 5;
+    let grove_z = tz.wrapping_mul(4).wrapping_sub(tx).wrapping_add(jitter_v) >> 6;
+    let grove = key(seed ^ 0x7690_edd1_7f4c_1a53, grove_x, grove_z);
+    const MIXES: [[usize; 2]; 8] = [
+        [0, 3], [1, 2], [2, 1], [3, 0], [4, 0], [1, 4], [0, 4], [3, 2],
+    ];
+    // These are the existing catalog's oak, spruce, aspen, maple and juniper forms.
+    const FORMS: [[u8; 4]; 5] = [
+        [0, 5, 8, 15], [1, 4, 10, 1], [6, 7, 14, 6], [3, 12, 13, 3], [2, 9, 11, 2],
+    ];
+    let pair = MIXES[(grove & 7) as usize];
+    let family = pair[usize::from((state >> 41) & 7 == 0)];
+    let form = FORMS[family][(variant & 3) as usize];
+    (variant & 0xf0) | form
+}
+
+impl CrownForm {
+    fn foliage(self) -> (Surface, f32) {
+        match self {
+            Self::Pointed | Self::Spire | Self::Tiered => (Surface::SpruceCanopy, 1.58),
+            Self::Vase | Self::Fan | Self::SplitRidge => (Surface::AspenCanopy, 1.33),
+            Self::Forked | Self::ThreeLobed | Self::CutCrown => (Surface::MapleCanopy, 1.08),
+            Self::Leaning | Self::Crescent | Self::WindSwept => (Surface::JuniperCanopy, 0.82),
+            _ => (Surface::TreeCanopy, 1.0),
+        }
+    }
+}
+
 impl TreeCrown {
     fn survey(seed: u64, tx: i32, tz: i32) -> Self {
         let state = key(seed, tx, tz);
@@ -240,7 +308,7 @@ impl TreeCrown {
             (tx as f32 + 0.36 + fraction(state) * 0.28) * TREE_TILE,
             (tz as f32 + 0.36 + fraction(state.rotate_left(11)) * 0.28) * TREE_TILE,
         ];
-        Self::with_variant((tx, tz), center, (state >> 20) as u8)
+        Self::with_variant((tx, tz), center, grove_variant(seed, tx, tz, state))
     }
 
     fn with_variant(tile: (i32, i32), center: [f32; 2], variant: u8) -> Self {
@@ -272,12 +340,13 @@ impl TreeCrown {
             CrownForm::Cushion,
         ];
         let variant = usize::from(variant);
+        let form = FORM[variant & 15];
         Self {
             tile,
             center,
             inverse_span: SPAN[(variant >> 4) & 3],
-            height: HEIGHT[variant >> 6],
-            form: FORM[variant & 15],
+            height: HEIGHT[variant >> 6] * form.foliage().1,
+            form,
         }
     }
 
@@ -316,7 +385,7 @@ impl TreeCrown {
         let shape = 1.0 - squared;
         Sample {
             elevation: ground.elevation + self.height * shape * shape * (3.0 - 2.0 * shape),
-            surface: Surface::TreeCanopy,
+            surface: self.form.foliage().0,
         }
     }
 }
@@ -371,6 +440,27 @@ mod tests {
     const FLAT_FOREST: Sample = Sample { elevation: 0.0, surface: Surface::Forest };
 
     #[test]
+    fn stand_canopy_preserves_near_crowns_and_blends_smoothly_with_distance() {
+        let world = World::new(49);
+        let mut details = GroundDetails::new();
+        details.reset(&world, 49, 0.0, 0.0);
+        let [x, z] = [-3.7, 5.1];
+        let local = details.tree_sampler().geometry(x, z, FLAT_FOREST);
+        let far = details.tree_sampler().for_view(x + 160.0, 0.0, z).geometry(x, z, FLAT_FOREST);
+        let far_other = details.tree_sampler().for_view(x, 160.0, z).geometry(x, z, FLAT_FOREST);
+        let height_at = |offset| details.tree_sampler().for_view(x + offset, 0.0, z)
+            .geometry(x, z, FLAT_FOREST).elevation;
+        assert_eq!(height_at(50.0), local.elevation);
+        assert_eq!(far, far_other);
+        assert_eq!(far.surface, Surface::Forest);
+        assert!((0.24..=1.49).contains(&far.elevation));
+        assert!((height_at(54.01) - height_at(53.99)).abs() < 0.0001);
+        assert!((height_at(122.01) - height_at(121.99)).abs() < 0.0001);
+        let rock = Sample { surface: Surface::Rock, ..FLAT_FOREST };
+        assert_eq!(details.tree_sampler().for_view(200.0, 200.0, 0.0).geometry(x, z, rock), rock);
+    }
+
+    #[test]
     fn all_256_crowns_have_distinct_sampled_geometry() {
         let mut signatures = HashSet::new();
         for variant in u8::MIN..=u8::MAX {
@@ -380,7 +470,7 @@ mod tests {
                 let x = (index % 17) as f32 * 0.25 - 2.0;
                 let z = (index / 17) as f32 * 0.25 - 2.0;
                 let sample = crown.overlay(x, z, FLAT_FOREST);
-                if sample.surface == Surface::TreeCanopy {
+                if sample.surface.is_tree_canopy() {
                     *cell = 1 + (sample.elevation / 0.12) as u8;
                 }
             }
@@ -402,6 +492,39 @@ mod tests {
             }
         }
         assert_eq!(geometries.len(), 256);
+    }
+
+    #[test]
+    fn seeded_groves_cluster_families_without_losing_mixed_woodland() {
+        let mut families = std::collections::BTreeSet::new();
+        let mut local = [0; 2];
+        let mut distant = [0; 2];
+        let family = |seed, x, z| {
+            let crown = TreeCrown::survey(seed, x, z);
+            (!matches!(crown.form, CrownForm::Bare)).then(|| {
+                crown.form.foliage().0.canopy_color().unwrap()
+            })
+        };
+        for seed in [11, 162, 4329, 7911] {
+            for x in -34..=34 {
+                for z in -35..=35 {
+                    let Some(here) = family(seed, x, z) else { continue };
+                    families.insert(here);
+                    if let Some(next) = family(seed, x + 1, z) {
+                        local[0] += usize::from(here == next);
+                        local[1] += 1;
+                    }
+                    if let Some(next) = family(seed, x + 57, z - 31) {
+                        distant[0] += usize::from(here == next);
+                        distant[1] += 1;
+                    }
+                }
+            }
+        }
+        let rate = |[same, pairs]: [usize; 2]| same as f32 / pairs as f32;
+        let (near, far) = (rate(local), rate(distant));
+        assert_eq!(families.len(), 5);
+        assert!(near > 0.45 && near < 0.80 && near - far > 0.20, "{near} vs {far}");
     }
 
     #[test]
@@ -446,7 +569,7 @@ mod tests {
                     };
                     let expected = details.geometry(x, z, ground);
                     assert_eq!(sampler.geometry(x, z, ground), expected);
-                    crowns += usize::from(expected.surface == Surface::TreeCanopy);
+                    crowns += usize::from(expected.surface.is_tree_canopy());
                 }
             }
             assert!(crowns > 100);
@@ -468,10 +591,10 @@ mod tests {
                     details.follow(&world, x, z);
                     let natural = world.sample(x, z);
                     let enriched = details.sample(x, z, natural);
-                    if enriched.surface == Surface::TreeCanopy {
+                    if enriched.surface.is_tree_canopy() {
                         trees += 1;
                         assert_eq!(natural.surface, Surface::Forest);
-                        assert!((0.0..=1.40).contains(&(enriched.elevation - natural.elevation)));
+                        assert!((0.0..=2.20).contains(&(enriched.elevation - natural.elevation)));
                     }
                     if matches!(enriched.surface, Surface::FieldGreen | Surface::FieldGold | Surface::FieldSoil) {
                         fields += 1;

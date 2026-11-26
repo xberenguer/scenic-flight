@@ -1206,7 +1206,7 @@ fn draw_near_bands<const CLIPPED: bool>(
                 reflection: [camera.altitude - distance * reflection, glint_width, glint,
                     sun_right, sun_forward],
             };
-            let (color, rock_phase) = ground_color(surface, world_position, grade, detail_fade, light);
+            let (color, rock_phase) = ground_color(surface, world_position, grade, detail_fade, light, &camera);
             let paint = |from: usize, to: usize, color: u16| {
                 let together = to.min(common_limit);
                 if from < together {
@@ -1440,7 +1440,7 @@ fn draw_terrain<const CLIPPED: bool>(
                 reflection: [camera.altitude - distance * reflection, glint_width, glint,
                     sun_right, sun_forward],
             };
-            let (color, rock_phase) = ground_color(surface, world_position, grade, detail_fade, light);
+            let (color, rock_phase) = ground_color(surface, world_position, grade, detail_fade, light, &camera);
             let paint = |from: usize, to: usize, color: u16| {
                 let together = to.min(common_limit);
                 if from < together {
@@ -1893,7 +1893,7 @@ fn terrain_grade(
 
 fn ground_color(
     surface: Surface, position: [f32; 3], grade: impl FnOnce() -> [f32; 2],
-    detail_fade: f32, lighting: GroundLight,
+    detail_fade: f32, lighting: GroundLight, eye: &Camera,
 ) -> (u16, f32) {
     let GroundLight {
         daylight, ambient, light_up, horizon, fog, light_forward, light_right, lateral,
@@ -1901,6 +1901,12 @@ fn ground_color(
         ground_seed,
         reflection: [reflection_height, reflection_width, glint, sun_right, sun_forward],
     } = lighting;
+    let woodland = || {
+        #[cfg(feature = "ground-cover")]
+        { crate::ground_cover::woodland_color(position, ground_seed) }
+        #[cfg(not(feature = "ground-cover"))]
+        { [67.0, 114.0, 68.0] }
+    };
     let (color, water) = match surface {
         Surface::DeepWater => ([34.0, 94.0, 141.0], true),
         Surface::Shallows => ([45.0, 120.0, 148.0], true),
@@ -1910,20 +1916,32 @@ fn ground_color(
             false,
         ),
         Surface::Grass => (grass_color(position[1]), false),
-        Surface::Forest => (forest_color([67.0, 114.0, 68.0], position[1]), false),
+        Surface::Forest => (forest_color(woodland(), position[1]), false),
         Surface::Rock => (alpine_rock(position[1]), false),
         Surface::Snow => (snow_color(position[1]), false),
         Surface::Desert => (desert_color(position[1]), false),
         Surface::Pavement => ([80.0, 87.0, 92.0], false),
         Surface::Gravel => ([163.0, 149.0, 118.0], false),
         Surface::Park => ([87.0, 135.0, 70.0], false),
-        Surface::TreeCanopy => (forest_color([59.0, 105.0, 62.0], position[1]), false),
+        Surface::TreeCanopy | Surface::SpruceCanopy | Surface::AspenCanopy
+        | Surface::MapleCanopy | Surface::JuniperCanopy => {
+            let [dx, dy, dz] = [position[0] - eye.x, position[1] - eye.altitude, position[2] - eye.z];
+            let close = 1.0 - smoothstep((dx * dx + dy * dy + dz * dz - 54.0 * 54.0)
+                * (1.0 / (112.0 * 112.0 - 54.0 * 54.0)));
+            let pigment = surface.canopy_color().unwrap_or([61, 117, 55]).map(f32::from);
+            (forest_color(mix(woodland(), pigment, close), position[1]), false)
+        }
         Surface::FieldGreen => ([111.0, 137.0, 69.0], false),
         Surface::FieldGold => ([183.0, 164.0, 86.0], false),
         Surface::FieldSoil => ([152.0, 109.0, 77.0], false),
         Surface::PitchedRoof => ([171.0, 85.0, 61.0], false),
         Surface::FlatRoof => ([137.0, 141.0, 150.0], false),
         Surface::TowerRoof => ([157.0, 175.0, 188.0], false),
+        Surface::RailTimber => ([174.0, 99.0, 52.0], false),
+        Surface::RailMetal => ([226.0, 231.0, 212.0], false),
+        Surface::RailGlass => ([58.0, 123.0, 167.0], false),
+        Surface::RailRust => ([120.0, 59.0, 37.0], false),
+        Surface::RailApron => ([151.0, 124.0, 101.0], false),
         Surface::ShipHull => ([58.0, 68.0, 86.0], false),
         Surface::ShipDeck => ([162.0, 129.0, 91.0], false),
         Surface::ShipCabin => ([233.0, 230.0, 216.0], false),
@@ -2237,9 +2255,9 @@ fn paint_visible_surface(
     distance: f32, depth: f32, view: &View, light: GroundLight,
     _rock_phase: f32, mut paint: impl FnMut(usize, usize, u16),
 ) {
-    if distance < 160.0 && rows.len() >= 3 && matches!(
+    if distance < 160.0 && rows.len() >= 3 && (surface.is_station_roof() || matches!(
         surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof | Surface::ShipCabin
-    ) {
+    )) {
         paint_facade(surface, position, color, rows, view.focal / depth, light, paint);
         return;
     }
@@ -2288,13 +2306,20 @@ fn paint_facade(
     surface: Surface, [x, _, z]: [f32; 3], roof: u16, rows: core::ops::Range<usize>,
     pixel_scale: f32, light: GroundLight, mut paint: impl FnMut(usize, usize, u16),
 ) {
-    let roof_depth = if surface == Surface::PitchedRoof { 1.45 } else { 0.76 };
+    let roof_depth = match surface {
+        Surface::PitchedRoof | Surface::RailTimber => 1.45,
+        Surface::RailMetal => 0.44,
+        Surface::RailGlass | Surface::RailRust => 1.01,
+        _ => 0.76,
+    };
     let cap = ((roof_depth * pixel_scale) as usize).max(1).min(rows.len());
     let roof_end = rows.start + cap;
     let facade = facade_color(surface, light.daylight, light.horizon, light.fog);
     paint(rows.start, roof_end, roof);
     let column = floor_i32(x * 0.31 + z * 0.19);
-    if pixel_scale < 0.50 || column.rem_euclid(5) >= 3 || roof_end + 2 >= rows.end {
+    if matches!(surface, Surface::RailTimber | Surface::RailMetal | Surface::RailRust)
+        || pixel_scale < 0.50 || column.rem_euclid(5) >= 3 || roof_end + 2 >= rows.end
+    {
         paint(roof_end, rows.end, facade);
         return;
     }
@@ -2324,6 +2349,10 @@ fn facade_color(surface: Surface, daylight: f32, horizon: Color, fog: f32) -> u1
         Surface::PitchedRoof => [173, 144, 113],
         Surface::FlatRoof => [137, 139, 147],
         Surface::TowerRoof => [119, 142, 161],
+        Surface::RailTimber => [162, 119, 74],
+        Surface::RailMetal => [184, 199, 196],
+        Surface::RailGlass => [86, 139, 156],
+        Surface::RailRust => [111, 85, 69],
         Surface::ShipCabin => [199, 202, 193],
         _ => [131, 137, 143],
     };
@@ -2348,7 +2377,8 @@ fn surface_detail(surface: Surface, [x, y, z]: [f32; 3], fade: f32) -> f32 {
             let waves = surface_noise(streak_u, streak_v);
             (waves - 0.5) * if surface == Surface::Shallows { 0.24 } else { 0.15 }
         }
-        Surface::Grass | Surface::Forest | Surface::Park | Surface::TreeCanopy
+        Surface::Grass | Surface::Forest | Surface::Park | Surface::TreeCanopy | Surface::SpruceCanopy
+        | Surface::AspenCanopy | Surface::MapleCanopy | Surface::JuniperCanopy
         | Surface::WetMeadow | Surface::AlpineMeadow => {
             let meadow = surface_noise(x * 0.085 + z * 0.029, z * 0.095 - x * 0.024);
             let fine = cloud_hash(floor_i32(x * 0.38), floor_i32(z * 0.38));

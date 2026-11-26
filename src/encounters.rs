@@ -20,6 +20,14 @@ pub struct Formation {
     pub count: usize,
     pub aircraft: [Wingmate; 4],
     pub progress: f32,
+    pub pattern: FormationPattern,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormationPattern {
+    Wedge,
+    LineAbreast,
+    Echelon,
 }
 
 pub fn formation(aircraft: Aircraft, seed: u64, ticks: u64) -> Option<Formation> {
@@ -29,25 +37,37 @@ pub fn formation(aircraft: Aircraft, seed: u64, ticks: u64) -> Option<Formation>
     let timing = event_time(seed ^ 0x19e7_a839, ticks, 9 * 60, 2, 7, 135, 11.5, 6.75)?;
     let state = timing.state;
     let p = timing.progress;
-    let count = if state & 1 == 0 { 2 } else { 4 };
+    let pattern = match (state >> 8) % 3 {
+        0 => FormationPattern::Wedge,
+        1 => FormationPattern::LineAbreast,
+        _ => FormationPattern::Echelon,
+    };
+    let count = if pattern == FormationPattern::Echelon || state & 1 == 0 { 2 } else { 4 };
     let entry = smoothstep(p / 0.28);
-    let exit = smoothstep((p - 0.66) / 0.34);
     let tilt = sin_cos(p * TAU + fraction(mix(state)) * TAU).0 * 0.08;
     let order = if state & 4 == 0 { 1.0 } else { -1.0 };
     let aircraft = core::array::from_fn(|index| {
-        let side = if index & 1 == 0 { order } else { -order };
-        let rank = (index / 2) as f32;
+        let echelon = pattern == FormationPattern::Echelon;
+        let side = if echelon || index & 1 == 0 { order } else { -order };
+        let rank = if echelon { index as f32 } else { (index / 2) as f32 };
+        let (right, forward, above) = match pattern {
+            FormationPattern::Wedge => (6.8 + rank * 4.2, 7.0 - rank * 4.5, 0.6 + rank * 1.2),
+            FormationPattern::LineAbreast => (8.3 + rank * 6.2, 10.6, 0.8),
+            FormationPattern::Echelon => (8.2 + rank * 5.2, 5.7 + rank * 7.3, 1.3 + rank * 2.8),
+        };
+        let peel_delay = if echelon { rank * 0.12 } else { 0.0 };
+        let exit = smoothstep((p - 0.66 - peel_delay) / (0.34 - peel_delay));
         let trail = (1.0 - entry) * (27.0 + rank * 8.0);
-        let separation = exit * (19.0 + rank * 9.0);
+        let separation = exit * (35.0 + rank * 9.0);
         Wingmate {
-            right: side * (7.5 + rank * 5.3 + trail + separation),
-            forward: 7.8 - rank * 4.8 + (1.0 - entry) * 10.3 + exit * (22.0 + rank * 6.0),
-            above: 0.5 + rank * 1.2 + (1.0 - entry) * 2.0 + exit * (7.0 + rank * 2.0),
+            right: side * (right + trail + separation),
+            forward: forward + (1.0 - entry) * 10.3 + exit * (22.0 + rank * 6.0),
+            above: above + (1.0 - entry) * 2.0 + exit * (7.0 + rank * 2.0),
             bank: tilt + side * (exit * 0.54 - (1.0 - entry) * 0.16),
             heading_offset: side * (exit * 0.47 - (1.0 - entry) * 0.21),
         }
     });
-    Some(Formation { count, aircraft, progress: p })
+    Some(Formation { count, aircraft, progress: p, pattern })
 }
 
 /// Occasional visible reheat while the Blackbird is at cruise.
@@ -73,6 +93,11 @@ impl Refuel {
 
     pub fn descent(self) -> f32 {
         smoothstep(self.progress / 0.35) * (1.0 - smoothstep((self.progress - 0.70) / 0.30))
+    }
+
+    pub fn speed_match(self) -> f32 {
+        smoothstep((self.progress - 0.04) / 0.31)
+            * (1.0 - smoothstep((self.progress - 0.78) / 0.22))
     }
 }
 
@@ -215,6 +240,7 @@ mod tests {
     fn formations_last_for_seconds_and_only_join_the_fighter() {
         let mut total = 0;
         let mut saw = [0; 2];
+        let mut patterns = [false; 3];
         for seed in 0..24 {
             let mut started = None;
             for tick in (0..u64::from(TICKS_PER_SECOND) * 3_600).step_by(6) {
@@ -224,7 +250,29 @@ mod tests {
                     let start = started.get_or_insert(tick);
                     assert!(*start >= 135 * u64::from(TICKS_PER_SECOND));
                     assert!(flight.count == 2 || flight.count == 4);
-                    assert!(flight.aircraft[0].right * flight.aircraft[1].right < 0.0);
+                    let [a, b, c, _] = flight.aircraft;
+                    match flight.pattern {
+                        FormationPattern::Wedge => {
+                            assert!(a.right * b.right < 0.0);
+                            if (0.3..0.65).contains(&flight.progress) {
+                                assert!(a.forward > c.forward);
+                            }
+                            patterns[0] = true;
+                        }
+                        FormationPattern::LineAbreast => {
+                            assert!(a.right * b.right < 0.0);
+                            if (0.3..0.65).contains(&flight.progress) {
+                                assert_eq!(a.forward, c.forward);
+                            }
+                            patterns[1] = true;
+                        }
+                        FormationPattern::Echelon => {
+                            assert_eq!(flight.count, 2);
+                            assert!(a.right * b.right > 0.0);
+                            assert!(b.right.abs() > a.right.abs() || flight.progress > 0.66);
+                            patterns[2] = true;
+                        }
+                    }
                     saw[flight.count / 2 - 1] += 1;
                 } else if let Some(start) = started.take() {
                     let span = (tick - start) as f32 / TICKS_PER_SECOND as f32;
@@ -234,6 +282,7 @@ mod tests {
             }
         }
         assert!((14..65).contains(&total) && saw.iter().all(|count| *count > 100), "{total} {saw:?}");
+        assert_eq!(patterns, [true; 3]);
     }
 
     #[test]

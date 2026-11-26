@@ -342,12 +342,12 @@ impl Settlement {
             let fade = fade * fade_factor(x, z);
             if fade < 0.015 { continue; }
             let mut previous = 0.0;
-            for (upper, scale) in crate::skyline::tower_tiers(tower.tower_profile()) {
+            for (upper, [width, depth]) in crate::skyline::tower_tiers(tower.tower_profile()) {
                 let lower = tower.base + tower.height * previous;
                 previous = upper;
                 let upper = tower.base + tower.height * upper;
                 let ring = [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]].map(|[x, z]| {
-                    self.local.world(area.x + x * area.half_width * scale, area.z + z * area.half_depth * scale)
+                    self.local.world(area.x + x * area.half_width * width, area.z + z * area.half_depth * depth)
                 });
                 let [a, b, c, d] = ring.map(|(x, z)| [x, upper, z]);
                 mesh.faded_triangle([a, b, c], [151, 166, 178], fade);
@@ -820,11 +820,11 @@ impl Building {
                 }
             }
             Form::Tower => {
-                let distance = across.max(along);
-                let tiers = crate::skyline::tower_tiers(self.tower_profile());
-                let roof = if distance < tiers[2].1 { tiers[2].0 }
-                    else if distance < tiers[1].1 { tiers[1].0 }
-                    else { tiers[0].0 };
+                let [(podium, _), (shaft, [shaft_x, shaft_z]), (crown, [crown_x, crown_z])] =
+                    crate::skyline::tower_tiers(self.tower_profile());
+                let roof = if across < crown_x && along < crown_z { crown }
+                    else if across < shaft_x && along < shaft_z { shaft }
+                    else { podium };
                 (SettlementSurface::TowerRoof, self.height * roof)
             }
         };
@@ -854,6 +854,18 @@ impl Parcel {
         }
     }
 
+    fn with_yard(building: Building, area: Area) -> Self {
+        Self {
+            buildings: [building, Building { area, ..Building::EMPTY }],
+            count: 1,
+            open: Some(SettlementSurface::Street),
+        }
+    }
+
+    fn with_courtyard(buildings: [Building; 2]) -> Self {
+        Self { buildings, count: 2, open: Some(SettlementSurface::Park) }
+    }
+
     fn add(&mut self, building: Building) {
         self.buildings[self.count as usize] = building;
         self.count += 1;
@@ -868,7 +880,30 @@ impl Parcel {
     }
 
     fn open(&self) -> Option<(Area, SettlementSurface)> {
-        self.open.map(|surface| (self.buildings[0].area, surface))
+        let surface = self.open?;
+        let [a, b] = self.buildings.map(|building| building.area);
+        let area = match self.count {
+            0 => a,
+            1 => b,
+            _ => {
+                let [dx, dz] = [(a.x - b.x).abs(), (a.z - b.z).abs()];
+                Area {
+                    x: (a.x + b.x) * 0.5,
+                    z: (a.z + b.z) * 0.5,
+                    half_width: if dx > dz {
+                        (dx - a.half_width - b.half_width) * 0.5
+                    } else {
+                        a.half_width.min(b.half_width) * 0.88
+                    },
+                    half_depth: if dx > dz {
+                        a.half_depth.min(b.half_depth) * 0.88
+                    } else {
+                        (dz - a.half_depth - b.half_depth) * 0.5
+                    },
+                }
+            }
+        };
+        Some((area, surface))
     }
 
     fn sample(&self, x: f32, z: f32) -> Option<SettlementSample> {
@@ -877,8 +912,8 @@ impl Parcel {
                 return Some(roof);
             }
         }
-        let surface = self.open?;
-        self.buildings[0].area.contains(x, z).then_some(SettlementSample { surface, elevation: None })
+        let (area, surface) = self.open()?;
+        area.contains(x, z).then_some(SettlementSample { surface, elevation: None })
     }
 }
 

@@ -87,9 +87,13 @@ summary { width:fit-content; cursor:pointer; color:var(--sky); font-weight:700; 
 details[open] summary { margin-bottom:16px; }
 .section-heading p { color:var(--muted); }
 
+.artwork-filter { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.artwork-filter select { max-width: 100%; }
+.artwork-filter[hidden] { display: none; }
+
 .artwork-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   gap: 7px;
   padding: 0;
   margin: 0;
@@ -112,5 +116,5 @@ details[open] summary { margin-bottom:16px; }
   background-repeat: no-repeat;
   image-rendering: pixelated;
 }
-.artwork-number { font-size: .72rem; font-variant-numeric: tabular-nums; }
+.artwork-number { display: block; padding: 0 3px; font-size: .72rem; font-variant-numeric: tabular-nums; }
 #viewer-media .artwork-sprite { width: min(384px, 80vw, 64vh); margin-inline: auto; }

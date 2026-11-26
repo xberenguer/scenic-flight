@@ -461,6 +461,8 @@ fn update_surveys(
             }
             scenic_flight::facility_stream::roadside_reservation(land, rivers, routes, highways, natural, bounds)
         });
+        #[cfg(feature = "regional-rail")]
+        rail.connect_quarries(land, facilities, camera);
     }
 }
 
@@ -1364,7 +1366,7 @@ fn main() -> ! {
             || water_tower_region.is_some();
         let render_at = micros();
         #[cfg(feature = "scenery")]
-        let trees = details.tree_sampler();
+        let trees = details.tree_sampler().for_view(camera.x, camera.altitude, camera.z);
         let sample = |x, z| {
             #[cfg(feature = "sample-probe")]
             let mut timer = samples.begin();
@@ -1407,8 +1409,15 @@ fn main() -> ! {
             base
         };
         #[cfg(all(feature = "coastal-mesh", feature = "ground-cover"))]
-        let desert_props = scenic_flight::desert_props::DesertProps::gather(
-            camera, (LOGICAL_SIDE, LOGICAL_SIDE), seed, |x, z| terrain.sample(x, z), &sample,
+        let desert_props = scenic_flight::desert_props::DesertProps::gather_with_wetlands(
+            camera, (LOGICAL_SIDE, LOGICAL_SIDE), seed,
+            {
+                #[cfg(feature = "river-stream")]
+                { river_sampler.is_some() }
+                #[cfg(not(feature = "river-stream"))]
+                { false }
+            },
+            |x, z| terrain.sample(x, z), &sample,
         );
         #[cfg(all(feature = "coastal-mesh", feature = "ground-cover"))]
         let desert_region = desert_props.region();
@@ -1502,7 +1511,7 @@ fn main() -> ! {
             {
                 let worker_terrain = &*terrain;
                 let worker_details = &*details;
-                let worker_trees = details.tree_sampler();
+                let worker_trees = details.tree_sampler().for_view(camera.x, camera.altitude, camera.z);
                 let worker_highways = visible_highways.then(|| highways.sampler());
                 let worker_natural = visible_nature.then(|| natural.sampler());
                 let worker_land = visible_land.then(|| land.paint_sampler());

@@ -1,6 +1,6 @@
 use core::f32::consts::{FRAC_PI_2, PI, TAU};
 
-use crate::air::{Air, Lift};
+use crate::air::{ridge_updraft, wind_field, Air, Lift};
 use crate::coast_channel::{ChannelAircraft, CoastChannel};
 use crate::controls::{Buttons, Command, Controls, Screen};
 use crate::land_stream::LandStream;
@@ -12,6 +12,8 @@ use crate::world::{SEA_LEVEL, Surface, World};
 pub const TICKS_PER_SECOND: u32 = 30;
 const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
 const BLACKBIRD_PITCH: f32 = 0.53;
+const BLACKBIRD_TANKER_SPEED_RATIO: f32 = 0.64;
+const BLACKBIRD_REHEAT_SPEED_GAIN: f32 = 0.06;
 const CHASE_HEIGHT_RATIO: f32 = 0.28;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -132,8 +134,10 @@ pub struct Flight {
     pub air: Air,
     seed: u64,
     energy_altitude: f32,
-    thermal_turn: u16,
+    thermal_orbit: Option<ThermalOrbit>,
     thermal_cooldown: u16,
+    soaring_course: Option<f32>,
+    solar_lift_available: bool,
     next_coastal_pass: u64,
     coastal_pass: Option<(u64, u64)>,
     phase: f32,
@@ -148,6 +152,14 @@ pub struct Flight {
     scenic_progress: ScenicProgress,
     train_follow: crate::train_follow::TrainFollow,
     previous_pose: Pose,
+}
+
+#[derive(Clone, Copy)]
+struct ThermalOrbit {
+    center: (f32, f32),
+    direction: f32,
+    remaining: u16,
+    weak_ticks: u8,
 }
 
 #[derive(Clone, Copy)]
@@ -589,7 +601,7 @@ impl Flight {
         Self {
             aircraft, ticks: 0, x, z, altitude, heading, bank: 0.0, view,
             terrain_recoveries: 0, air: Air::CALM, seed, energy_altitude: 0.0,
-            thermal_turn: 0, thermal_cooldown: 0,
+            thermal_orbit: None, thermal_cooldown: 0, soaring_course: None, solar_lift_available: false,
             next_coastal_pass: (104 + mix(seed ^ 7_583) % 110) * u64::from(TICKS_PER_SECOND),
             coastal_pass: None, phase: fraction(mix(seed ^ 4_697)) * TAU,
             turn: 0.0, climb_rate: 0.0, ridge_preview_floor: 0.0, blackbird_cruise_altitude: altitude, course: heading, speed: profile.speed,
@@ -842,9 +854,23 @@ impl Flight {
             let correction = wrap_angle(guide.heading - self.course).clamp(-0.025, 0.025);
             self.course = wrap_angle(self.course + correction * guide.blend);
         }
-        let ordinary_turn = (wrap_angle(self.course - self.heading) * 0.72)
-            .clamp(-profile.yaw_rate, profile.yaw_rate);
         let thermalling = self.update_air(world);
+        let mut course = self.course;
+        if self.aircraft == Aircraft::Glider {
+            let ridge_available = !self.solar_lift_available && thermalling.is_none() && self.scenic_progress.leg.is_none()
+                && matches!(self.air.lift, Lift::Ridge) && self.air.upward >= 2.15
+                && edge < 24_000.0;
+            if !ridge_available {
+                self.soaring_course = None;
+            } else if self.ticks >= 38 * u64::from(TICKS_PER_SECOND) && self.ticks.is_multiple_of(60) {
+                self.soaring_course = self.survey_ridge_course(world, profile);
+            }
+            if let Some(ridge) = self.soaring_course {
+                course = wrap_angle(course + wrap_angle(ridge - course) * 0.72);
+            }
+        }
+        let ordinary_turn = (wrap_angle(course - self.heading) * 0.72)
+            .clamp(-profile.yaw_rate, profile.yaw_rate);
         let alignment = refuel.map_or(0.0, |event| event.alignment());
         let desired_turn = thermalling.unwrap_or(ordinary_turn) * (1.0 - alignment);
         self.turn += (desired_turn - self.turn) * profile.turn_response;
@@ -913,9 +939,20 @@ impl Flight {
         let climbing = ((desired - self.altitude) * 0.85).clamp(-max_climb * 0.58, max_climb);
         self.climb_rate += (climbing - self.climb_rate) * 0.12;
         self.altitude += self.climb_rate * DT;
-        let circle_speed = if thermalling.is_some() { 0.91 } else { 1.0 };
+        let circle_speed = if thermalling.is_some() { 0.88 } else { 1.0 };
         let energy_speed = (profile.speed * circle_speed - self.climb_rate * 0.17)
             .max(profile.speed * 0.78);
+        let energy_speed = if let Some(event) = refuel {
+            // Settle to the tanker's pace before the boom extends and hold it
+            // until the boom has retracted. The cruise controller still owns altitude.
+            energy_speed + (profile.speed * BLACKBIRD_TANKER_SPEED_RATIO - energy_speed)
+                * event.speed_match()
+        } else if blackbird {
+            energy_speed + profile.speed * BLACKBIRD_REHEAT_SPEED_GAIN
+                * crate::encounters::blackbird_reheat(self.seed, self.ticks)
+        } else {
+            energy_speed
+        };
         let energy_speed = train.map_or(energy_speed, |guide| {
             energy_speed + (guide.speed - energy_speed) * guide.blend
         });
@@ -981,7 +1018,7 @@ impl Flight {
     fn track_mountain_pass(&mut self, world: &World, profile: Profile) {
         let ground = surface(world, self.x, self.z);
         let desired_turn = wrap_angle(self.course - self.heading);
-        if ground < 14.0 || desired_turn.abs() > 0.64 || self.thermal_turn != 0
+        if ground < 14.0 || desired_turn.abs() > 0.64 || self.thermal_orbit.is_some()
             || world.coast_signal(self.x, self.z) < 0.24
         {
             return;
@@ -1099,6 +1136,7 @@ impl Flight {
         if self.ticks == 1 || self.ticks.is_multiple_of(12) {
             let sky = Sky::at_position(self.seed, self.ticks, [self.x, self.altitude, self.z]);
             let direct_light = sky.daylight * (1.0 - 0.60 * smoothstep((sky.cloud_cover - 0.43) / 0.42));
+            self.solar_lift_available = direct_light > 0.42;
             self.air = Air::at(world, self.seed, self.x, self.z, self.altitude, direct_light);
         }
         let sink = if self.air.upward < 0.0 { 1.5 } else { 0.85 };
@@ -1111,34 +1149,89 @@ impl Flight {
             return None;
         }
         self.thermal_cooldown = self.thermal_cooldown.saturating_sub(1);
-        let core = if self.air.lift == Lift::Thermal { self.air.thermal_center } else { None };
-        if self.thermal_turn == 0 && self.thermal_cooldown == 0
-            && core.is_some() && self.air.upward >= 3.1
-            && self.altitude - surface(world, self.x, self.z) >= 29.0
+        let (sin, cos) = sin_cos(self.heading);
+        if self.thermal_orbit.is_none() && self.thermal_cooldown == 0 && self.air.lift == Lift::Thermal
+            && self.air.upward >= 3.1 && self.altitude - surface(world, self.x, self.z) >= 29.0
         {
-            self.thermal_turn = 465;
-            self.thermal_cooldown = 2_700;
+            if let Some(center) = self.air.thermal_center {
+                let lateral = (center.0 - self.x) * cos - (center.1 - self.z) * sin;
+                let direction = if lateral.abs() > 0.5 {
+                    lateral.signum()
+                } else if self.seed & 2 == 0 {
+                    1.0
+                } else {
+                    -1.0
+                };
+                self.thermal_orbit = Some(ThermalOrbit { center, direction, remaining: 590, weak_ticks: 0 });
+            }
         }
-        if self.thermal_turn == 0 {
+        let orbit = self.thermal_orbit.as_mut()?;
+        // Keep the same column through brief downdrafts and competing ridge
+        // lift. A sustained loss sends the glider back to ordinary cruise.
+        if self.air.thermal_center == Some(orbit.center) && self.air.upward >= 0.72 {
+            orbit.weak_ticks = 0;
+        } else {
+            orbit.weak_ticks += 1;
+        }
+        if orbit.remaining == 0 || orbit.weak_ticks >= 48 || self.energy_altitude > 59.0 {
+            self.thermal_orbit = None;
+            self.thermal_cooldown = 2_250;
             return None;
         }
-        self.thermal_turn -= 1;
-        let Some((cx, cz)) = core else { return None };
-        let dx = self.x - cx;
-        let dz = self.z - cz;
-        let radial = ((dx * dx + dz * dz) / (22.0 * 22.0) - 1.0).clamp(-1.0, 1.0);
-        let preferred = if self.seed & 2 == 0 { 1.0 } else { -1.0 };
-        let orbit_x = preferred * dz - dx * radial;
-        let orbit_z = -preferred * dx - dz * radial;
-        let (sin, cos) = sin_cos(self.heading);
+        orbit.remaining -= 1;
+
+        const RADIUS: f32 = 16.5;
+        let dx = self.x - orbit.center.0;
+        let dz = self.z - orbit.center.1;
+        let radial = ((dx * dx + dz * dz) / (RADIUS * RADIUS) - 1.0).clamp(-1.0, 1.0);
+        let orbit_x = orbit.direction * dz - dx * radial;
+        let orbit_z = -orbit.direction * dx - dz * radial;
         let along = orbit_x * sin + orbit_z * cos;
         let lateral = orbit_x * cos - orbit_z * sin;
-        let target = if along > 0.0 {
-            0.63 * lateral / (lateral.abs() + along + 0.001)
+        let steer = if along > 0.0 {
+            1.65 * lateral / (lateral.abs() + along + 0.001)
         } else {
-            0.60 * preferred
+            0.75 * orbit.direction
         };
-        Some(target)
+        // Even when tangent to the circle the glider needs a steady turn
+        // rate. Heading feedback corrects for entry and changes in radius.
+        let rate = orbit.direction * self.speed / RADIUS;
+        Some((rate + steer).clamp(-0.73, 0.73))
+    }
+
+    fn survey_ridge_course(&self, world: &World, profile: Profile) -> Option<f32> {
+        if world.coast_signal(self.x, self.z) < 0.15 {
+            return None;
+        }
+        let ([wx, wz], wind) = wind_field(self.seed);
+        let speed = self.speed.max(profile.speed * 0.8);
+        let assess = |heading: f32| {
+            let (sin, cos) = sin_cos(heading);
+            let mut weakest = 5.5_f32;
+            for seconds in [2.8, 5.5] {
+                let x = self.x + sin * speed * seconds;
+                let z = self.z + cos * speed * seconds;
+                let ground = surface(world, x, z);
+                let clearance = self.altitude - ground;
+                if ground < SEA_LEVEL + 5.0 || clearance < profile.floor + 7.0 {
+                    return f32::NEG_INFINITY;
+                }
+                let upstream = world.elevation(x - 27.0 * wx, z - 27.0 * wz);
+                let downstream = world.elevation(x + 27.0 * wx, z + 27.0 * wz);
+                weakest = weakest.min(ridge_updraft(upstream, downstream, wind, clearance));
+            }
+            weakest
+        };
+        let forward = assess(self.heading);
+        let mut best = (forward.max(0.95) + 0.46, None);
+        for offset in [-0.28_f32, 0.28, -0.47, 0.47] {
+            let heading = wrap_angle(self.heading + offset);
+            let score = assess(heading) - offset.abs() * 0.58;
+            if score > best.0 {
+                best = (score, Some(heading));
+            }
+        }
+        best.1
     }
 
     fn track_terrain_variety(&mut self, world: &World, profile: Profile, edge: f32) {
@@ -1147,7 +1240,7 @@ impl Flight {
         {
             return;
         }
-        if edge > 24_000.0 || self.thermal_turn > 0 {
+        if edge > 24_000.0 || self.thermal_orbit.is_some() {
             self.route_intent.course = None;
             return;
         }
@@ -1174,7 +1267,7 @@ impl Flight {
                     (480.0, 1_460.0, 0.0, 96, 10, 140.0, 900.0, 120)
                 }
                 // A thermal keeps control of the glider until its turn ends.
-                Aircraft::Glider if self.thermal_turn == 0 => {
+                Aircraft::Glider if self.thermal_orbit.is_none() => {
                     (384.0, 960.0, 0.0, 224, 14, 112.0, 1_050.0, 196)
                 }
                 Aircraft::Fighter => (576.0, 1_960.0, 0.0, 216, 12, 180.0, 2_050.0, 180),
@@ -1520,12 +1613,62 @@ mod tests {
     }
 
     #[test]
+    fn glider_uses_a_surveyed_ridge_in_low_light_and_keeps_clearance() {
+        let world = World::new(15);
+        let mut flight = Flight::start(&world, 15, Aircraft::Glider);
+        let mut guided = 0_u32;
+        let mut lift_streak = 0_u32;
+        let mut longest = 0_u32;
+        for _ in 0..260 * TICKS_PER_SECOND {
+            flight.update(&world);
+            if flight.soaring_course.is_some() {
+                guided += 1;
+                assert!(!flight.solar_lift_available);
+                assert!(flight.thermal_orbit.is_none());
+            }
+            if flight.air.lift == Lift::Ridge && flight.air.upward >= 1.8 {
+                lift_streak += 1;
+                longest = longest.max(lift_streak);
+            } else {
+                lift_streak = 0;
+            }
+        }
+        assert!(guided > TICKS_PER_SECOND);
+        assert!(longest >= 15 * TICKS_PER_SECOND);
+        assert_eq!(flight.terrain_recoveries, 0);
+    }
+
+    #[test]
+    fn glider_circles_in_one_thermal_and_gains_energy_before_leaving_it() {
+        let world = World::new(41);
+        let mut flight = Flight::start(&world, 41, Aircraft::Glider);
+        let mut orbit_start = None;
+        let mut gained_height = false;
+        for _ in 0..260 * TICKS_PER_SECOND {
+            flight.update(&world);
+            if let Some(orbit) = flight.thermal_orbit {
+                let (center, tick, altitude, energy) = *orbit_start.get_or_insert((
+                    orbit.center, flight.ticks, flight.altitude, flight.energy_altitude,
+                ));
+                assert_eq!(orbit.center, center);
+                gained_height |= flight.ticks - tick >= 8 * u64::from(TICKS_PER_SECOND)
+                    && flight.altitude > altitude + 10.0
+                    && flight.energy_altitude > energy + 8.0;
+            } else if orbit_start.take().is_some() && gained_height {
+                assert_eq!(flight.terrain_recoveries, 0);
+                return;
+            }
+        }
+        panic!("the glider failed to climb in a single column and resume cruise");
+    }
+
+    #[test]
     fn glider_takes_a_dry_exit_after_revisiting_the_same_area() {
         let world = World::new(33);
         let mut flight = Flight::start(&world, 33, Aircraft::Glider);
         let hz = u64::from(TICKS_PER_SECOND);
         let target = (0..520 * hz).find_map(|_| {
-            let thermalling = flight.thermal_turn > 0;
+            let thermalling = flight.thermal_orbit.is_some();
             flight.update(&world);
             flight.scenic_progress.leg.map(|leg| {
                 assert!(!thermalling);
@@ -1594,13 +1737,15 @@ mod tests {
         let mut lowest = f32::INFINITY;
         let mut refueled = false;
         for _ in 0..15_500 {
+            let previous_speed = flight.speed();
             flight.update(&world);
             if let Some(progress) = flight.refueling_progress() {
                 assert_eq!(crate::encounters::blackbird_reheat(seed, flight.ticks), 0.0);
-                assert!(flight.speed() > 56.0);
+                assert!((flight.speed() - previous_speed).abs() < 0.32);
                 assert!(flight.altitude > world.elevation(flight.x, flight.z) + 87.0);
                 lowest = lowest.min(flight.altitude);
                 if (0.46..0.65).contains(&progress) {
+                    assert!((36.3..36.8).contains(&flight.speed()), "{}", flight.speed());
                     assert!(flight.turn_rate().abs() < 0.002 && flight.bank.abs() < 0.005);
                     assert!(flight.view.bank.abs() < 0.024);
                 }
@@ -1609,14 +1754,38 @@ mod tests {
         }
         assert!(refueled && lowest < 245.0);
         assert!(flight.altitude > 310.0);
+        assert!(flight.speed() > 56.0);
         assert_eq!(flight.terrain_recoveries, 0);
     }
 
     #[test]
+    fn blackbird_reheat_changes_world_motion_and_returns_to_cruise() {
+        let world = World::new(1);
+        let mut flight = Flight::start(&world, 1, Aircraft::Blackbird);
+        let mut peak = 0.0_f32;
+        let mut last_heat_tick = 0;
+        for _ in 0..42_000 {
+            let (x, z) = (flight.x, flight.z);
+            flight.update(&world);
+            let reheat = crate::encounters::blackbird_reheat(1, flight.ticks);
+            if reheat > 0.0 {
+                last_heat_tick = flight.ticks;
+                let dx = flight.x - x;
+                let dz = flight.z - z;
+                peak = peak.max((dx * dx + dz * dz).sqrt() / DT);
+            } else if last_heat_tick != 0 && flight.ticks - last_heat_tick == 90 {
+                assert!((59.5..61.0).contains(&peak), "peak: {peak}");
+                assert!((56.0..58.0).contains(&flight.speed()), "cruise: {}", flight.speed());
+                assert_eq!(flight.terrain_recoveries, 0);
+                return;
+            }
+        }
+        panic!("fixture did not complete a reheat cycle");
+    }
+
+    #[test]
     fn blackbird_leaves_a_repeated_coastal_loop_in_a_real_world() {
-        // Refueling straightens the route, so the former seed no longer
-        // reaches the same confined coastal loop during the test window.
-        let seed = 41;
+        let seed = 3;
         let world = World::new(seed);
         let mut flight = Flight::start(&world, seed, Aircraft::Blackbird);
         let hz = u64::from(TICKS_PER_SECOND);
@@ -1626,7 +1795,7 @@ mod tests {
         });
         let [x, z] = target.expect("repeated coast should have a surveyed exit");
         assert!(flight.following_scenic_leg());
-        assert!((4_700..4_900).contains(&(flight.ticks / hz)));
+        assert!((1_800..1_850).contains(&(flight.ticks / hz)));
         assert!(world.coast_signal(x, z) > 0.14);
 
         let origin = [flight.x, flight.z];

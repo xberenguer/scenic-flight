@@ -797,6 +797,8 @@ impl CoastalLandform {
                         Vessel::Freighter => (35.0, 14.0),
                         Vessel::Ferry => (27.0, 12.0),
                         Vessel::Sailboat => (18.0, 8.0),
+                        Vessel::FishingBoat => (21.0, 9.0),
+                        Vessel::Tug => (18.0, 9.0),
                     };
                     let delta = subtract(self.center, position);
                     let ahead = dot(delta, self.shore.out);

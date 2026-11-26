@@ -27,13 +27,11 @@ impl Air {
     pub fn at(world: &World, seed: u64, x: f32, z: f32, altitude: f32, daylight: f32) -> Self {
         let terrain = world.elevation(x, z).max(SEA_LEVEL);
         let above = (altitude - terrain).max(0.0);
-        let (wind_x, wind_z) = sin_cos(fraction(mix(seed ^ 0x9c20b3)) * TAU);
-        let wind = 6.0 + fraction(mix(seed ^ 0x7d61e)) * 5.5;
+        let ([wind_x, wind_z], wind) = wind_field(seed);
         let height_at = |along: f32| world.elevation(x + along * wind_x, z + along * wind_z);
         let upstream = height_at(-27.0);
         let downstream = height_at(27.0);
-        let ridge = ((downstream - upstream) * wind * (1.0 / 54.0)).clamp(-4.0, 5.5)
-            * (1.0 - smoothstep((above - 22.0) / 85.0));
+        let ridge = ridge_updraft(upstream, downstream, wind, above);
 
         let far_upstream = height_at(-118.0);
         let lee_shape = smoothstep((far_upstream - terrain - 19.0) / 46.0)
@@ -66,6 +64,16 @@ impl Air {
             thermal_center: thermal.map(|(_, center)| center),
         }
     }
+}
+
+pub(crate) fn wind_field(seed: u64) -> ([f32; 2], f32) {
+    let (x, z) = sin_cos(fraction(mix(seed ^ 0x9c20b3)) * TAU);
+    ([x, z], 6.0 + fraction(mix(seed ^ 0x7d61e)) * 5.5)
+}
+
+pub(crate) fn ridge_updraft(upstream: f32, downstream: f32, wind: f32, above: f32) -> f32 {
+    ((downstream - upstream) * wind * (1.0 / 54.0)).clamp(-4.0, 5.5)
+        * (1.0 - smoothstep((above - 22.0) / 85.0))
 }
 
 const CELL: f32 = 128.0;

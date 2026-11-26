@@ -52,6 +52,37 @@ pub enum Surface {
     ScreeFine,
     ScreeCoarse,
     DryWash,
+    SpruceCanopy,
+    AspenCanopy,
+    MapleCanopy,
+    JuniperCanopy,
+    RailTimber,
+    RailMetal,
+    RailGlass,
+    RailRust,
+    RailApron,
+}
+
+impl Surface {
+    /// Base daylight color used for the same foliage in gameplay and in the artwork atlas.
+    pub const fn canopy_color(self) -> Option<[u8; 3]> {
+        match self {
+            Self::TreeCanopy => Some([61, 117, 55]),
+            Self::SpruceCanopy => Some([35, 81, 64]),
+            Self::AspenCanopy => Some([166, 153, 64]),
+            Self::MapleCanopy => Some([159, 79, 48]),
+            Self::JuniperCanopy => Some([77, 119, 117]),
+            _ => None,
+        }
+    }
+
+    pub const fn is_tree_canopy(self) -> bool {
+        self.canopy_color().is_some()
+    }
+
+    pub(crate) const fn is_station_roof(self) -> bool {
+        matches!(self, Self::RailTimber | Self::RailMetal | Self::RailGlass | Self::RailRust)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

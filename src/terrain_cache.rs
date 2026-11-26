@@ -9,7 +9,7 @@ const FAR_STEP: f32 = 20.0;
 const CRUISE_STEP: f32 = 36.0;
 const CRUISE_NEAR_STEP: f32 = 10.0;
 
-const MATERIALS: [Surface; 47] = [
+const MATERIALS: [Surface; 56] = [
     Surface::DeepWater,
     Surface::Shallows,
     Surface::Sand,
@@ -57,6 +57,15 @@ const MATERIALS: [Surface; 47] = [
     Surface::ScreeFine,
     Surface::ScreeCoarse,
     Surface::DryWash,
+    Surface::SpruceCanopy,
+    Surface::AspenCanopy,
+    Surface::MapleCanopy,
+    Surface::JuniperCanopy,
+    Surface::RailTimber,
+    Surface::RailMetal,
+    Surface::RailGlass,
+    Surface::RailRust,
+    Surface::RailApron,
 ];
 const _: () = {
     let mut index = 0;

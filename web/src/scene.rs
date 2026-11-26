@@ -2,7 +2,7 @@ use scenic_flight::bridge_silhouette::BridgeSilhouettes;
 use scenic_flight::coastal_highways::CoastalHighwayWork;
 use scenic_flight::coastal_landforms::CoastalLandmarks;
 use scenic_flight::distant_roads::DistantRoads;
-use scenic_flight::facility_stream::FacilityStream;
+use scenic_flight::facility_stream::{roadside_reservation, FacilityStream, RoadsideReservation};
 use scenic_flight::flight::{Flight, Game, View};
 use scenic_flight::ground_details::GroundDetails;
 use scenic_flight::highway_art::HighwayRibbon;
@@ -149,6 +149,7 @@ impl Scene {
                 )
             },
         );
+        scene.publish_roadside(view, true);
         scene
     }
 
@@ -282,6 +283,18 @@ impl Scene {
         if ticks % 32 == 30 {
             self.survey_rail(view);
         }
+        self.publish_roadside(view, false);
+        self.regional_rail.connect_quarries(&self.land, &self.facilities, view);
+    }
+
+    fn publish_roadside(&mut self, view: Camera, before_first_frame: bool) {
+        self.facilities.publish_roadside_sites(view, before_first_frame, |bounds| {
+            if self.regional_rail.reserves(bounds) {
+                RoadsideReservation::Reserved
+            } else {
+                roadside_reservation(&self.land, &self.rivers, &self.routes, &self.highways, &self.natural, bounds)
+            }
+        });
     }
 
     fn service_rail(&mut self, view: Camera) {
@@ -442,7 +455,7 @@ impl Scene {
         let highways = has_highways.then(|| self.highways.sampler());
         let rail = corridors().next().map(|_| self.regional_rail.sampler());
         let has_routes = self.routes.routes().next().is_some();
-        let trees = self.ground.tree_sampler();
+        let trees = self.ground.tree_sampler().for_view(view.x, view.altitude, view.z);
         let sample = |x, z| {
             let raw = self.terrain.sample(x, z);
             let road = highways
@@ -471,10 +484,11 @@ impl Scene {
                 .map_or(routed, |rail| rail.overlay(x, z, routed))
         };
 
-        let desert_props = scenic_flight::desert_props::DesertProps::gather(
+        let desert_props = scenic_flight::desert_props::DesertProps::gather_with_wetlands(
             view,
             DIMENSIONS,
             self.seed,
+            rivers.is_some(),
             |x, z| self.terrain.sample(x, z),
             &sample,
         );

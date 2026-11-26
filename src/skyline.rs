@@ -24,21 +24,47 @@ pub struct SkylineTower {
     pub(crate) profile: u8,
 }
 
-/// Each pair gives the roof of a tier and its fraction of the lot width.
-const TOWER_TIERS: [[(f32, f32); 3]; 5] = [
-    [(0.48, 1.0), (0.79, 0.70), (1.0, 0.44)], // Stepped crown
-    [(0.19, 1.0), (0.92, 0.77), (1.0, 0.67)], // Slab over a podium
-    [(0.72, 1.0), (0.91, 0.82), (1.0, 0.38)], // Broad shaft and penthouse
-    [(0.24, 1.0), (0.81, 0.56), (1.0, 0.24)], // Narrow crown
-    [(0.41, 1.0), (0.71, 0.91), (1.0, 0.62)], // Terraced offices
+// Heights and setbacks describe the same three volumes at every render distance.
+const TOWER_TOPS: [[f32; 3]; 5] = [
+    [0.48, 0.79, 1.0],
+    [0.19, 0.92, 1.0],
+    [0.72, 0.91, 1.0],
+    [0.24, 0.81, 1.0],
+    [0.41, 0.71, 1.0],
 ];
 
-pub(crate) fn tower_tiers(profile: u8) -> [(f32, f32); 3] {
-    let mut tiers = TOWER_TIERS[usize::from(profile / 5)];
-    let offset = f32::from(profile % 5) * 0.018 - 0.036;
-    tiers[0].0 += offset;
-    tiers[2].1 -= offset;
-    tiers
+const TOWER_UPPER_FOOTPRINTS: [[[f32; 2]; 2]; 5] = [
+    [[0.72, 0.89], [0.43, 0.67]], // Terraced slab
+    [[0.94, 0.52], [0.80, 0.44]], // Narrow office slab over a podium
+    [[0.88, 0.80], [0.36, 0.58]], // Broad shaft and penthouse
+    [[0.59, 0.73], [0.27, 0.43]], // Needle and shoulder
+    [[0.94, 0.68], [0.65, 0.38]], // Two different setbacks
+];
+
+fn tower_roof_levels(profile: u8) -> [f32; 3] {
+    let mut heights = TOWER_TOPS[usize::from(profile / 5)];
+    heights[0] += f32::from(profile % 5) * 0.018 - 0.036;
+    heights
+}
+
+fn upper_footprints(profile: u8) -> [[f32; 2]; 2] {
+    let mut upper = TOWER_UPPER_FOOTPRINTS[usize::from(profile / 5)];
+    let variant = profile % 5;
+    let offset = f32::from(variant) * 0.018 - 0.036;
+    upper[1][0] -= offset;
+    upper[1][1] += offset;
+    if variant % 2 == 1 {
+        for footprint in &mut upper {
+            footprint.swap(0, 1);
+        }
+    }
+    upper
+}
+
+pub(crate) fn tower_tiers(profile: u8) -> [(f32, [f32; 2]); 3] {
+    let [base, shoulder, roof] = tower_roof_levels(profile);
+    let [shaft, crown] = upper_footprints(profile);
+    [(base, [1.0; 2]), (shoulder, shaft), (roof, crown)]
 }
 
 #[derive(Clone, Copy)]
@@ -361,6 +387,7 @@ struct Glyph {
     crossfade: f32,
     origin: [f32; 2],
     half: f32,
+    tier_halves: [f32; 2],
     height: f32,
     alpha: f32,
     z: u16,
@@ -385,8 +412,10 @@ impl Glyph {
             Form::Tower => {
                 let mut value = 0.0;
                 let mut from = 0.0;
-                for (fraction, scale) in tower_tiers(self.profile) {
-                    let half = self.half * scale;
+                let [shaft, crown] = self.tier_halves;
+                for (fraction, half) in tower_roof_levels(self.profile).into_iter()
+                    .zip([self.half, shaft, crown])
+                {
                     let across = overlap(u, -half, half);
                     let down = overlap(v, -self.height * fraction, -self.height * from);
                     value += across * down;
@@ -567,8 +596,14 @@ impl Projection {
         let dir = tower.direction;
         let right = dir[1] * self.heading[1] + dir[0] * self.heading[0];
         let model_side = dir[0] * self.heading[1] - dir[1] * self.heading[0];
-        let half =
-            (tower.footprint[0] * right.abs() + tower.footprint[1] * model_side.abs()) * projection;
+        let x_width = tower.footprint[0] * right.abs() * projection;
+        let z_width = tower.footprint[1] * model_side.abs() * projection;
+        let half = x_width + z_width;
+        let tier_halves = if form == Form::Tower {
+            upper_footprints(tower.profile).map(|[x, z]| x_width * x + z_width * z)
+        } else {
+            [0.0; 2]
+        };
         let h =
             tower.height * projection * (self.pitch[1] - screen[1] * self.pitch[0] / self.focal);
         if !(camera_z > 2.0 && half > 0.0 && h > 0.0) {
@@ -615,6 +650,7 @@ impl Projection {
             crossfade: appearance * handoff(along, self.near),
             origin,
             half,
+            tier_halves,
             height: h,
             alpha,
             z: encoded_depth(depth),
@@ -656,10 +692,12 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for variant in 0..25 {
             let tiers = tower_tiers(variant);
-            assert_eq!(tiers[0].1, 1.0);
+            assert_eq!(tiers[0].1, [1.0; 2]);
             assert_eq!(tiers[2].0, 1.0);
-            assert!(tiers.windows(2).all(|w| w[0].0 < w[1].0 && w[0].1 > w[1].1));
-            assert!(seen.insert(tiers.map(|(height, width)| [height.to_bits(), width.to_bits()])));
+            assert!(tiers.windows(2).all(|w| w[0].0 < w[1].0
+                && w[0].1.into_iter().zip(w[1].1).all(|(lower, upper)| lower > upper)));
+            assert!(tiers[2].1[0] != tiers[2].1[1]);
+            assert!(seen.insert(tiers.map(|(height, [x, z])| [height.to_bits(), x.to_bits(), z.to_bits()])));
         }
     }
     use crate::horizon_cache::HorizonCache;
@@ -682,6 +720,23 @@ mod tests {
 
     fn sky_at(camera: Camera) -> Sky {
         Sky::from_time_at_position(1, 0, 0.31, [camera.x, camera.altitude, camera.z])
+    }
+
+    #[test]
+    fn a_tower_slab_is_broader_from_the_side_than_from_the_end() {
+        let view = camera(0.0, 0.0, 36.0, 0.0, 0.15);
+        let projection = Projection::new(view, SIZE);
+        let sky = sky_at(view);
+        let tower = SkylineTower {
+            center: [0.0, 700.0], footprint: [5.0; 2], direction: [0.0, 1.0],
+            base: 20.0, height: 35.0, profile: 5,
+        };
+        let broad = projection.glyph(tower, Form::Tower, 1.0, &sky, &mut |_, _| 20.0).unwrap();
+        let narrow = projection.glyph(SkylineTower { direction: [1.0, 0.0], ..tower },
+            Form::Tower, 1.0, &sky, &mut |_, _| 20.0).unwrap();
+        assert_eq!(broad.half, narrow.half);
+        assert!(broad.tier_halves[0] > narrow.tier_halves[0] * 1.7);
+        assert!(broad.tier_halves[1] > narrow.tier_halves[1] * 1.7);
     }
 
     fn strength(image: &[u16; PIXELS], clear: u16) -> u32 {

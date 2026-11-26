@@ -1,7 +1,7 @@
 //! Seeded facilities follow prepared highway regions without changing inside the view.
 
 use crate::coastal_landforms::CoastalLandform;
-use crate::facilities::{FacilityPhase, RegionalFacilities, RegionalFacilityPlanner, RoadsideSite};
+use crate::facilities::{train_route_near, FacilityPhase, RegionalFacilities, RegionalFacilityPlanner, RoadsideSite};
 use crate::highway_stream::{HighwayStream, Reservation as HighwayReservation};
 use crate::land_stream::LandStream;
 use crate::local_routes::LocalRouteStream;
@@ -47,6 +47,7 @@ pub struct FacilityStream<const ACTIVE: usize> {
     working: Option<Working>,
     detached: Option<RegionKey>,
     revision: u32,
+    quarry_revision: u32,
 }
 
 pub struct FacilityRequest {
@@ -109,7 +110,7 @@ impl FacilityRequest {
 
 impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
     pub const fn new(world: World, seed: u64) -> Self {
-        Self { world, seed, prepared: [const { None }; ACTIVE], working: None, detached: None, revision: 0 }
+        Self { world, seed, prepared: [const { None }; ACTIVE], working: None, detached: None, revision: 0, quarry_revision: 0 }
     }
 
     pub fn reset(&mut self, world: World, seed: u64) {
@@ -141,6 +142,7 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
         self.working = None;
         self.detached = None;
         self.revision = self.revision.wrapping_add(1);
+        self.quarry_revision = self.quarry_revision.wrapping_add(1);
         for record in &mut self.prepared {
             *record = None;
         }
@@ -243,14 +245,21 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
             } else {
                 bounds_in_view(camera, bounds)
             };
-            if !before_first_frame && in_view {
-                continue;
+            if !before_first_frame {
+                let train_near = matches!(site, RoadsideSite::Quarry { local_transfer: true, .. })
+                    && record.facilities.rail().is_some_and(|rail| train_route_near(camera, rail.bounds()));
+                if in_view || train_near {
+                    continue;
+                }
             }
             let blocked = existing.iter().flatten().any(|&(key, area)| key != record.key && overlaps(area, bounds));
             match if blocked { RoadsideReservation::Reserved } else { reserve(bounds) } {
                 RoadsideReservation::Pending => {}
                 RoadsideReservation::Reserved => record.proposed_roadside = None,
                 RoadsideReservation::Clear => {
+                    if matches!(site, RoadsideSite::Quarry { .. }) {
+                        self.quarry_revision = self.quarry_revision.wrapping_add(1);
+                    }
                     record.facilities.install_roadside(record.proposed_roadside.take().unwrap());
                     record.bounds = record.facilities.bounds();
                     record.coverage = FacilityCoverage::new(record.bounds, &record.facilities);
@@ -261,6 +270,10 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
 
     pub fn quarries(&self) -> impl Iterator<Item = &Quarry> {
         self.prepared.iter().flatten().filter_map(|record| record.facilities.quarry())
+    }
+
+    pub(crate) fn quarry_revision(&self) -> u32 {
+        self.quarry_revision
     }
 
     pub fn solar_sites(&self) -> impl Iterator<Item = &SolarSite> {
@@ -438,7 +451,18 @@ fn prepare_roadside(
         towns.into_iter().flatten().any(|town| town.sample(x, z).is_some()) || primary(x, z)
     };
     Quarry::generate(world, seed, [key.0, key.1], road, blocked, &mut *pulse)
-        .map(RoadsideSite::Quarry)
+        .map(|site| facilities.roadside_quarry(site, road))
+        .or_else(|| {
+            let rail = facilities.rail()?;
+            if rail.service != crate::rail::RailService::Freight
+                || rail.stations().iter().all(|station| station.anchor.kind.is_port())
+            {
+                return None;
+            }
+            let quarry = Quarry::gravel_pit(world, seed, [key.0, key.1], road, blocked, &mut *pulse)?;
+            let site = facilities.roadside_quarry(quarry, road);
+            matches!(site, RoadsideSite::Quarry { local_transfer: true, .. }).then_some(site)
+        })
         .or_else(|| {
             SolarSite::generate(world, seed, key, road, blocked, &mut *pulse).map(RoadsideSite::Solar)
         })
@@ -479,6 +503,96 @@ mod quarry_tests {
     use crate::local_routes::route_reservation;
     use crate::natural_stream::{highway_reservation_with_nature, scenery_reservation_with_highways, NaturalBudget};
     use crate::watershed::WatershedWork;
+
+    #[test]
+    fn dry_gravel_pit_supplies_a_retained_freight_rail_to_the_cargo_dock() {
+        use crate::ports::PortKind;
+        use crate::rail::{RailMaterial, RailService};
+        use crate::train_art::{FreightRoute, Train};
+        use crate::world::Surface;
+
+        let seed = 518;
+        let key = (5, 5);
+        let world = World::new(seed);
+        let view = Camera { x: 5516.0, z: 5570.0, altitude: 49.0, heading: 0.53, pitch: 0.32, bank: 0.0 };
+        let mut land = LandStream::<8>::new();
+        land.reset(world);
+        assert!(land.preflight(view, false));
+        let mut facilities = FacilityStream::<8>::new(world, seed);
+        facilities.preflight(&land);
+        let owner = facilities.planned(key).unwrap();
+        let base = owner.rail().unwrap();
+        assert_eq!(base.service, RailService::Freight);
+        assert_ne!(base.freight_route, FreightRoute::Aggregate);
+        let retained_track = base.polyline().to_vec();
+        let proposal = facilities.prepared.iter().flatten().find(|record| record.key == key)
+            .and_then(|record| record.proposed_roadside.as_ref()).unwrap();
+        let RoadsideSite::Quarry { site, local_transfer: true } = proposal else {
+            panic!("no road-connected gravel pit");
+        };
+        let [jx, _, jz] = site.junction();
+        let [x, floor, z] = site.yard();
+        let bounds = site.bounds();
+        assert_eq!([jx, jz], [5572.0, 5632.0]);
+        assert!(world.elevation(x, z) > floor + 2.5 && floor > 4.8);
+        assert!(owner.quarry().is_none());
+
+        let mut rivers = RiverStream::<3>::new(world, seed);
+        let mut routes = LocalRouteStream::<8>::new(world, seed);
+        let mut highways = HighwayStream::<4>::new(world, seed);
+        let mut nature = NaturalStream::new(world, seed);
+        rivers.preflight(&land, &facilities, view, &mut WatershedWork::new());
+        routes.preflight(&land, view, |key, route| route_reservation(&world, &facilities, &rivers, key, route));
+        highways.preflight_defer_coast(&land, view, |pair, link| {
+            highway_reservation_with_nature(&land, &facilities, &rivers, &routes, &nature, pair, link)
+        }, || {});
+        nature.preflight(view, NaturalBudget { alpine_tiles: 9, dry_tiles: 9 }, |bounds| {
+            scenery_reservation_with_highways(&land, &facilities, &rivers, &routes, &highways, bounds)
+        });
+        let reserve = |bounds| roadside_reservation(&land, &rivers, &routes, &highways, &nature, bounds);
+        assert_eq!(reserve(bounds), RoadsideReservation::Clear);
+        facilities.publish_roadside_sites(view, true, reserve);
+
+        let owner = facilities.planned(key).unwrap();
+        assert_eq!(owner.quarry().unwrap().bounds(), bounds);
+        let line = owner.rail().unwrap();
+        assert_eq!(line.polyline(), retained_track.as_slice());
+        assert_eq!(line.freight_route, FreightRoute::Aggregate);
+        let road = land.planned(key).flatten().unwrap().road().unwrap();
+        let cargo = [Terminus::Start, Terminus::End].into_iter()
+            .find(|end| owner.port(*end).is_some_and(|port| port.kind() == PortKind::Freight)).unwrap();
+        let (x, z) = owner.port_transfer(cargo, road).unwrap();
+        assert_eq!(line.sample(x, z).unwrap().material, RailMaterial::StationAccess);
+        let junction = world.sample(jx, jz);
+        let pavement = land.overlay(jx, jz, junction);
+        assert_eq!(pavement.surface, Surface::Pavement);
+        assert_eq!(facilities.sampler().overlay(jx, jz, junction, pavement), pavement);
+        let pit = owner.quarry().unwrap();
+        let [x, _, z] = pit.yard();
+        let yard = world.sample(x, z);
+        let sampler = facilities.sampler();
+        assert!((sampler.overlay(x, z, yard, land.overlay(x, z, yard)).elevation - floor).abs() < 0.01);
+        let [ax, az] = pit.axis();
+        let mut materials = [0, 0];
+        for forward in 0..48 {
+            for across in -24_i32..=24 {
+                let sx = x + ax * forward as f32 - az * across as f32;
+                let sz = z + az * forward as f32 + ax * across as f32;
+                let terrain = world.sample(sx, sz);
+                let placed = sampler.overlay(sx, sz, terrain, land.overlay(sx, sz, terrain));
+                let stone = match placed.surface {
+                    Surface::ScreeCoarse => 0,
+                    Surface::ScreeFine => 1,
+                    _ => continue,
+                };
+                assert!(across.abs() >= 7 && forward > 11);
+                assert!(placed.elevation <= terrain.elevation && placed.elevation >= floor);
+                materials[stone] += 1;
+            }
+        }
+        assert!(materials.into_iter().all(|area| area > 30));
+        assert!((0..12_000).step_by(17).any(|tick| Train::at(line, seed, tick, view, (128, 128)).is_some()));
+    }
 
     #[test]
     fn water_tower_uses_the_existing_off_screen_authorities() {
@@ -705,6 +819,7 @@ mod quarry_tests {
         assert!(land.preflight(view, false));
         let mut facilities = FacilityStream::<8>::new(world, seed);
         facilities.preflight(&land);
+        let unaccepted = facilities.quarry_revision();
         let proposal = facilities.prepared.iter().flatten().find(|record| record.key == key)
             .and_then(|record| record.proposed_roadside.as_ref()).unwrap();
         let bounds = proposal.bounds();
@@ -718,6 +833,7 @@ mod quarry_tests {
         assert_eq!(roadside_reservation(&land, &rivers, &routes, &highways, &nature, bounds), RoadsideReservation::Pending);
         facilities.publish_roadside_sites(view, true, |_| RoadsideReservation::Pending);
         assert!(facilities.quarries().next().is_none());
+        assert_eq!(facilities.quarry_revision(), unaccepted);
 
         rivers.preflight(&land, &facilities, view, &mut WatershedWork::new());
         routes.preflight(&land, view, |key, route| route_reservation(&world, &facilities, &rivers, key, route));
@@ -731,7 +847,9 @@ mod quarry_tests {
         assert_eq!(reserve(bounds), RoadsideReservation::Clear);
         facilities.publish_roadside_sites(view, false, reserve);
         assert!(facilities.quarries().next().is_none());
+        assert_eq!(facilities.quarry_revision(), unaccepted);
         facilities.publish_roadside_sites(view, true, reserve);
+        assert_eq!(facilities.quarry_revision(), unaccepted.wrapping_add(1));
         let quarry = facilities.planned(key).unwrap().quarry().unwrap();
         assert_eq!(quarry.bounds(), bounds);
         assert!(facilities.reserves_roadside_site(bounds));

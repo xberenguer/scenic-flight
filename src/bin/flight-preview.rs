@@ -637,6 +637,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
                 scenic_flight::facility_stream::roadside_reservation(&district, &rivers, &routes, &highways, &natural, bounds)
             }
         });
+        regional_rail.connect_quarries(&district, &facilities, view);
         if frame < start {
             continue;
         }
@@ -729,7 +730,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         let natural_sampler = visible_natural.then(|| natural.sampler());
         let river_sampler = has_river.then(|| rivers.sampler());
         let highway_sampler = visible_highways.then(|| highways.sampler());
-        let trees = ground.tree_sampler();
+        let trees = ground.tree_sampler().for_view(view.x, view.altitude, view.z);
         let regional_sampler = regional_rail.rails(view, scenic_flight::render::view_distance(view.altitude))
             .next().map(|_| regional_rail.sampler());
         let sample = |x, z| {

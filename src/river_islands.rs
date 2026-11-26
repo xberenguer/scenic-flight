@@ -175,7 +175,8 @@ impl RiverIsland {
                     | Surface::Sand
                     | Surface::Desert
                     | Surface::Rock
-                    | Surface::TreeCanopy
+                    | Surface::TreeCanopy | Surface::SpruceCanopy | Surface::AspenCanopy
+                    | Surface::MapleCanopy | Surface::JuniperCanopy
                     | Surface::WetMeadow
             )
         {

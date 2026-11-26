@@ -1,14 +1,16 @@
 //! Detached input and planning for a regional railway. Copy only retained
 //! owner plans across cores; regenerate immutable water geometry on the worker.
 
-use crate::facilities::{FacilitySample, RegionalFacilities};
+use crate::facilities::{short_haul, FacilitySample, RegionalFacilities};
 use crate::highway_links::HighwaySurvey;
 use crate::highway_stream::{HighwayPair, HighwayStream};
-use crate::ports::PortSurface;
+use crate::ports::{PortKind, PortSurface};
+use crate::rail::{RailAnchorKind, RailService};
 use crate::rail_corridor::{CorridorGuide, CorridorStop, CorridorUse, CorridorWork, RailCorridor};
 use crate::roads::{RoadNetwork, RoadPoint};
 use crate::scenery::DistrictRegion;
 use crate::settlement::{SettlementSurface, Terminus};
+use crate::train_art::FreightRoute;
 use crate::watershed::{Watershed, WatershedWork};
 use crate::world::World;
 
@@ -110,6 +112,7 @@ impl RailSurveyData {
                 facilities[i],
                 contact.region,
                 survey.contacts[i ^ 1].point,
+                facilities[i ^ 1].ports().any(|port| port.kind() == PortKind::Freight),
                 &mut pulse,
             )
         });
@@ -184,7 +187,7 @@ impl RailSurveyData {
         for _ in 0..MAX_TRIALS {
             let (index, pair) = next_pair(stops, tried)?;
             tried |= 1 << index;
-            if let Some(line) = RailCorridor::survey_detached_cooperatively(
+            if let Some(mut line) = RailCorridor::survey_detached_cooperatively(
                 world,
                 guide,
                 pair,
@@ -192,6 +195,9 @@ impl RailSurveyData {
                 blocked,
                 &mut pulse,
             ) {
+                if has_aggregate_transfer(&line, districts, facilities) {
+                    line.freight_route = FreightRoute::Aggregate;
+                }
                 return Some(line);
             }
         }
@@ -212,6 +218,7 @@ impl RailSurveyWork {
 struct Candidate {
     stop: CorridorStop,
     cost: f32,
+    quarry_haul: bool,
 }
 
 type Stops = [Option<Candidate>; STOPS_PER_DISTRICT];
@@ -222,6 +229,7 @@ fn stop_candidates(
     facilities: &RegionalFacilities,
     region: [i32; 2],
     toward: RoadPoint,
+    across_from_cargo: bool,
     pulse: &mut impl FnMut(),
 ) -> Stops {
     let mut result = [None; STOPS_PER_DISTRICT];
@@ -235,12 +243,15 @@ fn stop_candidates(
     {
         pulse();
         let entry = [contact.x, contact.z];
+        let quarry_haul = across_from_cargo && facilities.quarry()
+            .is_some_and(|quarry| short_haul(road, quarry.junction(), end));
         if let Some(port) = facilities.port(end) {
             insert(
                 &mut result,
                 CorridorStop::port(world, region, entry, port),
                 toward,
                 0.985,
+                false,
             );
         }
         if let Some(town) = district.town(end) {
@@ -251,6 +262,7 @@ fn stop_candidates(
                     CorridorStop::town(region, pos, town),
                     toward,
                     1.0,
+                    quarry_haul,
                 );
             }
             insert(
@@ -258,13 +270,16 @@ fn stop_candidates(
                 CorridorStop::town(region, entry, town),
                 toward,
                 1.0,
+                quarry_haul,
             );
+        } else if quarry_haul && facilities.port(end).is_none() {
+            insert(&mut result, CorridorStop::quarry_transfer(world, region, entry), toward, 1.0, true);
         }
     }
     result
 }
 
-fn insert(stops: &mut Stops, stop: Option<CorridorStop>, toward: RoadPoint, bias: f32) {
+fn insert(stops: &mut Stops, stop: Option<CorridorStop>, toward: RoadPoint, bias: f32, quarry_haul: bool) {
     let Some(stop) = stop else {
         return;
     };
@@ -280,6 +295,7 @@ fn insert(stops: &mut Stops, stop: Option<CorridorStop>, toward: RoadPoint, bias
     let entry = Candidate {
         stop,
         cost: bias * sum,
+        quarry_haul,
     };
     if let Some(i) = stops
         .iter()
@@ -304,13 +320,51 @@ fn next_pair(stops: [Stops; 2], tried: u64) -> Option<(usize, [CorridorStop; 2])
             if tried & (1 << index) != 0 {
                 continue;
             }
-            let cost = a.cost + b.cost;
+            use RailAnchorKind::{Port, RoadTerminus};
+            if (a.stop.kind() == RoadTerminus && b.stop.kind() != Port)
+                || (b.stop.kind() == RoadTerminus && a.stop.kind() != Port)
+            {
+                continue;
+            }
+            let serves_quarry = (a.quarry_haul && b.stop.kind() == Port) || (b.quarry_haul && a.stop.kind() == Port);
+            let cost = (a.cost + b.cost) * if serves_quarry { 0.86 } else { 1.0 };
             if best.is_none_or(|(_, _, old)| cost < old) {
                 best = Some((index, [a.stop, b.stop], cost));
             }
         }
     }
     best.map(|(index, pair, _)| (index, pair))
+}
+
+/// An installed quarry reaches the selected transfer stop over its own haul road
+/// and the district highway (and, for a town station, a connected town street).
+pub(crate) fn has_aggregate_transfer(
+    line: &RailCorridor,
+    districts: [&DistrictRegion; 2],
+    facilities: [&RegionalFacilities; 2],
+) -> bool {
+    if line.service != RailService::Freight {
+        return false;
+    }
+    let stops = line.stations().map(|station| station.stop);
+    let index = match stops.map(CorridorStop::kind) {
+        [RailAnchorKind::Town | RailAnchorKind::RoadTerminus, RailAnchorKind::Port] => 0,
+        [RailAnchorKind::Port, RailAnchorKind::Town | RailAnchorKind::RoadTerminus] => 1,
+        _ => return false,
+    };
+    let district = districts[index];
+    let Some((road, quarry)) = district.road().zip(facilities[index].quarry()) else {
+        return false;
+    };
+    let [x, z] = stops[index].entry();
+    let points = road.polyline();
+    [Terminus::Start, Terminus::End].into_iter().zip([points[0], points[points.len() - 1]])
+        .any(|(end, point)| {
+            let connected = [point.x, point.z] == [x, z] || (stops[index].kind() == RailAnchorKind::Town
+                && district.town(end).and_then(|town| town.sample(x, z))
+                    .is_some_and(|sample| sample.surface == SettlementSurface::Street));
+            connected && short_haul(road, quarry.junction(), end)
+        })
 }
 
 fn owns_road_end(road: &RoadNetwork, point: RoadPoint) -> bool {
@@ -331,6 +385,40 @@ mod tests {
     use crate::local_routes::{route_reservation, LocalRouteStream};
     use crate::render::Camera;
     use crate::river_stream::RiverStream;
+
+    #[test]
+    fn seeded_quarry_has_a_short_haul_but_needs_a_buildable_freight_grade() {
+        use crate::working_quarry::Quarry;
+
+        let seed = 289;
+        let world = World::new(seed);
+        let owners = [(-11, 2), (-10, 2)];
+        let districts = owners.map(|(x, z)| DistrictRegion::build(&world, x, z));
+        let mut facilities = districts.each_ref().map(|district| {
+            RegionalFacilities::prepare(&world, seed, district.road().unwrap(),
+                [Terminus::Start, Terminus::End].map(|end| district.town(end)))
+        });
+        let road = districts[1].road().unwrap();
+        let quarry = Quarry::generate(&world, seed, [-10, 2], road, |x, z| {
+            districts[1].towns().any(|town| town.sample(x, z).is_some())
+                || facilities[1].sample(x, z, world.sample(x, z)).is_some()
+        }, || {}).unwrap();
+        let site = facilities[1].roadside_quarry(quarry, road);
+        facilities[1].install_roadside(site);
+        assert!(facilities[0].ports().any(|port| port.kind() == PortKind::Freight));
+        assert!(short_haul(road, quarry.junction(), Terminus::Start));
+        assert!(short_haul(road, quarry.junction(), Terminus::End));
+        let toward = *districts[0].road().unwrap().polyline().last().unwrap();
+        let candidates = |cargo| stop_candidates(&world, &districts[1], &facilities[1],
+            [-10, 2], toward, cargo, &mut || {});
+        assert!(candidates(true).into_iter().flatten().any(|stop| stop.quarry_haul));
+        assert!(candidates(false).into_iter().flatten().all(|stop| !stop.quarry_haul));
+        let [first, second] = owners;
+        let pair = HighwayPair::new(first, second).unwrap();
+        let mut data = std::boxed::Box::new(RailSurveyData::new());
+        assert!(data.load(districts.each_ref(), facilities.each_ref(), &HighwayStream::new(world, seed), pair));
+        assert!(data.prepare(&world, seed, &mut RailSurveyWork::new(), &mut WatershedWork::new(), || {}).is_none());
+    }
 
     #[test]
     fn detached_survey_loads_both_retained_owners_and_keeps_the_river_clear() {

@@ -1,5 +1,6 @@
 //! Retained railways surveyed away from the frame loop.
 
+use crate::facilities::train_route_near;
 use crate::facility_stream::FacilityStream;
 use crate::highway_links::{HighwayContact, HighwaySurvey};
 use crate::highway_stream::{HighwayPair, HighwayStream};
@@ -7,12 +8,15 @@ use crate::land_stream::LandStream;
 use crate::local_routes::{LocalRoute, LocalRouteStream};
 use crate::math::sin_cos;
 use crate::natural_stream::NaturalStream;
+use crate::ports::PortKind;
 use crate::rail::RailSample;
 use crate::rail_art::cover_rail;
 use crate::rail_corridor::RailCorridor;
+use crate::rail_survey::has_aggregate_transfer;
 use crate::render::{view_distance, Camera};
 use crate::river_stream::RiverStream;
-use crate::world::{Sample, Surface, World, SEA_LEVEL};
+use crate::train_art::FreightRoute;
+use crate::world::{Sample, World};
 use crate::world_mesh::bounds_in_view;
 
 type Area = [f32; 4];
@@ -53,6 +57,7 @@ struct Resident {
     pair: HighwayPair,
     line: RailCorridor,
     state: State,
+    aggregate_pending: bool,
 }
 
 impl Resident {
@@ -72,6 +77,7 @@ pub struct RailStream {
     pending: Option<Pending>,
     rejected: [Option<HighwayPair>; REJECTED],
     residents: [Option<Resident>; ACTIVE],
+    quarry_revision: Option<u32>,
 }
 
 pub struct RailSampler<'a> {
@@ -96,24 +102,8 @@ impl RailSampler<'_> {
                     ground,
                 );
             }
-            // A graded earthwork may lift or lower native dry cover. Surface
-            // ownership of existing roads, water, buildings, and ports stays put.
-            if ground.elevation > SEA_LEVEL
-                && matches!(
-                    ground.surface,
-                    Surface::Grass
-                        | Surface::Forest
-                        | Surface::Rock
-                        | Surface::Sand
-                        | Surface::Snow
-                        | Surface::Desert
-                        | Surface::Gravel
-                )
-            {
-                return Sample {
-                    elevation: piece.elevation,
-                    ..ground
-                };
+            if let Some(earthwork) = crate::rail_art::cover_rail_earthwork(piece.elevation, ground) {
+                return earthwork;
             }
         }
         ground
@@ -129,6 +119,7 @@ impl RailStream {
             pending: None,
             rejected: [None; REJECTED],
             residents: [const { None }; ACTIVE],
+            quarry_revision: None,
         }
     }
 
@@ -181,11 +172,15 @@ impl RailStream {
                 }
                 let [a, b] = pair.regions();
                 let districts = [land.planned(a)??, land.planned(b)??];
+                let facilities = [facilities.planned(a)?, facilities.planned(b)?];
                 let survey = survey(pair, land)?;
-                for (district, key) in districts.into_iter().zip([a, b]) {
-                    let facilities = facilities.planned(key)?;
+                for (index, key) in [a, b].into_iter().enumerate() {
                     rivers.planned(key)?;
-                    if district.towns().next().is_none() && facilities.ports().next().is_none() {
+                    let quarry_transfer = facilities[index].quarry().is_some()
+                        && facilities[index ^ 1].ports().any(|port| port.kind() == PortKind::Freight);
+                    if districts[index].towns().next().is_none()
+                        && facilities[index].ports().next().is_none() && !quarry_transfer
+                    {
                         return None;
                     }
                 }
@@ -254,8 +249,39 @@ impl RailStream {
             pair: request.pair,
             line,
             state: State::Candidate { checked: 0 },
+            aggregate_pending: false,
         });
+        self.quarry_revision = None;
         true
+    }
+
+    /// Update dispatch after a quarry or corridor is retained. A train already
+    /// within reach keeps its manifest until the aircraft leaves the whole corridor.
+    pub fn connect_quarries(&mut self, land: &LandStream<8>, facilities: &FacilityStream<8>, camera: Camera) {
+        let revision = facilities.quarry_revision();
+        if self.quarry_revision != Some(revision) {
+            self.quarry_revision = Some(revision);
+            for resident in self.residents.iter_mut().flatten() {
+                if resident.line.freight_route == FreightRoute::Aggregate || resident.aggregate_pending {
+                    continue;
+                }
+                let [a, b] = resident.pair.regions();
+                if let (Some(Some(a)), Some(Some(b)), Some(af), Some(bf)) =
+                    (land.planned(a), land.planned(b), facilities.planned(a), facilities.planned(b))
+                {
+                    resident.aggregate_pending = has_aggregate_transfer(&resident.line, [a, b], [af, bf]);
+                }
+            }
+        }
+        if !valid(camera) {
+            return;
+        }
+        for resident in self.residents.iter_mut().flatten().filter(|resident| resident.aggregate_pending) {
+            if !matches!(resident.state, State::Published) || !train_route_near(camera, resident.line.bounds()) {
+                resident.line.freight_route = FreightRoute::Aggregate;
+                resident.aggregate_pending = false;
+            }
+        }
     }
 
     /// Validate a short run of local footprints against stable reservations.
@@ -465,6 +491,7 @@ mod tests {
     use crate::local_routes::route_reservation;
     use crate::rail_survey::{RailSurveyData, RailSurveyWork};
     use crate::watershed::WatershedWork;
+    use crate::world::Surface;
     use std::vec::Vec;
 
     #[test]
@@ -592,6 +619,19 @@ mod tests {
         assert_eq!(rails.rails(safe, 512.0).count(), 0);
         assert_eq!(rails.rails(visible, 512.0).next(), Some(&line));
         assert_eq!(rails.rails(visible, 2.0).next(), Some(&line));
+
+        // Exercise a complete published grade with its depot-change state queued.
+        // The camera can turn away from the track while still close enough for a train.
+        rails.residents.iter_mut().flatten().next().unwrap().aggregate_pending = true;
+        let turned = Camera { heading: core::f32::consts::PI, ..visible };
+        rails.connect_quarries(&land, &facilities, turned);
+        let resident = rails.residents.iter().flatten().next().unwrap();
+        assert!(resident.aggregate_pending);
+        assert_eq!(resident.line.freight_route, line.freight_route);
+        rails.connect_quarries(&land, &facilities, safe);
+        let resident = rails.residents.iter().flatten().next().unwrap();
+        assert!(!resident.aggregate_pending);
+        assert_eq!(resident.line.freight_route, FreightRoute::Aggregate);
         for point in line.polyline() {
             let raw = world.sample(point.x, point.z);
             let piece = line.sample(point.x, point.z, raw.elevation).unwrap();
@@ -621,11 +661,33 @@ mod tests {
         assert!(shoulder.material.is_none());
         assert_eq!(
             rails.sampler().overlay(x, z, forest),
-            Sample {
-                elevation: shoulder.elevation,
-                ..forest
-            }
+            crate::rail_art::cover_rail_earthwork(shoulder.elevation, forest).unwrap(),
         );
+        let mut rock_cut = false;
+        let mut gravel_fill = false;
+        let sampler = rails.sampler();
+        for distance in (32..(line.length() as usize - 32)).step_by(3) {
+            let distance = distance as f32;
+            let point = line.position_at(distance);
+            let a = line.position_at(distance - 0.5);
+            let b = line.position_at(distance + 0.5);
+            for across in [-5.4, -3.7, -2.3, 2.3, 3.7, 5.4] {
+                let x = point.x - across * (b.z - a.z);
+                let z = point.z + across * (b.x - a.x);
+                let raw = world.sample(x, z);
+                let shaped = sampler.overlay(x, z, raw);
+                let Some(piece) = line.sample(x, z, raw.elevation) else { continue };
+                if piece.material.is_some() || shaped == raw {
+                    continue;
+                }
+                assert_eq!(shaped.elevation.to_bits(), piece.elevation.to_bits());
+                rock_cut |= shaped.surface == Surface::Rock && raw.surface != Surface::Rock
+                    && shaped.elevation < raw.elevation;
+                gravel_fill |= shaped.surface == Surface::Gravel && raw.surface != Surface::Gravel
+                    && shaped.elevation > raw.elevation;
+            }
+        }
+        assert!(rock_cut && gravel_fill, "published route must show both cuts and fills");
 
         land.reset(world);
         rails.service(&land, visible, |_| panic!());

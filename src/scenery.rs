@@ -177,7 +177,7 @@ pub fn overlay_facilities(
         Some(FacilitySample::Solar(piece)) => crate::solar_sites::cover_sample(piece, developed),
         Some(FacilitySample::Quayside(piece)) => piece,
         Some(FacilitySample::WaterTower) => {
-            let ground = if developed.surface == Surface::TreeCanopy { raw } else { developed };
+            let ground = if developed.surface.is_tree_canopy() { raw } else { developed };
             facilities.water_tower().map_or(developed, |tower| tower.overlay(x, z, ground))
         }
     }

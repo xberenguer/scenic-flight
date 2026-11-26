@@ -42,7 +42,12 @@
         <h2 id="artwork-title">Scenery artwork</h2>
         <p id="artwork-count" aria-live="polite"></p>
       </div>
-      <div class="tabs" id="artwork-categories" aria-label="Scenery categories"></div>
+      <div class="toolbar">
+        <div class="tabs" id="artwork-categories" aria-label="Scenery categories"></div>
+        <label class="artwork-filter">Family
+          <select id="artwork-family" aria-controls="artwork-grid"></select>
+        </label>
+      </div>
       <ul id="artwork-grid" class="artwork-grid" aria-label="Tree variants"></ul>
     </section>
 

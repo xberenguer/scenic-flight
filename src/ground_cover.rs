@@ -69,6 +69,37 @@ fn hash(x: i32, z: i32, seed: u32) -> u32 {
     mixed ^ (mixed >> 15)
 }
 
+/// Blend woodland pigment over the same world coordinates at every viewing
+/// distance. Two independent channels share the coarse lattice hash.
+pub(crate) fn woodland_color([x, height, z]: [f32; 3], seed: u32) -> [f32; 3] {
+    let u = x * 0.0062 + z * 0.0017;
+    let v = z * 0.0062 - x * 0.0017;
+    let [ix, iz] = [floor_i32(u), floor_i32(v)];
+    let along = smoothstep(u - ix as f32);
+    let across = smoothstep(v - iz as f32);
+    let key = |dx, dz| hash(ix + dx, iz + dz, seed ^ 0x557c_91e2);
+    let [a, b, c, d] = [key(0, 0), key(1, 0), key(0, 1), key(1, 1)];
+    let channel = |shift| {
+        let [a, b, c, d] = [a, b, c, d].map(|bits| ((bits >> shift) & 255_u32) as f32);
+        let first = a + (b - a) * along;
+        let second = c + (d - c) * along;
+        (first + (second - first) * across) * (1.0 / 255.0)
+    };
+    let moisture = channel(0);
+    let clearing = channel(15);
+    let conifers = smoothstep((height - 29.0) * (1.0 / 34.0) + (moisture - 0.5) * 0.46);
+    let aspen = smoothstep((clearing - 0.50) * 2.5)
+        * smoothstep((height - 14.0) * (1.0 / 26.0))
+        * (1.0 - smoothstep((height - 51.0) * (1.0 / 23.0)));
+    let broadleaf = [76.0 - 24.0 * moisture, 105.0 + 18.0 * moisture, 82.0 - 24.0 * moisture];
+    let evergreen = [39.0, 87.0, 76.0];
+    let golden = [148.0, 137.0, 73.0];
+    core::array::from_fn(|i| {
+        let main = broadleaf[i] + (evergreen[i] - broadleaf[i]) * conifers;
+        main + (golden[i] - main) * aspen
+    })
+}
+
 fn selection(key: u32, district: u32) -> (usize, usize, usize) {
     let local = (key & 7) < 3;
     let family = if local { district } else { key >> 3 } % 5;
@@ -273,6 +304,27 @@ fn dry_gravel(x: f32, z: f32, seed: u32, base: [f32; 3], detail_fade: f32) -> [f
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn woodland_transition_is_continuous_and_keeps_distinct_foothills_and_uplands() {
+        let length = 1.0 / 0.0062;
+        let mut broadleaf = 0;
+        let mut golden = 0;
+        for seed in 0..32 {
+            let low = woodland_color([-100.0, 17.0, 22.0], seed);
+            let high = woodland_color([-100.0, 69.0, 22.0], seed);
+            assert!(high[1] + 12.0 < low[1]);
+            broadleaf += usize::from(low[1] > 115.0);
+            for i in -4..4 {
+                let x = i as f32 * length;
+                let a = woodland_color([x - 0.01, 42.0, 0.0], seed);
+                let b = woodland_color([x + 0.01, 42.0, 0.0], seed);
+                assert!(a.into_iter().zip(b).all(|(a, b)| (a - b).abs() < 0.06));
+                golden += usize::from(a[0] > 97.0);
+            }
+        }
+        assert!(broadleaf >= 4 && golden >= 10);
+    }
 
     #[test]
     fn exposed_beds_are_continuous_and_lose_contrast_downrange() {

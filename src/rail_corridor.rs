@@ -4,8 +4,8 @@
 use crate::highway_links::HighwayLink;
 use crate::math::smoothstep;
 use crate::ports::{Port, PortSurface};
-use crate::rail::{RailAnchorKind, RailMaterial, RailPoint, RailService};
-use crate::rail_station_art::StationFixtures;
+use crate::rail::{RailAnchor, RailAnchorKind, RailMaterial, RailPoint, RailService};
+use crate::rail_station_art::{StationFixtures, StationLayout};
 use crate::roads::{ROAD_HALF_WIDTH, ROAD_REGION_SIZE};
 use crate::settlement::{Settlement, SettlementSurface};
 use crate::world::{World, SEA_LEVEL};
@@ -134,12 +134,21 @@ impl CorridorStop {
         .then_some(Self {
             region,
             entry,
-            kind: RailAnchorKind::Port,
+            kind: RailAnchorKind::for_port(port.kind()),
         })
     }
 
     pub fn entry(self) -> Xz {
         self.entry
+    }
+
+    pub(crate) fn quarry_transfer(world: &World, region: [i32; 2], entry: Xz) -> Option<Self> {
+        (inside(region, entry) && world.elevation(entry[0], entry[1]) >= DRY)
+            .then_some(Self { region, entry, kind: RailAnchorKind::RoadTerminus })
+    }
+
+    pub(crate) fn kind(self) -> RailAnchorKind {
+        self.kind
     }
 }
 
@@ -173,6 +182,7 @@ pub struct CorridorSample {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RailCorridor {
     pub service: RailService,
+    pub(crate) freight_route: crate::train_art::FreightRoute,
     stations: [CorridorStation; 2],
     points: [RailPoint; POINTS],
     run: [f32; POINTS],
@@ -356,13 +366,15 @@ impl RailCorridor {
                     PLATFORM_END + PLATFORM_OUTER,
                 );
             }
-            let service = if stops.iter().any(|stop| stop.kind == RailAnchorKind::Port) {
-                RailService::Freight
-            } else {
-                RailService::Commuter
-            };
+            let service = RailService::between(stops[0].kind, stops[1].kind);
             let mut route = Self {
                 service,
+                freight_route: match service {
+                    RailService::Freight => crate::train_art::freight_route(world, stops.map(|stop| RailAnchor {
+                        x: stop.entry[0], z: stop.entry[1], kind: stop.kind,
+                    })),
+                    RailService::Commuter => crate::train_art::FreightRoute::Mixed,
+                },
                 stations,
                 points,
                 run,
@@ -372,7 +384,7 @@ impl RailCorridor {
                 bounds,
             };
             for index in 0..route.stations.len() {
-                let fixtures = route.stations[index].fixtures();
+                let fixtures = route.stations[index].fixtures(service);
                 route.stations[index].fixture_mask = fixtures.fit(|x, z| {
                     route.sample(x, z, world.elevation(x, z))
                         .and_then(|sample| sample.material)
@@ -481,20 +493,23 @@ impl RailCorridor {
             if (0.5..=PLATFORM_END).contains(&u)
                 && (PLATFORM_INNER..=PLATFORM_OUTER).contains(&side)
             {
-                let material = if (4.5..=10.0).contains(&u) && (3.1..=4.3).contains(&side) {
-                    RailMaterial::StationRoof
-                } else if self.service == RailService::Freight {
+                let height = station.floor(u);
+                if (4.5..=10.0).contains(&u) && (3.1..=4.3).contains(&side) {
+                    let layout = StationLayout::for_stop(station.stop.kind, self.service, true);
+                    if let Some((material, roof)) = layout.roof((u - 7.25) / 2.75, (side - 3.7) / 0.6) {
+                        return Some(CorridorSample {
+                            elevation: height + roof,
+                            material: Some(material),
+                        });
+                    }
+                }
+                let material = if self.service == RailService::Freight {
                     RailMaterial::FreightPlatform
                 } else {
                     RailMaterial::StationPlatform
                 };
                 return Some(CorridorSample {
-                    elevation: station.floor(u)
-                        + if material == RailMaterial::StationRoof {
-                            2.9
-                        } else {
-                            0.0
-                        },
+                    elevation: height,
                     material: Some(material),
                 });
             }
@@ -521,16 +536,15 @@ impl RailCorridor {
 }
 
 impl CorridorStation {
-    pub(crate) fn fixtures(self) -> StationFixtures {
+    pub(crate) fn fixtures(self, service: RailService) -> StationFixtures {
         let axis = self.axis();
         let outside = [-self.inward[1] * self.side, self.inward[0] * self.side];
         let mounts = [2.21, 12.23].map(|along| {
             let [x, z] = axis.at(along, 4.28 * self.side);
             [x, self.floor(along), z]
         });
-        StationFixtures::new(
-            mounts, self.inward, outside, self.stop.kind == RailAnchorKind::Port, self.fixture_mask,
-        )
+        let layout = StationLayout::for_stop(self.stop.kind, service, true);
+        StationFixtures::new(mounts, self.inward, outside, layout, self.fixture_mask)
     }
 
     fn axis(self) -> Axis {

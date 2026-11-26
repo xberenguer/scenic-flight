@@ -1,7 +1,7 @@
 //! Seeded rail corridors between real regional destinations.
 
 use crate::math::mix;
-use crate::rail_station_art::StationFixtures;
+use crate::rail_station_art::{StationFixtures, StationLayout};
 use crate::roads::RoadNetwork;
 use crate::world::{World, SEA_LEVEL};
 
@@ -28,6 +28,20 @@ pub enum RailAnchorKind {
     RoadTerminus,
     Town,
     Port,
+    PassengerPort,
+}
+
+impl RailAnchorKind {
+    pub(crate) fn for_port(kind: crate::ports::PortKind) -> Self {
+        match kind {
+            crate::ports::PortKind::Freight => Self::Port,
+            crate::ports::PortKind::Ferry | crate::ports::PortKind::Marina => Self::PassengerPort,
+        }
+    }
+
+    pub(crate) fn is_port(self) -> bool {
+        matches!(self, Self::Port | Self::PassengerPort)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -43,6 +57,17 @@ pub enum RailService {
     Freight,
 }
 
+impl RailService {
+    pub(crate) fn between(a: RailAnchorKind, b: RailAnchorKind) -> Self {
+        use RailAnchorKind::{PassengerPort, Port};
+        match (a, b) {
+            (PassengerPort, _) | (_, PassengerPort) => Self::Commuter,
+            (Port, _) | (_, Port) => Self::Freight,
+            _ => Self::Commuter,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum RailMaterial {
@@ -51,7 +76,10 @@ pub enum RailMaterial {
     Steel,
     StationPlatform,
     FreightPlatform,
-    StationRoof,
+    StationTimber,
+    StationMetal,
+    StationGlass,
+    StationRust,
     StationAccess,
 }
 
@@ -102,6 +130,7 @@ pub struct RailStation {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RailLine {
     pub service: RailService,
+    pub(crate) freight_route: crate::train_art::FreightRoute,
     stations: [RailStation; 2],
     axis: Axis,
     intervals: f32,
@@ -289,11 +318,7 @@ impl RailLine {
         }
         let base = Axis::through(start, end);
         let sign = if key & 16 == 0 { 1.0 } else { -1.0 };
-        let service = if a.kind == RailAnchorKind::Port || b.kind == RailAnchorKind::Port {
-            RailService::Freight
-        } else {
-            RailService::Commuter
-        };
+        let service = RailService::between(a.kind, b.kind);
         for offset in [16.0, -16.0, 23.0, -23.0, 30.0, -30.0] {
             pulse();
             let side = offset * sign;
@@ -325,7 +350,7 @@ impl RailLine {
                 }
             }
             for index in 0..line.stations.len() {
-                let fixtures = line.stations[index].fixtures();
+                let fixtures = line.stations[index].fixtures(service);
                 line.stations[index].fixture_mask = fixtures.fit(|x, z| {
                     line.sample(x, z).map(|sample| sample.material)
                 });
@@ -412,6 +437,10 @@ impl RailLine {
         }
         Some(Self {
             service,
+            freight_route: match service {
+                RailService::Freight => crate::train_art::freight_route(world, stations.map(|s| s.anchor)),
+                RailService::Commuter => crate::train_art::FreightRoute::Mixed,
+            },
             stations,
             axis,
             intervals: step,
@@ -463,7 +492,7 @@ impl RailLine {
 }
 
 impl RailStation {
-    pub(crate) fn fixtures(&self) -> StationFixtures {
+    pub(crate) fn fixtures(&self, service: RailService) -> StationFixtures {
         let axis = self.platform.axis;
         let along = [axis.direction.x, axis.direction.z];
         let side = self.platform.outside;
@@ -472,9 +501,8 @@ impl RailStation {
             let p = axis.world(PLATFORM_FIXTURES[index], side * FIXTURE_OUTSIDE);
             [p.x, self.fixture_heights[index], p.z]
         });
-        StationFixtures::new(
-            mounts, along, outside, self.anchor.kind == RailAnchorKind::Port, self.fixture_mask,
-        )
+        let layout = StationLayout::for_stop(self.anchor.kind, service, false);
+        StationFixtures::new(mounts, along, outside, layout, self.fixture_mask)
     }
 
     pub fn road_contact(&self) -> (f32, f32) {
@@ -483,11 +511,15 @@ impl RailStation {
 
     fn sample(self, point: Point, kind: RailService) -> Option<RailSample> {
         let (u, v) = self.platform.axis.coordinates(point);
-        if u.abs() <= 4.3 && (v - self.platform.outside * 0.35).abs() <= 0.95 {
-            return Some(RailSample {
-                material: RailMaterial::StationRoof,
-                elevation: Some(self.roof_base + 3.3),
-            });
+        let across = (v * self.platform.outside - 0.35) / 0.95;
+        if u.abs() <= 4.3 && across.abs() <= 1.0 {
+            let layout = StationLayout::for_stop(self.anchor.kind, kind, false);
+            if let Some((material, roof)) = layout.roof(u / 4.3, across) {
+                return Some(RailSample {
+                    material,
+                    elevation: Some(self.roof_base + roof),
+                });
+            }
         }
         if u.abs() <= self.platform.half_length && v.abs() <= 1.78 {
             let material = if kind == RailService::Freight {
@@ -907,7 +939,7 @@ fn station(
     anchor: RailAnchor,
     road: Option<&RoadNetwork>,
 ) -> Option<RailStation> {
-    let half_length = if anchor.kind == RailAnchorKind::Port {
+    let half_length = if anchor.kind.is_port() {
         10.0
     } else {
         8.3

@@ -8,7 +8,13 @@ use crate::render::{Camera, ScreenProjection, ScreenRect};
 use crate::train_follow::TrainMotion;
 use crate::world_mesh::WorldMesh;
 
+mod freight_catalog;
+mod freight_geography;
+mod locomotives;
 mod wagons;
+pub(crate) use freight_catalog::FreightRoute;
+pub(crate) use freight_geography::freight_route;
+use locomotives::Locomotive;
 use wagons::tint;
 
 pub const TRAIN_REACH: f32 = 224.0;
@@ -43,7 +49,7 @@ impl From<RailService> for TrainService {
 enum Vehicle {
     Passenger { cab: bool },
     RegionalPassenger { cab: bool, express: bool },
-    Engine,
+    Engine(Locomotive),
     Wagon { color: [u8; 3], variant: u8 },
 }
 
@@ -106,7 +112,7 @@ impl Train {
     ) -> Option<Self> {
         let (trip, key) = Self::line_timetable(line, seed)?;
         Self::on_route(
-            trip, key, ticks, camera, dimensions,
+            trip, key, ticks, camera, dimensions, line.freight_route,
             |distance| line.point_at(distance),
         )
     }
@@ -132,7 +138,7 @@ impl Train {
     ) -> Option<Self> {
         let (trip, key) = Self::corridor_timetable(line, seed)?;
         Self::on_route(
-            trip, key, ticks, camera, dimensions,
+            trip, key, ticks, camera, dimensions, line.freight_route,
             |distance| line.position_at(distance),
         )
     }
@@ -168,10 +174,12 @@ impl Train {
         ticks: u64,
         camera: Camera,
         dimensions: (usize, usize),
+        freight_route: FreightRoute,
         point_at: impl Fn(f32) -> RailPoint,
     ) -> Option<Self> {
         let projection = ScreenProjection::new(camera, dimensions)?;
         let [center, direction] = trip.position(ticks);
+        let engine = Locomotive::for_route(freight_route, trip.high - trip.low, key);
         let mut region = None;
         let mut cars = [None; MAX_CARS];
         for (index, slot) in cars.iter_mut().enumerate().take(trip.cars) {
@@ -217,12 +225,12 @@ impl Train {
                 TrainService::RegionalPassenger | TrainService::Express => Vehicle::RegionalPassenger {
                     cab: end, express: trip.service == TrainService::Express,
                 },
-                TrainService::Freight if end => Vehicle::Engine,
+                TrainService::Freight if end => Vehicle::Engine(engine),
                 TrainService::Freight => {
-                    let cargo = key.rotate_left((index * 11) as u32);
+                    let cargo = mix(key ^ (index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15));
                     Vehicle::Wagon {
                         color: livery(cargo, true),
-                        variant: (mix(cargo ^ 0x3f32_a93e_42f8_51a7) % 25) as u8,
+                        variant: freight_catalog::choose_variant(freight_route, key, cargo),
                     }
                 }
             };
@@ -381,7 +389,19 @@ impl Car {
             Vehicle::Passenger { .. } => ([210, 210, 192], stripe, [157, 164, 161], BODY_TOP),
             Vehicle::RegionalPassenger { express: true, .. } => ([228, 233, 231], stripe, [83, 101, 123], BODY_TOP - 0.43),
             Vehicle::RegionalPassenger { .. } => ([148, 189, 196], stripe, [48, 70, 87], BODY_TOP - 0.17),
-            Vehicle::Engine => ([175, 89, 56], [55, 70, 73], [117, 122, 115], BODY_TOP),
+            Vehicle::Engine(locomotive) => {
+                return locomotives::draw(
+                    |t, side, height| {
+                        if first {
+                            self.point(t, side, height)
+                        } else {
+                            self.point(1.0 - t, -side, height)
+                        }
+                    },
+                    |corners, color, emission| quad_triangles(mesh, corners, color, self.opacity, emission),
+                    locomotive, self.detail, self.lamp.unwrap_or(false), dusk,
+                );
+            }
             Vehicle::Wagon { color, variant } => {
                 return wagons::draw(
                     |t, side, height| self.point(t, side, height),
@@ -481,20 +501,6 @@ impl Car {
                         face(pane(a, b), glass, dusk * 0.72);
                     }
                 }
-                Vehicle::Engine if self.detail => {
-                    let offset = side * 1.009;
-                    let (a, b) = if first { (0.09, 0.33) } else { (0.67, 0.91) };
-                    face(
-                        [
-                            point(a, offset, 2.17),
-                            point(b, offset, 2.17),
-                            point(b, offset, 3.14),
-                            point(a, offset, 3.14),
-                        ],
-                        [45, 66, 70],
-                        0.0,
-                    );
-                }
                 _ => {}
             }
         }
@@ -524,7 +530,7 @@ impl Car {
             let outer = if first { -0.003 } else { 1.003 };
             if matches!(
                 self.vehicle,
-                Vehicle::Passenger { cab: true } | Vehicle::RegionalPassenger { cab: true, .. } | Vehicle::Engine
+                Vehicle::Passenger { cab: true } | Vehicle::RegionalPassenger { cab: true, .. }
             ) {
                 face(
                     [

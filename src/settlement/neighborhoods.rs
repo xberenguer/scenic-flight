@@ -169,11 +169,7 @@ impl Neighborhoods {
             if (0..COLS as i32 - 1).contains(&core_col) && row < REAR as usize {
                 continue;
             }
-            let node = row * SIDE + col;
-            let street = district.streets[node] & (EAST | FORWARD) != 0
-                || district.streets[node + 1] & FORWARD != 0
-                || district.streets[node + SIDE] & EAST != 0;
-            if !street {
+            if district.block_frontages(block) == 0 {
                 continue;
             }
             let lot = district.lot(block);
@@ -308,6 +304,15 @@ impl Neighborhoods {
         }
     }
 
+    fn block_frontages(&self, index: usize) -> u8 {
+        let row = index / (SIDE - 1);
+        let node = row * SIDE + index % (SIDE - 1);
+        u8::from(self.streets[node] & EAST != 0)
+            | (u8::from(self.streets[node + SIDE] & EAST != 0) << 1)
+            | (u8::from(self.streets[node] & FORWARD != 0) << 2)
+            | (u8::from(self.streets[node + 1] & FORWARD != 0) << 3)
+    }
+
     fn parcel(&self, index: usize, base: f32) -> Parcel {
         let key = block_key(self.key, index);
         let area = self.lot(index);
@@ -328,6 +333,25 @@ impl Neighborhoods {
                 },
                 SettlementSurface::Park,
             );
+        }
+        let style_group = district & 7;
+        if style_group == 0 && style >= 3 && distance > 38.0 {
+            let frontage = choose_frontage(self.block_frontages(index), district);
+            let offset = (key >> 12 & 7) as f32 * 0.19 - 0.665;
+            let footprint = frontage.lot(area.x, area.z, offset, -2.50, 6.20, 4.10);
+            let apron = frontage.lot(area.x, area.z, 0.0, 4.25, 6.55, 2.80);
+            let hall = Building::new(footprint, base, 5.0 + (key >> 18 & 7) as f32 * 0.28, Form::Hall);
+            return Parcel::with_yard(hall, apron);
+        }
+        if matches!(style_group, 1 | 2) && style >= 7 && distance < 132.0 {
+            let frontage = choose_frontage(self.block_frontages(index), district);
+            let buildings = [-1.0, 1.0].map(|side| {
+                let area = frontage.lot(area.x, area.z, side * 4.30, 0.15, 2.02, 5.65);
+                let shift = if side < 0.0 { 18 } else { 22 };
+                let height = 7.0 + (key >> shift & 7) as f32 * 0.64;
+                Building::new(area, base, height, Form::Hall)
+            });
+            return Parcel::with_courtyard(buildings);
         }
         let mut parcel = Parcel::EMPTY;
         if style >= 5 && distance < 122.0 || district & 3 == 0 && style >= 9 {
@@ -446,6 +470,7 @@ mod tests {
     #[test]
     fn large_districts_have_dry_blocks_on_connected_streets() {
         let mut largest = 0;
+        let [mut courtyards, mut yards] = [0, 0];
         for (seed, rx, rz) in [
             (1, -1, 0),
             (1, -1, -3),
@@ -496,6 +521,22 @@ mod tests {
                     let Some(block) = district.block(index) else {
                         continue;
                     };
+                    if let Some((open, surface)) = block.open() {
+                        match (block.count, surface) {
+                            (2, SettlementSurface::Park) => courtyards += 1,
+                            (1, SettlementSurface::Street) => yards += 1,
+                            (0, SettlementSurface::Park) => {}
+                            layout => panic!("unexpected open-space layout {layout:?}"),
+                        }
+                        let [left, right, near, far] = [
+                            open.x - open.half_width, open.x + open.half_width,
+                            open.z - open.half_depth, open.z + open.half_depth,
+                        ];
+                        let lot = district.lot(index);
+                        assert!(lot.contains(left, near) && lot.contains(right, far));
+                        let (x, z) = town.local.world(open.x, open.z);
+                        assert_eq!(town.sample(x, z), Some(SettlementSample { surface, elevation: None }));
+                    }
                     for building in block.buildings() {
                         let area = building.area;
                         let (x, z) = town.local.world(area.x, area.z);
@@ -512,5 +553,6 @@ mod tests {
             }
         }
         assert!(largest >= 90, "only {largest} buildings beyond the core");
+        assert!(courtyards > 0 && yards > 0, "{courtyards} courtyards, {yards} yards");
     }
 }

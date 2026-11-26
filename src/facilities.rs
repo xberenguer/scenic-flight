@@ -3,10 +3,11 @@
 use crate::airfield::{AirfieldMaterial, AirfieldSample, AirfieldSite};
 use crate::ports::{Port, PortSample, PortSurface};
 use crate::quayside::Quayside;
-use crate::rail::{RailAnchorKind, RailLine, RailMaterial, RailSample};
+use crate::rail::{RailAnchorKind, RailLine, RailMaterial, RailSample, RailService};
 use crate::roads::{RoadNetwork, RoadPoint};
 use crate::settlement::{Settlement, SettlementSurface, Terminus};
 use crate::solar_sites::SolarSite;
+use crate::train_art::FreightRoute;
 use crate::water_tower::WaterTower;
 use crate::working_quarry::Quarry;
 use crate::world::{Sample, Surface, World};
@@ -18,6 +19,40 @@ const DRY_FOOTPRINT: Sample = Sample {
     surface: Surface::Grass,
 };
 const FOOTPRINT_SPACING: f32 = 0.8;
+const QUARRY_HAUL_REACH: f32 = 512.0;
+
+pub(crate) fn short_haul(road: &RoadNetwork, [x, _, z]: [f32; 3], end: Terminus) -> bool {
+    let spans = road.polyline().windows(2);
+    let mut distance = 0.0;
+    let mut junction = None;
+    for span in spans {
+        let [a, b] = [span[0], span[1]];
+        let dx = b.x - a.x;
+        let dz = b.z - a.z;
+        let squared = dx * dx + dz * dz;
+        let mut length = dx.abs().max(dz.abs());
+        for _ in 0..3 {
+            length = 0.5 * (length + squared / length);
+        }
+        if (a.x + b.x) * 0.5 == x && (a.z + b.z) * 0.5 == z {
+            junction = Some(distance + length * 0.5);
+        }
+        distance += length;
+    }
+    junction.is_some_and(|junction| match end {
+        Terminus::Start => junction <= QUARRY_HAUL_REACH,
+        Terminus::End => distance - junction <= QUARRY_HAUL_REACH,
+    })
+}
+
+pub(crate) fn train_route_near(camera: crate::render::Camera, bounds: [f32; 4]) -> bool {
+    let [left, near, right, far] = bounds;
+    let dx = camera.x - camera.x.clamp(left, right);
+    let dz = camera.z - camera.z.clamp(near, far);
+    // The bounds already include the whole grade. Keep a small allowance for a car's width.
+    let reach = crate::train_art::TRAIN_REACH + 8.0;
+    dx * dx + dz * dz <= reach * reach
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FacilitySample {
@@ -32,7 +67,7 @@ pub enum FacilitySample {
 
 #[derive(Clone, Copy)]
 pub(crate) enum RoadsideSite {
-    Quarry(Quarry),
+    Quarry { site: Quarry, local_transfer: bool },
     Solar(SolarSite),
     Quayside(Quayside),
     WaterTower(WaterTower),
@@ -41,7 +76,7 @@ pub(crate) enum RoadsideSite {
 impl RoadsideSite {
     pub(crate) fn bounds(&self) -> [f32; 4] {
         match self {
-            Self::Quarry(quarry) => quarry.bounds(),
+            Self::Quarry { site, .. } => site.bounds(),
             Self::Solar(site) => site.bounds(),
             Self::Quayside(site) => site.bounds(),
             Self::WaterTower(site) => site.bounds(),
@@ -109,7 +144,7 @@ impl RegionalFacilities {
 
     pub fn quarry(&self) -> Option<&Quarry> {
         match self.roadside.as_ref()? {
-            RoadsideSite::Quarry(quarry) => Some(quarry),
+            RoadsideSite::Quarry { site, .. } => Some(site),
             _ => None,
         }
     }
@@ -140,7 +175,27 @@ impl RegionalFacilities {
     }
 
     pub(crate) fn install_roadside(&mut self, site: RoadsideSite) {
+        if matches!(site, RoadsideSite::Quarry { local_transfer: true, .. }) {
+            if let Some(rail) = self.rail.as_mut().filter(|line| line.service == RailService::Freight) {
+                rail.freight_route = FreightRoute::Aggregate;
+            }
+        }
         self.roadside = Some(site);
+    }
+
+    pub(crate) fn roadside_quarry(&self, site: Quarry, road: &RoadNetwork) -> RoadsideSite {
+        let points = road.polyline();
+        let local_transfer = self.rail.as_ref()
+            .filter(|rail| rail.service == RailService::Freight)
+            .and_then(|rail| rail.stations().iter().find(|station| !station.anchor.kind.is_port()))
+            .is_some_and(|station| {
+                [Terminus::Start, Terminus::End].into_iter().zip([points.first(), points.last()])
+                    .any(|(end, point)| point.is_some_and(|point| {
+                        station.road_contact() == (point.x, point.z)
+                            && short_haul(road, site.junction(), end)
+                    }))
+            });
+        RoadsideSite::Quarry { site, local_transfer }
     }
 
     /// Conservative world bounds in minimum-X, minimum-Z, maximum-X,
@@ -161,8 +216,7 @@ impl RegionalFacilities {
             })
     }
 
-    /// The existing paved highway cell shared by a port road and a freight
-    /// platform's station access. The train stays on its own trackbed.
+    /// The paved highway cell shared by a port road and rail platform access.
     pub fn port_transfer(&self, end: Terminus, road: &RoadNetwork) -> Option<(f32, f32)> {
         self.port(end)?;
         let points = road.polyline();
@@ -172,7 +226,7 @@ impl RegionalFacilities {
         };
         self.rail()?.stations().iter().find_map(|station| {
             let (x, z) = station.road_contact();
-            (station.anchor.kind == RailAnchorKind::Port && x == point.x && z == point.z)
+            (station.anchor.kind.is_port() && x == point.x && z == point.z)
                 .then_some((x, z))
         })
     }
@@ -191,7 +245,7 @@ impl RegionalFacilities {
             .and_then(|line| line.sample(x, z))
             .map(FacilitySample::Rail)
             .or_else(|| match self.roadside()? {
-                RoadsideSite::Quarry(quarry) => quarry.occupies(x, z).then_some(FacilitySample::Quarry),
+                RoadsideSite::Quarry { site, .. } => site.occupies(x, z).then_some(FacilitySample::Quarry),
                 RoadsideSite::Solar(site) => site.sample(x, z, raw).map(FacilitySample::Solar),
                 RoadsideSite::Quayside(site) => site.sample(x, z, raw).map(FacilitySample::Quayside),
                 RoadsideSite::WaterTower(site) => site.reserves(x, z).then_some(FacilitySample::WaterTower),
@@ -292,8 +346,8 @@ impl RegionalFacilityPlanner {
             }
             Rail => {
                 let kinds = core::array::from_fn(|index| {
-                    if ports[index].is_some() {
-                        RailAnchorKind::Port
+                    if let Some(port) = ports[index] {
+                        RailAnchorKind::for_port(port.kind())
                     } else if towns[index].is_some() {
                         RailAnchorKind::Town
                     } else {
@@ -548,12 +602,12 @@ mod tests {
     use std::collections::VecDeque;
 
     #[test]
-    fn freight_access_and_both_harbors_meet_real_highway_pavement() {
+    fn passenger_harbors_get_passenger_rail_and_shared_road_access() {
         let world = World::new(1);
         let road = RoadNetwork::generate(&world, -1, -3).unwrap();
         let plan = RegionalFacilities::prepare(&world, 1, &road, [None, None]);
         let line = plan.rail().unwrap();
-        assert_eq!(line.service, RailService::Freight);
+        assert_eq!(line.service, RailService::Commuter);
         for (end, kind, position) in [
             (Terminus::Start, PortKind::Ferry, (-680.0, -2464.0)),
             (Terminus::End, PortKind::Marina, (-368.0, -2584.0)),
@@ -571,7 +625,7 @@ mod tests {
                     ..
                 }))
             ));
-            assert!(station_path_reaches_platform(line, x, z));
+            assert!(station_path_reaches_platform(line, x, z, RailMaterial::StationPlatform));
         }
 
         let district = Settlement::generate(&world, &road, Terminus::Start).unwrap();
@@ -580,7 +634,26 @@ mod tests {
         assert_eq!(preserved.port(Terminus::End), plan.port(Terminus::End));
     }
 
-    fn station_path_reaches_platform(line: &RailLine, start_x: f32, start_z: f32) -> bool {
+    #[test]
+    fn retained_cargo_dock_has_a_freight_train_and_loading_platform() {
+        use crate::scenery::DistrictRegion;
+
+        let seed = 130;
+        let world = World::new(seed);
+        let district = DistrictRegion::build(&world, 11, 4);
+        let road = district.road().unwrap();
+        let towns = [Terminus::Start, Terminus::End].map(|end| district.town(end));
+        let plan = RegionalFacilities::prepare(&world, seed, road, towns);
+        assert!(plan.port(Terminus::Start).is_none());
+        assert_eq!(plan.port(Terminus::End).unwrap().kind(), PortKind::Freight);
+        let rail = plan.rail().unwrap();
+        assert_eq!(rail.service, RailService::Freight);
+        assert_eq!(rail.freight_route, crate::train_art::FreightRoute::Liquid);
+        let (x, z) = plan.port_transfer(Terminus::End, road).unwrap();
+        assert!(station_path_reaches_platform(rail, x, z, RailMaterial::FreightPlatform));
+    }
+
+    fn station_path_reaches_platform(line: &RailLine, start_x: f32, start_z: f32, platform: RailMaterial) -> bool {
         const SIZE: usize = 161;
         const CENTER: usize = SIZE / 2;
         let mut visited = [[false; SIZE]; SIZE];
@@ -590,7 +663,7 @@ mod tests {
             let x = start_x + (col as f32 - CENTER as f32) * 0.5;
             let z = start_z + (row as f32 - CENTER as f32) * 0.5;
             match rail_material(line, x, z) {
-                Some(RailMaterial::FreightPlatform) => return true,
+                Some(material) if material == platform => return true,
                 Some(RailMaterial::StationAccess) => {}
                 _ => continue,
             }

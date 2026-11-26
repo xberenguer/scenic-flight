@@ -26,6 +26,11 @@ pub fn overlay_approach(tunnel: &RoadTunnel, x: f32, z: f32, ground: Sample) -> 
                 | Surface::FlatRoof
                 | Surface::PitchedRoof
                 | Surface::TowerRoof
+                | Surface::RailTimber
+                | Surface::RailMetal
+                | Surface::RailGlass
+                | Surface::RailRust
+                | Surface::RailApron
                 | Surface::HarborCrane
                 | Surface::ShipHull
                 | Surface::ShipDeck

@@ -1,4 +1,4 @@
-//! Low-poly foreground silhouettes anchored to the surveyed desert surface.
+//! Low-poly foreground scenery anchored to surveyed desert and wetland surfaces.
 
 use crate::math::sin_cos;
 use crate::render::{Camera, ScreenProjection, ScreenRect, floor_i32};
@@ -15,6 +15,7 @@ enum PropKind {
     Cactus,
     Rock,
     Bush,
+    WetlandPlant,
 }
 
 #[derive(Clone, Copy)]
@@ -28,81 +29,228 @@ struct Prop {
 
 impl Prop {
     fn triangles(self, emit: impl FnMut([[f32; 3]; 3], [u8; 3])) {
-        // Four independent, four-step form traits make 256 meshes per kind.
+        // Three four-step proportions in each of four families make 256 meshes per kind.
         let [a, b, c, d] = [0, 2, 4, 6].map(|shift| usize::from((self.variant >> shift) & 3));
         match self.kind {
             PropKind::Cactus => cactus_triangles(a, b, c, d, emit),
             PropKind::Rock => rock_triangles(a, b, c, d, emit),
             PropKind::Bush => bush_triangles(a, b, c, d, emit),
+            PropKind::WetlandPlant => wetland_triangles(a, b, c, d, emit),
         }
     }
 }
 
 fn cactus_triangles(
-    girth: usize, height: usize, reach: usize, arrangement: usize,
+    girth: usize, stature: usize, spread: usize, species: usize,
     mut triangle: impl FnMut([[f32; 3]; 3], [u8; 3]),
 ) {
-    let stem = [0.28, 0.39, 0.50, 0.61][girth];
-    let height = [2.35, 2.90, 3.45, 4.00][height];
-    let arm = [0.69, 0.94, 1.22, 1.50][reach];
-    let [left_fork, left_tip, right_fork, right_tip] = [
-        [0.30, 0.58, 0.49, 0.82],
-        [0.48, 0.81, 0.25, 0.56],
-        [0.36, 0.65, 0.34, 0.69],
-        [0.52, 0.91, 0.43, 0.70],
-    ][arrangement];
-    let lean = [-0.25, 0.28, -0.07, 0.14][arrangement];
+    let girth = [0.78, 1.0, 1.23, 1.48][girth];
+    let height = [0.72, 0.87, 1.0, 1.15][stature];
+    let spread = [0.70, 1.0, 1.28, 1.52][spread];
     for swap in [false, true] {
         let at = |x, y| if swap { [0.0, y, x] } else { [x, y, 0.0] };
-        triangle([at(-stem, 0.0), at(stem, 0.0), at(lean, height)], [51, 90, 60]);
-        triangle([
-            at(lean * left_fork, height * left_fork),
-            at(-arm, height * left_fork + 0.22),
-            at(-arm * 0.85, height * left_tip),
-        ], [77, 115, 67]);
-        triangle([
-            at(lean * right_fork, height * right_fork),
-            at(arm * 0.85, height * right_fork + 0.21),
-            at(arm * 0.74, height * right_tip),
-        ], [89, 122, 68]);
+        let mut pad = |x: f32, low: f32, high: f32, w: f32, lean: f32, color| {
+            let waist = low + (high - low) * 0.57;
+            let [a, b, c, d] = [at(x, low), at(x - w, waist), at(x + lean, high), at(x + w, waist)];
+            triangle([a, b, c], color);
+            triangle([a, c, d], color);
+        };
+        match species {
+            0 => {
+                // Saguaro: tall central stem and unequal arms.
+                pad(0.0, 0.0, height * 3.48, girth * 0.37, 0.08, [55, 103, 65]);
+                pad(-spread * 0.53, height * 0.82, height * 2.40, girth * 0.35,
+                    -spread * 0.40, [77, 128, 73]);
+                pad(spread * 0.46, height * 1.25, height * 3.06, girth * 0.29,
+                    spread * 0.49, [67, 117, 66]);
+            }
+            1 => {
+                // Organ pipe: a group of tall stems rising from the same root.
+                for [side, top, lean] in [[-0.62, 2.12, -0.28], [0.02, 3.38, 0.16], [0.58, 2.72, 0.40]] {
+                    pad(side * spread, 0.0, height * top, girth * 0.26,
+                        lean * spread, [60, 121, 104]);
+                }
+            }
+            2 => {
+                // Prickly pear: branching, broad pads close to the ground.
+                pad(0.0, 0.0, height * 1.42, girth * 0.56, -spread * 0.14, [123, 151, 79]);
+                pad(-spread * 0.66, height * 0.45, height * 1.65,
+                    girth * 0.48, -spread * 0.53, [101, 143, 85]);
+                pad(spread * 0.59, height * 0.49, height * 1.90,
+                    girth * 0.59, spread * 0.47, [130, 158, 87]);
+            }
+            _ => {
+                // Golden barrel: squat ribbed body with a second offset head.
+                pad(0.0, 0.0, height * 1.44, girth * 0.85, spread * 0.10, [159, 155, 77]);
+                pad(spread * 0.74, 0.0, height * 0.87,
+                    girth * 0.55, spread * 0.19, [145, 129, 63]);
+                pad(-spread * 0.45, 0.0, height * 1.06,
+                    girth * 0.53, -spread * 0.23, [176, 157, 79]);
+            }
+        }
     }
 }
 
 fn rock_triangles(
-    width: usize, depth: usize, relief: usize, crown: usize,
+    width: usize, depth: usize, relief: usize, family: usize,
     mut triangle: impl FnMut([[f32; 3]; 3], [u8; 3]),
 ) {
-    let width = [0.82, 1.10, 1.38, 1.66][width];
-    let depth = [0.74, 0.98, 1.24, 1.50][depth];
-    let height = [0.46, 0.86, 1.26, 1.66][relief];
-    let [peak_x, peak_z] = [[-0.55, 0.27], [-0.17, -0.51], [0.34, 0.45], [0.59, -0.18]][crown];
-    let corners = [
-        [-width, 0.0, -0.56 * depth], [0.82 * width, 0.0, -depth],
-        [width, 0.0, 0.76 * depth], [-0.66 * width, 0.0, depth],
-    ];
-    let peak = [peak_x * width, height, peak_z * depth];
-    for (i, color) in [[151, 124, 100], [114, 98, 87], [129, 101, 80], [173, 145, 118]].into_iter().enumerate() {
-        triangle([corners[i], corners[(i + 1) % 4], peak], color);
+    let width = [0.88, 1.15, 1.44, 1.73][width];
+    let depth = [0.78, 1.04, 1.32, 1.62][depth];
+    let relief = [0.72, 1.0, 1.32, 1.67][relief];
+    match family {
+        0 => {
+            // Tumbled granite: broad irregular dome, pale facets and a grounded chip.
+            let ring = [
+                [-1.05 * width, 0.0, -0.37 * depth],
+                [-0.34 * width, 0.0, -0.96 * depth],
+                [0.76 * width, 0.0, -0.64 * depth],
+                [1.14 * width, 0.0, 0.32 * depth],
+                [-0.36 * width, 0.0, 0.94 * depth],
+            ];
+            let peak = [-0.23 * width, 0.72 * relief, 0.12 * depth];
+            let tones = [[130, 125, 114], [177, 169, 152], [150, 143, 131],
+                         [121, 116, 106], [161, 153, 139]];
+            for (index, color) in tones.into_iter().enumerate() {
+                triangle([ring[index], ring[(index + 1) % ring.len()], peak], color);
+            }
+            triangle([[0.74 * width, 0.0, 0.45 * depth], [1.02 * width, 0.0, 0.90 * depth],
+                      [0.85 * width, 0.24 * relief, 0.65 * depth]], [149, 140, 127]);
+        }
+        1 => {
+            // Sandstone ledge: long tabletop, low skirt and a rust-colored cut face.
+            let bottom = [[-1.34 * width, 0.0, -0.53 * depth], [1.40 * width, 0.0, -0.72 * depth],
+                          [1.03 * width, 0.0, 0.42 * depth], [-1.16 * width, 0.0, 0.64 * depth]];
+            let roof = [[-0.99 * width, 0.43 * relief, -0.39 * depth],
+                        [1.16 * width, 0.58 * relief, -0.42 * depth],
+                        [0.97 * width, 0.51 * relief, 0.34 * depth],
+                        [-1.03 * width, 0.35 * relief, 0.44 * depth]];
+            triangle([roof[0], roof[1], roof[2]], [192, 126, 80]);
+            triangle([roof[0], roof[2], roof[3]], [180, 108, 66]);
+            triangle([bottom[0], bottom[1], roof[1]], [138, 75, 54]);
+            triangle([bottom[0], roof[1], roof[0]], [158, 82, 54]);
+            triangle([bottom[1], bottom[2], roof[2]], [126, 68, 46]);
+            triangle([bottom[2], bottom[3], roof[3]], [160, 91, 56]);
+        }
+        2 => {
+            // Basalt shards: tall, narrow paired blades with charcoal facets.
+            let shards = [
+                ([-0.36 * width, 0.0, -0.30 * depth], [-0.18 * width, 1.19 * relief, -0.08 * depth]),
+                ([0.60 * width, 0.0, 0.57 * depth], [0.74 * width, 0.61 * relief, 0.38 * depth]),
+            ];
+            let tones = [[60, 63, 73], [91, 88, 93], [73, 72, 80]];
+            for ([x, _, z], peak) in shards {
+                let base = [[x - 0.42 * width, 0.0, z - 0.12 * depth],
+                            [x + 0.39 * width, 0.0, z - 0.30 * depth],
+                            [x + 0.14 * width, 0.0, z + 0.48 * depth]];
+                for (index, color) in tones.into_iter().enumerate() {
+                    triangle([base[index], base[(index + 1) % base.len()], peak], color);
+                }
+            }
+        }
+        _ => {
+            // Pale scree: a low fan of loose fragments, with ground between them.
+            for [x, z, span, rise] in [[-0.88, -0.35, 0.57, 0.34],
+                                      [0.19, -0.51, 0.40, 0.22],
+                                      [0.76, 0.59, 0.48, 0.42]] {
+                let a = [(x - span) * width, 0.0, (z - 0.12) * depth];
+                let b = [(x + span) * width, 0.0, (z - 0.23) * depth];
+                let c = [(x + 0.25 * span) * width, 0.0, (z + 0.45) * depth];
+                let peak = [(x - 0.13 * span) * width, rise * relief, (z + 0.15) * depth];
+                triangle([a, b, peak], [172, 155, 125]);
+                triangle([a, peak, c], [198, 180, 141]);
+            }
+        }
     }
-    let toe = [width + 1.08, 0.0, -0.54];
-    let crest = [width + 0.34, 0.22 + height * 0.39, peak_z * 0.66];
-    triangle([[width * 0.62, 0.0, -0.45], toe, crest], [161, 131, 108]);
-    triangle([toe, [width + 0.72, 0.0, 0.72], crest], [112, 91, 76]);
 }
 
 fn bush_triangles(
-    width: usize, height: usize, spread: usize, crown: usize,
+    width: usize, height: usize, spread: usize, family: usize,
     mut triangle: impl FnMut([[f32; 3]; 3], [u8; 3]),
 ) {
-    let width = [0.84, 1.11, 1.38, 1.65][width];
-    let height = [0.65, 1.03, 1.41, 1.79][height];
-    let spread = [0.48, 0.78, 1.08, 1.38][spread];
-    let [lean, split] = [[-0.57, 0.55], [-0.21, 0.82], [0.21, 0.69], [0.55, 1.00]][crown];
+    let width = [0.78, 1.0, 1.27, 1.53][width];
+    let height = [0.72, 0.93, 1.18, 1.45][height];
+    let spread = [0.67, 0.96, 1.27, 1.59][spread];
+    // Cross two planes to keep the families recognizable on changing headings.
     for swap in [false, true] {
         let at = |x, y| if swap { [0.0, y, x] } else { [x, y, 0.0] };
-        triangle([at(-width, 0.0), at(0.39, 0.0), at(-width * 0.48 + lean, height)], [99, 104, 59]);
-        triangle([at(-0.38, 0.0), at(width, 0.0), at(width * 0.51 + lean * 0.6, height * split)], [130, 126, 68]);
-        triangle([at(width * 0.72, 0.0), at(width + spread, 0.0), at(width + spread * 0.46, height * 0.56)], [113, 118, 72]);
+        let mut shape = |points: [[f32; 2]; 3], color| {
+            triangle(points.map(|[x, y]| at(x, y)), color);
+        };
+        match family {
+            0 => {
+                // Sagebrush: cool rounded cushion and a low asymmetric skirt.
+                let left = [-1.05 * width, 0.0];
+                let shoulder = [-0.61 * width, 0.56 * height];
+                let top = [0.20 * width, 0.83 * height];
+                let right = [0.92 * width, 0.0];
+                shape([left, shoulder, right], [87, 115, 104]);
+                shape([shoulder, top, right], [107, 135, 117]);
+                shape([[0.40 * width, 0.0], [0.84 * width + 0.26 * spread, (0.35 + 0.25 * spread) * height],
+                       [0.87 * width + 0.82 * spread, 0.0]], [91, 122, 103]);
+            }
+            1 => {
+                // Bunchgrass: golden blades that flare from a narrow tuft.
+                shape([[-0.27 * width, 0.0], [0.02 * width, 0.0], [-0.98 * spread, 1.02 * height]], [158, 138, 74]);
+                shape([[-0.12 * width, 0.0], [0.31 * width, 0.0], [0.14 * spread + 1.03 * (width - 1.0), 1.48 * height]], [186, 165, 94]);
+                shape([[0.02 * width, 0.0], [0.48 * width, 0.0], [1.17 * spread, 0.80 * height]], [151, 126, 68]);
+            }
+            2 => {
+                // Saltbush: wind-pruned silver-green scrub with open lobes.
+                shape([[-0.28 * width, 0.0], [0.68 * width, 0.0], [0.72 * spread, 0.79 * height]], [107, 123, 104]);
+                shape([[-1.04 * spread, 0.0], [-0.26 * width, 0.0], [-0.69 * spread, 0.52 * height]], [132, 143, 119]);
+                shape([[0.40 * width, 0.0], [1.35 * spread, 0.0], [1.11 * spread, 0.49 * height]], [123, 133, 116]);
+            }
+            _ => {
+                // Flowering yucca: broad pointed blades under one pale stalk.
+                shape([[-0.39 * width, 0.0], [0.16 * width, 0.0], [-1.16 * spread, 0.76 * height]], [73, 106, 65]);
+                shape([[-0.14 * width, 0.0], [0.55 * width, 0.0], [1.29 * spread, 1.01 * height]], [106, 131, 67]);
+                shape([[-0.16 * width, 0.0], [0.20 * width, 0.0], [0.20 * spread, 1.89 * height]], [184, 160, 105]);
+            }
+        }
+    }
+}
+
+fn wetland_triangles(
+    width: usize, height: usize, spread: usize, family: usize,
+    mut triangle: impl FnMut([[f32; 3]; 3], [u8; 3]),
+) {
+    let w = [0.22, 0.42, 0.62, 0.83][width];
+    let h = [0.96, 1.29, 1.68, 2.12][height];
+    let s = [0.44, 0.78, 1.15, 1.52][spread];
+    for swap in [false, true] {
+        let at = |x, y| if swap { [0.0, y, x] } else { [x, y, 0.0] };
+        let mut blade = |a: [f32; 2], b: [f32; 2], tip: [f32; 2], color| {
+            triangle([at(a[0], a[1]), at(b[0], b[1]), at(tip[0], tip[1])], color);
+        };
+        match family {
+            0 => {
+                // Bulrushes: tall straw tips clustered along a silt margin.
+                blade([-0.74 * w, 0.0], [0.08, 0.0], [-0.89 * s, h * 1.19], [143, 156, 86]);
+                blade([0.11, 0.0], [0.79 * w, 0.0], [0.81 * s, h * 0.91], [102, 139, 64]);
+                blade([-0.31 * w, 0.0], [0.38 * w, 0.0], [-0.17 * s, h * 1.43], [174, 164, 102]);
+            }
+            1 => {
+                // Cattail: chocolate seed head above a narrow leaf.
+                blade([-0.66 * w, 0.0], [0.05, 0.0], [-0.89 * s, h * 0.62], [104, 144, 67]);
+                blade([0.02, 0.0], [0.71 * w, 0.0], [0.63 * s, h * 1.06], [125, 154, 74]);
+                let x = 0.63 * s;
+                blade([x - w * 0.40, h * 0.91], [x + w * 0.36, h * 0.89], [x + w * 0.22, h * 1.46], [117, 79, 53]);
+            }
+            2 => {
+                // Iris: broad saffron bloom at the end of a low fan of leaves.
+                blade([-w * 0.9, 0.0], [w * 0.19, 0.0], [-1.05 * s, h * 0.50], [78, 131, 87]);
+                blade([-w * 0.28, 0.0], [w, 0.0], [0.84 * s, h * 0.69], [117, 151, 78]);
+                let x = 0.63 * s;
+                blade([x - w * 0.83, h * 0.63], [x + w * 0.90, h * 0.71], [x + w * 0.47, h * 1.12], [238, 189, 82]);
+            }
+            _ => {
+                // Willow scrub: broad silver-green crowns and exposed low branches.
+                blade([-w, 0.0], [w * 0.53, 0.0], [-s * 0.82, h * 0.86], [101, 139, 115]);
+                blade([-0.55 * w, 0.0], [0.92 * w, 0.0], [1.14 * s, h * 0.57], [123, 153, 124]);
+                blade([-s * 0.66, h * 0.54], [s * 0.69, h * 0.44], [-0.27 * s, h * 1.04], [163, 174, 129]);
+            }
+        }
     }
 }
 
@@ -110,7 +258,7 @@ fn bush_triangles(
 mod tests {
     use super::*;
     use crate::sky::Sky;
-    use std::collections::BTreeSet;
+    use std::collections::BTreeMap;
 
     #[test]
     fn foreground_props_follow_the_same_seed_and_respect_developed_ground() {
@@ -129,6 +277,30 @@ mod tests {
         assert_ne!(points(&original), points(&different));
         for surface in [Surface::Pavement, Surface::GrassRunway, Surface::RiverWater, Surface::CargoOchre] {
             assert!(placements(19, surface).region().is_none());
+        }
+    }
+
+    #[test]
+    fn river_vegetation_uses_approved_banks_and_only_the_matching_families() {
+        let camera = Camera { x: 17.0, z: -13.0, altitude: 21.0, heading: 0.48, pitch: 0.50, bank: 0.0 };
+        let raw = |_, _| Sample { surface: Surface::Grass, elevation: 3.0 };
+        let near = |surface, enabled| {
+            DesertProps::gather_with_wetlands(camera, (60, 60), 79, enabled, raw,
+                |_, _| Sample { surface, elevation: 3.0 })
+        };
+        for (surface, families) in [(Surface::ReedMarsh, 0..2), (Surface::WetMeadow, 2..4), (Surface::RiverSilt, 3..4)] {
+            let props = near(surface, true);
+            let mut count = 0;
+            for prop in props.props.iter().flatten() {
+                assert_eq!(prop.kind, PropKind::WetlandPlant);
+                assert!(families.contains(&(prop.variant >> 6)));
+                count += 1;
+            }
+            assert!(count >= 2);
+            assert!(near(surface, false).region().is_none());
+        }
+        for surface in [Surface::RiverWater, Surface::Pavement] {
+            assert!(near(surface, true).region().is_none());
         }
     }
 
@@ -156,7 +328,8 @@ mod tests {
         ];
         let sky = Sky::from_time(41, 0, 0.48);
         for kind in [PropKind::Cactus, PropKind::Rock, PropKind::Bush] {
-            let mut forms = BTreeSet::new();
+            let mut forms = BTreeMap::new();
+            let mut duplicates = std::vec::Vec::new();
             for variant in 0..=u8::MAX {
                 let prop = Prop { origin: [0.0; 3], size: 1.0, kind, variant, opacity: 1.0 };
                 let mut silhouettes = [[0_u64; ROWS]; 2];
@@ -175,16 +348,18 @@ mod tests {
                         count += 1;
                         mesh.triangle(points, [255; 3]);
                     });
-                    assert_eq!(count, 6);
+                    assert_eq!(count, if kind == PropKind::Cactus { 12 } else { 6 });
                     assert!(grounded);
                     for (i, color) in pixels.into_iter().enumerate() {
                         silhouettes[view][i / 64] |= u64::from(color != 0) << (i % 64);
                     }
                     assert!(silhouettes[view].iter().any(|row| *row != 0));
                 }
-                forms.insert(silhouettes);
+                if let Some(previous) = forms.insert(silhouettes, variant) {
+                    duplicates.push((previous, variant));
+                }
             }
-            assert_eq!(forms.len(), 256, "{kind:?}");
+            assert!(duplicates.is_empty(), "{kind:?} has duplicate silhouettes: {duplicates:?}");
         }
     }
 }
@@ -195,9 +370,16 @@ pub struct DesertProps {
 }
 
 impl DesertProps {
-    #[inline(never)]
     pub fn gather(
         camera: Camera, dimensions: (usize, usize), seed: u64,
+        terrain: impl Fn(f32, f32) -> Sample, sample: impl Fn(f32, f32) -> Sample,
+    ) -> Self {
+        Self::gather_with_wetlands(camera, dimensions, seed, false, terrain, sample)
+    }
+
+    #[inline(never)]
+    pub fn gather_with_wetlands(
+        camera: Camera, dimensions: (usize, usize), seed: u64, wetlands: bool,
         terrain: impl Fn(f32, f32) -> Sample, sample: impl Fn(f32, f32) -> Sample,
     ) -> Self {
         let mut result = Self { props: [None; 72], region: None };
@@ -220,9 +402,16 @@ impl DesertProps {
                 if distance > REACH * REACH || forward < -12.0 {
                     continue;
                 }
-                if !matches!(terrain(x, z).surface, Surface::Desert | Surface::DuneSand | Surface::Sand) { continue; }
+                let surface = terrain(x, z).surface;
+                let sand = matches!(surface, Surface::Desert | Surface::DuneSand | Surface::Sand);
+                let next_to_water = wetlands && matches!(surface, Surface::Grass | Surface::Forest
+                    | Surface::WetMeadow | Surface::ReedMarsh | Surface::RiverSilt);
+                if !sand && !next_to_water { continue; }
                 let ground = sample(x, z);
-                if !matches!(ground.surface, Surface::Desert | Surface::DuneSand) { continue; }
+                let wet_plant = wetlands
+                    && (matches!(ground.surface, Surface::WetMeadow | Surface::ReedMarsh)
+                        || ground.surface == Surface::RiverSilt && ground.elevation >= 0.45 && key & 3 == 0);
+                if !wet_plant && !matches!(ground.surface, Surface::Desert | Surface::DuneSand) { continue; }
                 let opacity = ((REACH * REACH - distance) / 1500.0).clamp(0.0, 1.0)
                     * ((66.0 - camera.altitude + ground.elevation) / 18.0).clamp(0.0, 1.0)
                     * ((forward + 12.0) / 6.0).clamp(0.0, 1.0);
@@ -236,7 +425,9 @@ impl DesertProps {
                 let district = (u64::from((tx >> 2) as u32) << 32) | u64::from((tz >> 2) as u32);
                 let district = crate::math::mix(seed ^ district ^ 0x6863_583d_6157_6cbc);
                 let roll = (key >> 12) & 15;
-                let kind = if ground.surface == Surface::DuneSand {
+                let kind = if wet_plant {
+                    PropKind::WetlandPlant
+                } else if ground.surface == Surface::DuneSand {
                     if roll < 4 { PropKind::Rock } else { PropKind::Bush }
                 } else {
                     let cactus = [1, 2, 5, 6][(district & 3) as usize];
@@ -250,7 +441,18 @@ impl DesertProps {
                     }
                 };
                 result.props[count] = Some(Prop {
-                    origin: [x, y, z], size, kind, variant: (key >> 19) as u8, opacity,
+                    origin: [x, y, z], size, kind,
+                    variant: if wet_plant {
+                        let family = match ground.surface {
+                            Surface::ReedMarsh => (key >> 29) & 1,
+                            Surface::RiverSilt => 3,
+                            _ => 2 + ((key >> 30) & 1),
+                        };
+                        ((family << 6) | ((key >> 19) & 63)) as u8
+                    } else {
+                        (key >> 19) as u8
+                    },
+                    opacity,
                 });
                 count += 1;
                 if count == result.props.len() { return result; }
