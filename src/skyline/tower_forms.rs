@@ -127,12 +127,29 @@ const DESIGNS: [TowerDesign; TOWER_DESIGN_COUNT] = {
     output
 };
 
-pub(crate) fn design(profile: u8) -> &'static TowerDesign {
+pub(crate) fn design(profile: u16) -> &'static TowerDesign {
     &DESIGNS[usize::from(profile)]
 }
 
 /// Give one downtown a coherent mix while keeping neighboring tower families distinct.
-pub(crate) fn select(layout: u32, parcel_key: u32, rank: u8) -> u8 {
+pub(crate) fn select(layout: u32, parcel_key: u32, rank: u8) -> u16 {
+    // Prominent sites draw from the landmark catalog. The center cluster still
+    // includes conventional offices and apartments between landmarks.
+    if rank == 0 || ((parcel_key >> 4) & 3 == 0 && rank < 3) {
+        let family = ((layout >> 14) as usize + usize::from(rank) * 7) % landmarks::LANDMARKS.len();
+        return (TOWER_DESIGN_COUNT + family) as u16;
+    }
+    select_regular(layout, parcel_key, rank)
+}
+
+pub(crate) fn select_regular(layout: u32, parcel_key: u32, rank: u8) -> u16 {
     let family = ((layout >> 9) as usize + usize::from(rank) * 7) % FAMILIES.len();
-    (family * VARIANTS + (parcel_key >> 19) as usize % VARIANTS) as u8
+    (family * VARIANTS + (parcel_key >> 19) as usize % VARIANTS) as u16
+}
+
+#[path = "tower_forms/landmarks.rs"]
+pub(crate) mod landmarks;
+
+pub(crate) fn landmark(profile: u16) -> Option<&'static landmarks::Landmark> {
+    landmarks::LANDMARKS.get(usize::from(profile).checked_sub(TOWER_DESIGN_COUNT)?)
 }

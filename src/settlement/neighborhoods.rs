@@ -285,7 +285,7 @@ impl Neighborhoods {
                     direction: [local.fx, local.fz],
                     base: f32::from((group & 255) - 1) * 0.25,
                     height: f32::from((group >> 8) & 15),
-                    profile: (index & 3) as u8,
+                    profile: (index & 3) as u16,
                 })
             })
     }
@@ -387,7 +387,17 @@ impl Neighborhoods {
                 },
                 base,
                 floors as f32 * 2.5 + (key >> 16 & 7) as f32 * 0.55,
-                Form::Hall,
+                if floors <= 3 && style >= 9 {
+                    let front = choose_frontage(self.block_frontages(index), district);
+                    let variant = (key >> 24) as u8;
+                    if style_group == 0 {
+                        Form::Industrial(front, variant)
+                    } else {
+                        Form::Shop(front, variant)
+                    }
+                } else {
+                    Form::Hall
+                },
             ));
         } else {
             // Paired rows share a street block but vary in depth and roofline.
@@ -404,7 +414,12 @@ impl Neighborhoods {
                 } else {
                     (4.8 + size * 0.075, 2.7)
                 };
-                let form = if style >= 12 { Form::Hall } else { Form::House };
+                let variant = (key >> (22 + i * 8)) as u8;
+                let form = if style >= 12 {
+                    Form::Duplex(variant)
+                } else {
+                    Form::Cottage(variant)
+                };
                 parcel.add(Building::new(
                     Area {
                         x: area.x + x,
@@ -555,11 +570,13 @@ mod tests {
                     }
                     for building in block.buildings() {
                         let area = building.area;
-                        let (x, z) = town.local.world(area.x, area.z);
-                        let roof = town.sample(x, z).unwrap().elevation.unwrap();
-                        assert!(roof > world.elevation(x, z) + 3.0);
+                        let (x, z, roof) = area.interior_samples().find_map(|[x, z]| {
+                            let (x, z) = town.local.world(x, z);
+                            let roof = town.sample(x, z)?.elevation?;
+                            (roof > world.elevation(x, z) + 3.0 && town.obstruction(x, z) >= roof)
+                                .then_some((x, z, roof))
+                        }).unwrap_or_else(|| panic!("No visible roof for {:?}", building.form));
                         assert!(!highway_overlaps(&road, town.local, area));
-                        assert!(town.obstruction(x, z) >= roof);
                         let Some((kind, frontage)) = roof_kind(building.form) else {
                             buildings += 1;
                             continue;

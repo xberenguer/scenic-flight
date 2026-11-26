@@ -487,13 +487,19 @@ impl Scene {
                 .map_or(routed, |rail| rail.overlay(x, z, routed))
         };
 
-        let desert_props = scenic_flight::desert_props::DesertProps::gather_with_wetlands(
+        let desert_props = scenic_flight::desert_props::DesertProps::gather_with_habitats(
             view,
             DIMENSIONS,
             self.seed,
             rivers.is_some(),
             |x, z| self.terrain.sample(x, z),
-            &sample,
+            |x, z| {
+                let ground = sample(x, z);
+                scenic_flight::world::Sample {
+                    surface: self.ground.visible_material(x, z, ground),
+                    ..ground
+                }
+            },
         );
         let depth_region = if has_cliffs || conditions.distant_rain.is_some() {
             Some(ScreenRect::full(DIMENSIONS))

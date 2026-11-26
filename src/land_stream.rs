@@ -23,6 +23,9 @@ const SCAN: i32 = 3;
 const CITY_SCAN: i32 = (CITY_HORIZON as i32 * 13 + 10 * ROAD_REGION_SIZE - 1) / (10 * ROAD_REGION_SIZE);
 const SIDE: usize = ((2 * CITY_SCAN + 1) as usize).next_power_of_two();
 const SKYLINE_PRIORITY: u8 = 3;
+const SKYLINE_START_REGIONS: usize = 2;
+const FOREGROUND_RESERVE: usize = 2;
+const SKYLINE_START_ATTEMPTS: usize = 8;
 const EMPTY: u8 = 254;
 const UNKNOWN: u8 = 255;
 
@@ -134,19 +137,20 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
         self.visible_ready(camera)
     }
 
-    /// Prepare the first city on the flight path across the distant view.
+    /// Prepare the skyline down the flight path before the first frame.
     /// Keep two resident slots open for the next foreground surveys.
     pub fn preflight_skyline(&mut self, camera: Camera) {
         let Some(view) = Window::new(camera).filter(|_| self.ready) else {
             return;
         };
-        let mut open = self.residents.iter().enumerate()
-            .filter_map(|(index, slot)| slot.is_none().then_some(index));
-        let Some(slot) = open.nth(2) else {
-            return;
-        };
-        for _ in 0..3 {
-            let Some((key, false, _)) = self.next_skyline_missing(view) else {
+        let open = self.residents.iter().filter(|entry| entry.is_none()).count();
+        let limit = open.saturating_sub(FOREGROUND_RESERVE).min(SKYLINE_START_REGIONS);
+        let mut prepared = 0;
+        for _ in 0..SKYLINE_START_ATTEMPTS {
+            if prepared == limit {
+                return;
+            }
+            let Some((key, _, _)) = self.next_skyline_missing(view) else {
                 return;
             };
             let Some(road) = RoadNetwork::generate(&self.world, key.x, key.z) else {
@@ -157,8 +161,9 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
                 Settlement::generate(&self.world, &road, Terminus::Start),
                 Settlement::generate(&self.world, &road, Terminus::End),
             ];
+            let slot = self.residents.iter().position(Option::is_none).unwrap();
             self.write_resident(slot, key, road, towns, true);
-            return;
+            prepared += 1;
         }
     }
 
@@ -332,8 +337,15 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
                 }
             });
         let must_prioritize_visible = self.tick & 7 == 0
-            && matches!(&self.pending, Some(Pending::Road { key, .. }) if !view.visible(*key))
-            && self.next_missing(view, true).is_some();
+            && self.pending.as_ref().is_some_and(|pending| {
+                let key = pending.key();
+                !view.visible(key) && match pending {
+                    Pending::Road { .. } => true,
+                    Pending::Towns { next, .. } => *next < 2
+                        && view.rank(key).is_some_and(|(priority, _)| priority >= 2),
+                }
+            })
+            && self.next_missing(view, true).is_some_and(|key| self.available_slot(view, key).is_some());
         if outdated || must_prioritize_visible {
             self.pending = None;
         }
@@ -463,11 +475,15 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
             .enumerate()
             .filter_map(|(i, region)| {
                 let key = region.as_ref()?.key;
-                let lower_priority = view.rank(key).is_none_or(|rank| rank > wanted);
-                (!view.keep(key) && lower_priority).then_some((i, view.distance_squared(key)))
+                let rank = view.rank(key);
+                let can_release_buffer = rank.is_some_and(|(priority, _)| priority == 2)
+                    && (wanted.0 == 0 || wanted.0 == 1 && view.projected(key).0 + view.padding < 0.0);
+                let lower_priority = rank.is_none_or(|rank| rank > wanted);
+                (!view.visible(key) && lower_priority && (!view.keep(key) || can_release_buffer))
+                    .then_some((i, rank.map_or(u8::MAX, |(priority, _)| priority), view.distance_squared(key)))
             })
-            .max_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(i, _)| i)
+            .max_by(|a, b| a.1.cmp(&b.1).then_with(|| a.2.total_cmp(&b.2)))
+            .map(|(i, _, _)| i)
     }
 
     fn write_resident(
@@ -870,6 +886,45 @@ mod tests {
     }
 
     #[test]
+    fn launch_preflight_prepares_two_distant_regions_with_two_slots_in_reserve() {
+        let world = World::new(1);
+        let destinations = [Key { x: 3, z: -3 }, Key { x: 3, z: -2 }];
+        let view = camera(-160.0, -2560.0, 55.0, core::f32::consts::FRAC_PI_2);
+        let window = Window::new(view).unwrap();
+        let mut stream = LandStream::<4>::new();
+        stream.reset(world);
+        for key in window.keys_within(CITY_SCAN).filter(|key| !destinations.contains(key)) {
+            stream.set(key, EMPTY);
+        }
+        assert!(stream.preflight(view, false));
+        stream.preflight_skyline(view);
+        for key in destinations {
+            let pair = (key.x, key.z);
+            assert!(stream.district_published(pair), "missing launch region {key:?}");
+            assert!(stream.planned(pair).flatten().unwrap().towns().next().is_some());
+        }
+        assert_eq!(stream.residents.iter().filter(|slot| slot.is_none()).count(), 2);
+        assert!(stream.visible_ready(view));
+    }
+
+    #[test]
+    fn launch_preflight_finds_a_side_city_when_the_centerline_is_empty() {
+        let world = World::new(1);
+        let city = Key { x: 3, z: -2 };
+        let view = camera(-160.0, -3200.0, 55.0, core::f32::consts::FRAC_PI_2);
+        let window = Window::new(view).unwrap();
+        let mut stream = LandStream::<3>::new();
+        stream.reset(world);
+        for key in window.keys_within(CITY_SCAN).filter(|&key| key != city) {
+            stream.set(key, EMPTY);
+        }
+        assert!(matches!(stream.next_skyline_missing(window), Some((key, true, _)) if key == city));
+        stream.preflight_skyline(view);
+        assert!(stream.district_published((city.x, city.z)));
+        assert_eq!(stream.residents.iter().filter(|slot| slot.is_none()).count(), 2);
+    }
+
+    #[test]
     fn centerline_city_is_ready_before_turn_buffers_under_the_board_budget() {
         let world = World::new(1);
         let view = Camera {
@@ -1109,6 +1164,46 @@ mod tests {
             .unwrap();
             assert!(interior > 100);
         }
+    }
+
+    #[test]
+    fn a_forward_region_can_take_a_slot_from_behind_the_plane() {
+        let world = World::new(1);
+        let old = Key { x: 3, z: -3 };
+        let incoming = Key { x: 3, z: -1 };
+        let mut stream = LandStream::<1>::new();
+        stream.reset(world);
+        let road = RoadNetwork::generate(&world, old.x, old.z).unwrap();
+        stream.write_resident(0, old, road, [None, None], true);
+        let view = Window::new(camera(3584.0, -2000.0, 55.0, 0.0)).unwrap();
+        assert!(view.keep(old));
+        assert!(!view.visible(old));
+        assert!(view.projected(old).0 + view.padding < 0.0);
+        assert_eq!(view.rank(incoming).unwrap().0, 1);
+        assert_eq!(stream.available_slot(view, incoming), Some(0));
+    }
+
+    #[test]
+    fn a_turn_can_retarget_a_queued_offscreen_town_survey() {
+        let world = World::new(1);
+        let behind = Key { x: 3, z: -3 };
+        let ahead = Key { x: 3, z: -2 };
+        let camera = camera(3584.0, -2000.0, 55.0, 0.0);
+        let view = Window::new(camera).unwrap();
+        let mut stream = LandStream::<2>::new();
+        stream.reset(world);
+        for key in view.keys_within(CITY_SCAN).filter(|&key| key != ahead && key != behind) {
+            stream.set(key, EMPTY);
+        }
+        let road = RoadNetwork::generate(&world, behind.x, behind.z).unwrap();
+        stream.pending = Some(Pending::Towns {
+            key: behind, road, towns: [None, None], next: 0, queued: None,
+        });
+        let late = stream.request_settlement().unwrap().prepare(|| {});
+        stream.tick = 7;
+        stream.service(camera, LandBudget { expansions: 0, terrain_samples: 2, settlement_jobs: 0 });
+        assert!(matches!(stream.pending.as_ref(), Some(work) if work.key() == ahead));
+        assert!(!stream.commit_settlement(late));
     }
 
     #[test]

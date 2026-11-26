@@ -353,10 +353,17 @@ impl Settlement {
             let fade = fade * fade_factor(x, z);
             if fade < 0.015 { continue; }
             let mut previous = 0.0;
-            let design = crate::skyline::tower_forms::design(tower.tower_profile());
-            for tier in design.tiers {
+            let profile = tower.tower_profile();
+            let landmark = crate::skyline::tower_forms::landmark(profile);
+            let (masses, wall) = if let Some(form) = landmark {
+                (form.masses, form.wall)
+            } else {
+                let form = crate::skyline::tower_forms::design(profile);
+                (form.tiers.as_slice(), form.wall)
+            };
+            for &tier in masses {
                 let lower = tower.base + tower.height * previous;
-                previous = tier.top;
+                if landmark.is_none() { previous = tier.top; }
                 let upper = tower.base + tower.height * tier.top;
                 let ring = [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]].map(|[x, z]| {
                     self.local.world(
@@ -365,14 +372,14 @@ impl Settlement {
                     )
                 });
                 let [a, b, c, d] = ring.map(|(x, z)| [x, upper, z]);
-                let roof_color = design.wall.map(|channel| channel.saturating_add(24));
+                let roof_color = wall.map(|channel| channel.saturating_add(24));
                 mesh.faded_triangle([a, b, c], roof_color, fade);
                 mesh.faded_triangle([a, c, d], roof_color, fade);
                 for side in 0..4 {
                     let (x0, z0) = ring[side];
                     let (x1, z1) = ring[(side + 1) % 4];
                     let shade = if side % 2 == 0 { 0 } else { 19 };
-                    let color = design.wall.map(|channel| channel.saturating_sub(shade));
+                    let color = wall.map(|channel| channel.saturating_sub(shade));
                     let a = [x0, lower, z0];
                     let b = [x0, upper, z0];
                     let c = [x1, upper, z1];
@@ -661,11 +668,14 @@ impl Settlement {
                     && self.tower_count < 4
                     && (key & 3 != 0 || self.tower_count == 0)
                 {
-                    let profile = crate::skyline::tower_forms::select(layout, key, self.tower_count);
-                    let design = crate::skyline::tower_forms::design(profile);
+                    use crate::skyline::tower_forms;
+                    let regular = tower_forms::select_regular(layout, key, self.tower_count);
+                    let design = tower_forms::design(regular);
                     let tower = frontage.lot(x, z, 0.0, 0.5, 5.15 * design.size[0], 4.85 * design.size[1]);
                     if let Some(base) = frontage.site(world, road, self.local, tower, 1.35) {
-                        parcel.add(Building::new(tower, base, design.height, Form::Tower(profile)));
+                        let profile = tower_forms::select(layout, key, self.tower_count);
+                        let height = tower_forms::landmark(profile).map_or(design.height, |form| form.height);
+                        parcel.add(Building::new(tower, base, height, Form::Tower(profile)));
                         self.tower_count += 1;
                     }
                 }
@@ -788,13 +798,23 @@ impl Area {
     fn contains(self, x: f32, z: f32) -> bool {
         (x - self.x).abs() <= self.half_width && (z - self.z).abs() <= self.half_depth
     }
+
+    #[cfg(test)]
+    fn interior_samples(self) -> impl Iterator<Item = [f32; 2]> {
+        (-4..=4).flat_map(move |row| {
+            (-4..=4).map(move |col| [
+                self.x + col as f32 * 0.20 * self.half_width,
+                self.z + row as f32 * 0.20 * self.half_depth,
+            ])
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Form {
     House,
     Hall,
-    Tower(u8),
+    Tower(u16),
     Civic(Frontage),
     Terrace(Frontage),
     CourtWing(Frontage),
@@ -826,7 +846,7 @@ impl Building {
         }
     }
 
-    fn tower_profile(self) -> u8 {
+    fn tower_profile(self) -> u16 {
         let Form::Tower(profile) = self.form else { unreachable!() };
         profile
     }
@@ -931,14 +951,23 @@ impl Building {
                     (x - self.area.x) / self.area.half_width,
                     (z - self.area.z) / self.area.half_depth,
                 ];
-                let [podium, shaft, crown] = crate::skyline::tower_forms::design(profile).tiers;
-                let within = |tier: crate::skyline::tower_forms::Tier| {
+                let within = |tier: &crate::skyline::tower_forms::Tier| {
                     (u - tier.center[0]).abs() < tier.half[0]
                         && (v - tier.center[1]).abs() < tier.half[1]
                 };
-                let roof = if within(crown) { crown.top }
-                    else if within(shaft) { shaft.top }
-                    else { podium.top };
+                let roof = if let Some(design) = crate::skyline::tower_forms::landmark(profile) {
+                    let height = design.masses.iter().filter(|tier| within(tier))
+                        .map(|tier| tier.top).fold(0.0_f32, f32::max);
+                    if height == 0.0 {
+                        return Some(SettlementSample { surface: SettlementSurface::Street, elevation: None });
+                    }
+                    height
+                } else {
+                    let [podium, shaft, crown] = crate::skyline::tower_forms::design(profile).tiers;
+                    if within(&crown) { crown.top }
+                    else if within(&shaft) { shaft.top }
+                    else { podium.top }
+                };
                 (SettlementSurface::TowerRoof, self.height * roof)
             }
         };
@@ -1643,8 +1672,8 @@ mod tests {
                         Some(building.base)
                     );
                     assert!(!highway_overlaps(&road, town.local, area));
-                    let roof_height = [-0.4, 0.0, 0.4].into_iter().filter_map(|offset| {
-                        let (x, z) = town.local.world(area.x + offset * area.half_width, area.z);
+                    let roof_height = area.interior_samples().filter_map(|[x, z]| {
+                        let (x, z) = town.local.world(x, z);
                         Some(town.sample(x, z)?.elevation? - world.elevation(x, z))
                     }).fold(0.0_f32, f32::max);
                     assert!(roof_height > 4.0);

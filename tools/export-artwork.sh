@@ -26,9 +26,12 @@ rustc --edition 2024 -O "$tools/artwork/towers/export.rs" \
     --extern "scenic_flight=$game/target/release/libscenic_flight.rlib" \
     -L "dependency=$game/target/release/deps" -o "$scratch/export-towers"
 "$scratch/export-towers" > "$scratch/towers.ppm"
+"$scratch/export-towers" --landmarks > "$scratch/skyline-landmarks.ppm"
+"$scratch/export-towers" --landmark-names > "$scratch/skyline-landmarks.txt"
+ffmpeg -hide_banner -loglevel error -y -i "$scratch/skyline-landmarks.ppm" -frames:v 1 "$scratch/skyline-landmarks.png"
 ffmpeg -hide_banner -loglevel error -y -i "$scratch/towers.ppm" -frames:v 1 "$scratch/towers.png"
 mkdir -p "$assets"
-cp "$scratch/towers.png" "$assets/"
+cp "$scratch/towers.png" "$scratch/skyline-landmarks.png" "$scratch/skyline-landmarks.txt" "$assets/"
 cp "$scratch/tree-crown-atlas.png" "$assets/trees.png"
 cp "$scratch/wagons.png" "$scratch/wagons.json" "$scratch/locomotives.png" "$assets/"
 cp "$scratch/vessels.png" "$scratch/vessels.json" "$assets/"

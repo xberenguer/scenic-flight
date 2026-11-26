@@ -977,12 +977,13 @@ impl Boroughs {
         let height = 6.4 + (part >> 3 & 7) as f32 * 0.48;
         let shed = frontage.lot(cx, cz, 0.0, -5.0 * factor, width, 11.3 * factor);
         if shed.contains(x, z) {
-            return Building::new(
-                shed,
-                base,
-                height,
-                Form::Industrial(frontage, (part >> 8) as u8),
-            )
+            let design = (part >> 8) as usize;
+            let style = if use_kind == Use::Warehouse {
+                [0, 1, 2, 3, 5, 8, 11][design % 7]
+            } else {
+                [4, 6, 7, 9, 10][design % 5]
+            };
+            return Building::new(shed, base, height, Form::Industrial(frontage, style))
             .sample(x, z);
         }
         let yard = frontage.lot(cx, cz, 0.0, 13.0 * factor, 20.0 * factor, 6.4 * factor);
@@ -1293,7 +1294,9 @@ mod tests {
                         let area = building.area;
                         assert!(foundation(&world, town.local, area, 2.45).is_some());
                         assert!(!highway_overlaps(&road, town.local, area));
-                        assert!(borough.sample(area.x, area.z).unwrap().elevation.is_some());
+                        assert!(area.interior_samples().any(|[x, z]| {
+                            borough.sample(x, z).and_then(|sample| sample.elevation).is_some()
+                        }));
                         roofs += 1;
                     }
                     links += 1;

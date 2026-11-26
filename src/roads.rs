@@ -263,6 +263,8 @@ pub enum RoadProgress {
 /// Keep this in scenery state while it works, then retain only the network.
 pub struct RoadPlanner {
     planner: Planner,
+    surveyed: [u32; CELLS.div_ceil(32)],
+    terrain_loaded: bool,
     phase: Phase,
     layout: u32,
     orientation: u8,
@@ -311,7 +313,9 @@ impl RoadPlanner {
         let (grid, layout) = route_layout(world, region_x, region_z)?;
         Some(Self {
             planner: Planner::empty(world, grid),
-            phase: Phase::Terrain(0),
+            surveyed: [0; CELLS.div_ceil(32)],
+            terrain_loaded: false,
+            phase: Phase::Termini(0),
             layout,
             orientation: 0,
             pair: 0,
@@ -377,20 +381,33 @@ impl RoadPlanner {
 
     fn prepare(&mut self, index: usize, budget: &mut Budget) -> bool {
         if index == CELLS {
-            self.phase = Phase::Termini(0);
+            self.terrain_loaded = true;
+            self.restart_search();
             return true;
         }
-        if !budget.sample(1) {
+        if !self.sample_node(index, budget) {
             return false;
         }
-        self.planner.load(index);
         self.phase = Phase::Terrain(index + 1);
+        true
+    }
+
+    fn sample_node(&mut self, index: usize, budget: &mut Budget) -> bool {
+        let word = &mut self.surveyed[index / 32];
+        let bit = 1 << (index % 32);
+        if *word & bit == 0 {
+            if !budget.sample(1) {
+                return false;
+            }
+            self.planner.load(index);
+            *word |= bit;
+        }
         true
     }
 
     fn find_termini(&mut self, cursor: usize, budget: &mut Budget) -> bool {
         let side = cursor / TERMINUS_CANDIDATES;
-        if side == 2 {
+        if side == 2 || side == 1 && self.termini[0].indices[0] == UNREACHABLE {
             self.pair = 0;
             self.phase = Phase::Pair;
             return true;
@@ -398,12 +415,17 @@ impl RoadPlanner {
         let prefer_north = self.layout & 8 != 0;
         let north = prefer_north != (self.orientation != 0);
         let transverse = ((self.layout >> 4) % 9 + 8) as usize;
+        let candidate = cursor % TERMINUS_CANDIDATES;
+        let [along, cross] = terminus_coordinates(side != 0, candidate);
+        if !self.sample_node(terminus_index(north, along, cross), budget) {
+            return false;
+        }
         let result = &mut self.termini[side];
         if let Some((index, trend)) = self.planner.terminus_candidate(
             north,
             side != 0,
             transverse,
-            cursor % TERMINUS_CANDIDATES,
+            candidate,
             result.scores[1],
         ) {
             if !budget.sample(9) {
@@ -425,7 +447,12 @@ impl RoadPlanner {
                 self.start = start;
                 self.finish = finish;
                 self.attempt = 0;
-                self.restart_search();
+                // Regions without a viable pair never need an interior grid.
+                if self.terrain_loaded {
+                    self.restart_search();
+                } else {
+                    self.phase = Phase::Terrain(0);
+                }
                 return;
             }
         }
@@ -665,13 +692,8 @@ impl Planner {
         candidate: usize,
         score_limit: f32,
     ) -> Option<(u16, f32)> {
-        let along = (if far { 16 } else { 3 }) + candidate / TERMINUS_WIDTH;
-        let cross = 4 + candidate % TERMINUS_WIDTH;
-        let index = if north {
-            along * SIDE + cross
-        } else {
-            cross * SIDE + along
-        };
+        let [along, cross] = terminus_coordinates(far, candidate);
+        let index = terminus_index(north, along, cross);
         let height = self.elevation[index] as f32 / 16.0;
         if !(4.8..=33.0).contains(&height) {
             return None;
@@ -965,6 +987,14 @@ fn route_layout(world: &World, region_x: i32, region_z: i32) -> Option<(Grid, u3
 const TERMINUS_WIDTH: usize = 17;
 const TERMINUS_CANDIDATES: usize = 6 * TERMINUS_WIDTH;
 
+fn terminus_coordinates(far: bool, candidate: usize) -> [usize; 2] {
+    [(if far { 16 } else { 3 }) + candidate / TERMINUS_WIDTH, 4 + candidate % TERMINUS_WIDTH]
+}
+
+fn terminus_index(north: bool, along: usize, cross: usize) -> usize {
+    if north { along * SIDE + cross } else { cross * SIDE + along }
+}
+
 #[derive(Clone, Copy)]
 struct Termini {
     indices: [u16; 2],
@@ -1176,7 +1206,7 @@ mod tests {
             for alternate in [false, true] {
                 let mut plan = RoadPlanner::new(&world, x, z).unwrap();
                 assert_eq!(plan.advance(0, 0), RoadProgress::Working);
-                assert!(matches!(plan.phase, Phase::Terrain(0)));
+                assert!(matches!(plan.phase, Phase::Termini(0)));
                 let mut steps = 0;
                 let actual = loop {
                     steps += 1;
@@ -1195,6 +1225,29 @@ mod tests {
                 assert_eq!(actual.polyline(), expected.polyline());
             }
         }
+    }
+
+    #[test]
+    fn an_unsuitable_region_can_finish_without_sampling_the_interior() {
+        let world = World::new(1);
+        for z in -4..=4 {
+            for x in -4..=4 {
+                let Some(mut plan) = RoadPlanner::new(&world, x, z) else { continue; };
+                let outcome = loop {
+                    let progress = plan.advance(8, 32);
+                    if progress != RoadProgress::Working {
+                        break progress;
+                    }
+                };
+                if outcome == RoadProgress::Unavailable && !plan.terrain_loaded {
+                    let samples = plan.surveyed.iter().map(|word| word.count_ones()).sum::<u32>() as usize;
+                    assert!(samples < CELLS);
+                    assert!(RoadNetwork::generate(&world, x, z).is_none());
+                    return;
+                }
+            }
+        }
+        panic!("expected a region without a viable endpoint pair");
     }
 
     #[test]

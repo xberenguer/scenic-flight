@@ -809,12 +809,6 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             .chain(waterfall_region)
             .chain(mist.depth_region())
             .reduce(ScreenRect::union);
-        let has_mesh = has_cliff || clipped_depth.is_some();
-        let depth_region = if has_cliff || rain.is_some() {
-            Some(ScreenRect::full(dimensions))
-        } else {
-            clipped_depth
-        };
         let visible_natural = natural.has_visible_features(view);
         let natural_sampler = visible_natural.then(|| natural.sampler());
         let river_sampler = has_river.then(|| rivers.sampler());
@@ -835,6 +829,23 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             let facility = if has_facilities { facilities.overlay(x, z, raw, coast) } else { coast };
             let developed = if has_routes { routes.overlay(x, z, facility) } else { facility };
             regional_sampler.as_ref().map_or(developed, |sampler| sampler.overlay(x, z, developed))
+        };
+        let props = scenic_flight::desert_props::DesertProps::gather_with_habitats(
+            view, dimensions, seed, has_river, |x, z| terrain.sample(x, z),
+            |x, z| {
+                let geometry = sample(x, z);
+                scenic_flight::world::Sample {
+                    surface: ground.visible_material(x, z, geometry),
+                    ..geometry
+                }
+            },
+        );
+        let clipped_depth = clipped_depth.into_iter().chain(props.region()).reduce(ScreenRect::union);
+        let has_mesh = has_cliff || clipped_depth.is_some();
+        let depth_region = if has_cliff || rain.is_some() {
+            Some(ScreenRect::full(dimensions))
+        } else {
+            clipped_depth
         };
         render_terrain_layer_region_with_horizon(
             (&sample, |x, z, geometry| ground.visible_material(x, z, geometry)),
@@ -886,6 +897,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             if route_region.is_some() {
                 routes.draw(view, flight.ticks, &mut mesh);
             }
+            props.draw(&mut mesh);
         }
         if let Some(rain) = rain {
             rain.paint(view, (SIDE, SIDE), &mut pixels, &depth);

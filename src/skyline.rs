@@ -16,11 +16,11 @@ const FADE_TICKS: u8 = 36;
 const CIVIC_ROOF_REACH: f32 = 2240.0;
 const CITY_FADE_WIDTH: f32 = 700.0;
 
-pub(crate) const COTTAGE_GROUP: u8 = 4;
-pub(crate) const DUPLEX_GROUP: u8 = 5;
-pub(crate) const ROWHOUSE_GROUP: u8 = 6;
-pub(crate) const INDUSTRIAL_GROUP: u8 = 7;
-pub(crate) const SHOP_GROUP: u8 = 8;
+pub(crate) const COTTAGE_GROUP: u16 = 4;
+pub(crate) const DUPLEX_GROUP: u16 = 5;
+pub(crate) const ROWHOUSE_GROUP: u16 = 6;
+pub(crate) const INDUSTRIAL_GROUP: u16 = 7;
+pub(crate) const SHOP_GROUP: u16 = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SkylineTower {
@@ -29,7 +29,7 @@ pub struct SkylineTower {
     pub direction: [f32; 2],
     pub base: f32,
     pub height: f32,
-    pub(crate) profile: u8,
+    pub(crate) profile: u16,
 }
 
 pub(crate) mod tower_forms;
@@ -55,6 +55,13 @@ struct Retained {
     fade: u8,
     seen: bool,
     fresh: bool,
+}
+
+#[derive(Clone, Copy)]
+struct Candidate {
+    tower: SkylineTower,
+    form: Form,
+    priority: f32,
 }
 
 /// Keep a short visual lifetime across land publication and eviction.
@@ -92,6 +99,7 @@ impl Skyline {
         self.prepare_with_additions(land, camera, ticks, sky, dimensions, core::iter::empty(), far_ground)
     }
 
+    #[inline(never)]
     pub fn prepare_with_additions<const LAND: usize>(
         &mut self,
         land: &LandStream<LAND>,
@@ -108,15 +116,9 @@ impl Skyline {
         let delta = ticks.saturating_sub(self.last_tick).min(6) as u8;
         self.last_tick = ticks;
         let view = Projection::new(camera, dimensions);
-        for record in self
-            .retained
-            .iter_mut()
-            .chain(&mut self.roofs)
-            .chain(&mut self.neighborhoods)
-            .flatten()
-        {
-            record.seen = false;
-        }
+        let mut towers = [None; VISIBLE];
+        let mut roofs = [None; VISIBLE_ROOFS];
+        let mut neighborhoods = [None; VISIBLE_NEIGHBORHOODS];
         for (key, district) in land.districts() {
             if !land.district_published(key) || !view.district_visible(district.bounds()) {
                 continue;
@@ -124,7 +126,7 @@ impl Skyline {
             for town in district.towns() {
                 for tower in town.skyline_towers() {
                     if view.potential(tower.center) {
-                        retain(&mut self.retained, tower, Form::Tower, view.outer(tower.center));
+                        nominate(&mut towers, &self.retained, tower, Form::Tower, &view);
                     }
                 }
                 for roof in town.skyline_roofs() {
@@ -134,21 +136,24 @@ impl Skyline {
                         } else {
                             Form::Hall
                         };
-                        retain(&mut self.roofs, roof.building, form, false);
+                        nominate(&mut roofs, &self.roofs, roof.building, form, &view);
                     }
                 }
                 for group in town.skyline_neighborhoods() {
-                    if view.potential(group.center) || view.roof_potential(group.center) {
-                        retain(&mut self.neighborhoods, group, Form::Neighborhood, view.outer(group.center));
+                    if view.potential(group.center) {
+                        nominate(&mut neighborhoods, &self.neighborhoods, group, Form::Neighborhood, &view);
                     }
                 }
             }
         }
         for group in additions {
-            if view.potential(group.center) || view.roof_potential(group.center) {
-                retain(&mut self.neighborhoods, group, Form::Neighborhood, view.outer(group.center));
+            if view.potential(group.center) {
+                nominate(&mut neighborhoods, &self.neighborhoods, group, Form::Neighborhood, &view);
             }
         }
+        choose(&mut self.retained, &towers);
+        choose(&mut self.roofs, &roofs);
+        choose(&mut self.neighborhoods, &neighborhoods);
         let mut frame = SkylineFrame {
             glyphs: [None; GLYPHS],
             dimensions,
@@ -194,25 +199,43 @@ impl Skyline {
     }
 }
 
-fn retain(slots: &mut [Option<Retained>], tower: SkylineTower, form: Form, outer: bool) {
-    if let Some(existing) = slots
-        .iter_mut()
-        .flatten()
-        .find(|entry| entry.tower == tower)
-    {
-        existing.seen = true;
-    } else {
-        // Reserve capacity for closer districts when distant towns arrive first.
-        if outer && slots.iter().filter(|slot| slot.is_none()).take(5).count() < 5 {
-            return;
-        }
-        if let Some(slot) = slots.iter_mut().find(|slot| slot.is_none()) {
+fn nominate(
+    candidates: &mut [Option<Candidate>],
+    slots: &[Option<Retained>],
+    tower: SkylineTower,
+    form: Form,
+    view: &Projection,
+) {
+    let [side, distance] = view.relative(tower.center);
+    let availability = view.range_fade(form, distance);
+    if availability < 0.02 {
+        return;
+    }
+    let center_weight = 1.0 - 0.55 * (side.abs() / (distance * 0.82 + 80.0)).min(1.0);
+    let height = tower.height + (tower.footprint[0] + tower.footprint[1]).min(48.0) * 0.22;
+    let raw = height * center_weight * (0.35 + 0.65 * availability) / distance;
+    // Existing silhouettes get a small advantage so gentle turns don't
+    // repeatedly swap similar candidates near the capacity limit.
+    let previous = slots.iter().flatten().any(|entry| entry.tower == tower && entry.seen);
+    let priority = if previous { raw * 1.12 } else { raw };
+    let index = candidates.partition_point(|candidate| candidate.is_some_and(|entry| entry.priority >= priority));
+    if index == candidates.len() || candidates.iter().flatten().any(|entry| entry.tower == tower) {
+        return;
+    }
+    candidates.copy_within(index..candidates.len() - 1, index + 1);
+    candidates[index] = Some(Candidate { tower, form, priority });
+}
+
+fn choose(slots: &mut [Option<Retained>], candidates: &[Option<Candidate>]) {
+    for entry in slots.iter_mut().flatten() {
+        entry.seen = false;
+    }
+    for candidate in candidates.iter().flatten() {
+        if let Some(previous) = slots.iter_mut().flatten().find(|entry| entry.tower == candidate.tower) {
+            previous.seen = true;
+        } else if let Some(slot) = slots.iter_mut().find(|slot| slot.is_none()) {
             *slot = Some(Retained {
-                tower,
-                form,
-                fade: 0,
-                seen: true,
-                fresh: true,
+                tower: candidate.tower, form: candidate.form, fade: 0, seen: true, fresh: true,
             });
         }
     }
@@ -367,7 +390,7 @@ fn footing(glyph: &Glyph, roll: [f32; 2], width: usize, depth: &[u16]) -> f32 {
 #[derive(Clone, Copy)]
 struct Glyph {
     form: Form,
-    profile: u8,
+    profile: u16,
     center: [f32; 2],
     crossfade: f32,
     origin: [f32; 2],
@@ -397,6 +420,14 @@ impl Glyph {
     fn coverage(&self, u: f32, v: f32) -> f32 {
         match self.form {
             Form::Tower => {
+                if let Some(design) = tower_forms::landmark(self.profile) {
+                    return design.masses.iter().fold(0.0_f32, |coverage, mass| {
+                        let half = self.tier_halves[0] * mass.half[0] + self.tier_halves[1] * mass.half[1];
+                        let center = self.tier_centers[0] * mass.center[0] + self.tier_centers[1] * mass.center[1];
+                        coverage.max(overlap(u, center - half, center + half)
+                            * overlap(v, -self.height * mass.top, 0.0))
+                    });
+                }
                 let mut value = 0.0;
                 let mut from = 0.0;
                 let [shaft, crown] = self.tier_halves;
@@ -463,7 +494,7 @@ const BOROUGH_ROOFS: [[[f32; 6]; 3]; 5] = [
 ];
 
 #[inline(never)]
-fn borough_roof_coverage(u: f32, v: f32, half: f32, height: f32, profile: u8) -> f32 {
+fn borough_roof_coverage(u: f32, v: f32, half: f32, height: f32, profile: u16) -> f32 {
     let shape = &BOROUGH_ROOFS[usize::from(profile - COTTAGE_GROUP)];
     let elevation = -v / height;
     let mut amount = 0.0;
@@ -541,8 +572,25 @@ impl Projection {
             && side.abs() < forward * 0.82 + 32.0
     }
 
+    #[cfg(test)]
     fn outer(&self, center: [f32; 2]) -> bool {
         self.relative(center)[1] > self.far
+    }
+
+    fn range_fade(&self, form: Form, along: f32) -> f32 {
+        let near_fade = if form == Form::Tower {
+            handoff(along, self.near)
+        } else if form == Form::Neighborhood {
+            smoothstep((along - self.near * 0.77) / (self.near * 0.19))
+        } else {
+            smoothstep((along - self.near * 0.65) / (self.near * 0.24))
+        };
+        let (reach, fade_width) = if matches!(form, Form::Tower | Form::Neighborhood) {
+            (CITY_HORIZON, CITY_FADE_WIDTH)
+        } else {
+            (CIVIC_ROOF_REACH, CIVIC_ROOF_REACH * 0.20)
+        };
+        near_fade * (1.0 - smoothstep((along - (reach - fade_width)) / fade_width))
     }
 
     fn glyph(
@@ -558,20 +606,7 @@ impl Projection {
             return None;
         }
         let [side, along] = self.relative(tower.center);
-        let near_fade = if form == Form::Tower {
-            handoff(along, self.near)
-        } else if form == Form::Neighborhood {
-            smoothstep((along - self.near * 0.77) / (self.near * 0.19))
-        } else {
-            smoothstep((along - self.near * 0.65) / (self.near * 0.24))
-        };
-        let (reach, fade_width) = if matches!(form, Form::Tower | Form::Neighborhood) {
-            (CITY_HORIZON, CITY_FADE_WIDTH)
-        } else {
-            (CIVIC_ROOF_REACH, CIVIC_ROOF_REACH * 0.20)
-        };
-        let fade = appearance * near_fade
-            * (1.0 - smoothstep((along - (reach - fade_width)) / fade_width));
+        let fade = appearance * self.range_fade(form, along);
         if fade < 0.015 || side.abs() > along * 0.82 + 12.0 {
             return None;
         }
@@ -622,10 +657,23 @@ impl Projection {
         let dir = tower.direction;
         let right = dir[1] * self.heading[1] + dir[0] * self.heading[0];
         let model_side = dir[0] * self.heading[1] - dir[1] * self.heading[0];
-        let x_width = tower.footprint[0] * right.abs() * projection;
-        let z_width = tower.footprint[1] * model_side.abs() * projection;
+        let landmark = if form == Form::Tower { tower_forms::landmark(tower.profile) } else { None };
+        // Preserve landmark gaps as they approach one pixel. The horizontal
+        // assist fades in with the distant layer and is capped by the real footprint.
+        let width_scale = if landmark.is_some() {
+            let span = (tower.footprint[0] * right.abs() + tower.footprint[1] * model_side.abs()) * projection;
+            1.0 + 0.55 * handoff(along, self.near) * (1.0 - smoothstep((span - 0.55) / 0.85))
+        } else {
+            1.0
+        };
+        let x_signed = tower.footprint[0] * right * projection * width_scale;
+        let z_signed = tower.footprint[1] * model_side * projection * width_scale;
+        let x_width = x_signed.abs();
+        let z_width = z_signed.abs();
         let half = x_width + z_width;
-        let (tier_halves, tier_centers) = if form == Form::Tower {
+        let (tier_halves, tier_centers) = if landmark.is_some() {
+            ([x_width, z_width], [x_signed, z_signed])
+        } else if form == Form::Tower {
             let [_, shaft, crown] = tower_forms::design(tower.profile).tiers;
             (
                 [shaft, crown].map(|tier| x_width * tier.half[0] + z_width * tier.half[1]),
@@ -655,7 +703,7 @@ impl Projection {
         }
         let dusk = sky.daylight.clamp(0.0, 1.0);
         let wall = match form {
-            Form::Tower => tower_forms::design(tower.profile).wall.map(|value| {
+            Form::Tower => landmark.map_or_else(|| tower_forms::design(tower.profile).wall, |form| form.wall).map(|value| {
                 27.0 + f32::from(value) * (0.20 + 0.58 * dusk)
             }),
             Form::Hall => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
@@ -728,7 +776,7 @@ mod tests {
     fn all_250_tower_profiles_have_distinct_geometry_and_grounded_tiers() {
         let mut seen = std::collections::HashSet::new();
         for id in 0..tower_forms::TOWER_DESIGN_COUNT {
-            let design = tower_forms::design(id as u8);
+            let design = tower_forms::design(id as u16);
             assert_eq!(design.tiers[0].half, [1.0; 2]);
             assert_eq!(design.tiers[2].top, 1.0);
             for pair in design.tiers.windows(2) {
@@ -751,6 +799,50 @@ mod tests {
             assert!(seen.insert(signature), "duplicated geometry for tower {id}");
         }
     }
+    #[test]
+    fn landmarks_remain_distinct_at_the_waveshare_distant_raster_size() {
+        const SIDE: usize = 60;
+        let mut signatures = std::collections::HashSet::new();
+        let mut selected = std::collections::HashSet::new();
+        for (index, design) in tower_forms::landmarks::LANDMARKS.iter().enumerate() {
+            let profile = (tower_forms::TOWER_DESIGN_COUNT + index) as u16;
+            selected.insert(tower_forms::select((index as u32) << 14, 1, 0));
+            assert!(design.masses.iter().any(|mass| mass.top == 1.0), "{}", design.name);
+            for mass in design.masses {
+                assert!(mass.top > 0.0 && mass.top <= 1.0, "{}", design.name);
+                for axis in 0..2 {
+                    assert!(mass.half[axis] > 0.0 && mass.half[axis] + mass.center[axis].abs() <= 1.001,
+                        "{}", design.name);
+                }
+            }
+            let view = Camera { x: 0.0, z: 0.0, altitude: 38.0, heading: 0.0, pitch: 0.0, bank: 0.0 };
+            let sky = sky_at(view);
+            let projection = Projection::new(view, (SIDE, SIDE));
+            let mut signature = std::vec::Vec::new();
+            for distance in [620.0, 900.0] {
+                for direction in [[0.0, 1.0], [0.60, 0.80], [1.0, 0.0]] {
+                    let tower = SkylineTower {
+                        center: [0.0, distance], footprint: [5.15 * design.size[0], 4.85 * design.size[1]],
+                        direction, base: 10.0, height: design.height, profile,
+                    };
+                    let mut glyph = projection.glyph(tower, Form::Tower, 1.0, &sky, &mut |_, _| 10.0).unwrap();
+                    glyph.color = u16::MAX; // Compare geometry independent of material.
+                    let mut frame = SkylineFrame {
+                        glyphs: [None; GLYPHS], dimensions: (SIDE, SIDE), roll: projection.roll,
+                        rect: Some(glyph.screen_rect()), len: 0,
+                    };
+                    frame.insert(glyph);
+                    let mut pixels = [0; SIDE * SIDE];
+                    frame.draw(&mut pixels, &[u16::MAX; SIDE * SIDE]);
+                    assert!(pixels.iter().any(|&pixel| pixel != 0), "{}", design.name);
+                    signature.extend(pixels);
+                }
+            }
+            assert!(signatures.insert(signature), "{} duplicates another distant silhouette", design.name);
+        }
+        assert_eq!(selected.len(), 25);
+    }
+
     use crate::horizon_cache::HorizonCache;
     use crate::world::World;
     use crate::world_mesh::WorldMesh;
@@ -948,6 +1040,40 @@ mod tests {
                 .building
                 .base)
             .is_none());
+    }
+
+    #[test]
+    fn visible_neighborhood_can_replace_distant_candidates_without_a_hard_cut() {
+        let view = camera(0.0, 0.0, 48.0, 0.0, 0.15);
+        let sky = sky_at(view);
+        let land = LandStream::<1>::new();
+        let building = |x, z| SkylineTower {
+            center: [x, z], footprint: [12.0, 8.0], direction: [0.0, 1.0],
+            base: 10.0, height: 12.0, profile: SHOP_GROUP,
+        };
+        let outer = core::array::from_fn::<_, VISIBLE_NEIGHBORHOODS, _>(|index| {
+            building(index as f32 * 6.0, 1_500.0 + index as f32 * 18.0)
+        });
+        let visible = building(0.0, 900.0);
+        // The foreground terrain already owns this roof.
+        let foreground = building(0.0, 350.0);
+        let mut skyline = Skyline::new();
+        for tick in (0..=36).step_by(6) {
+            skyline.prepare_with_additions(&land, view, tick, &sky, SIZE, outer.into_iter(), |_, _| 10.0);
+        }
+        let sample = |skyline: &mut Skyline, tick| {
+            skyline.prepare_with_additions(&land, view, tick, &sky, SIZE,
+                outer.into_iter().chain([foreground, visible]), |_, _| 10.0)
+        };
+        let first = sample(&mut skyline, 42);
+        assert_eq!(first.neighborhood_count(), VISIBLE_NEIGHBORHOODS);
+        assert!(!first.glyphs.iter().flatten().any(|entry| entry.center == visible.center));
+        for tick in (48..=114).step_by(6) {
+            sample(&mut skyline, tick);
+        }
+        let final_frame = sample(&mut skyline, 120);
+        assert!(final_frame.glyphs.iter().flatten().any(|entry| entry.center == visible.center));
+        assert!(!skyline.neighborhoods.iter().flatten().any(|entry| entry.tower == foreground));
     }
 
     #[test]

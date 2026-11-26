@@ -46,7 +46,38 @@ const towerFamilies = [
   'Stone shaft', 'Brick stair tower', 'Side-mounted crown', 'Narrow plan', 'Civic podium',
 ];
 
+const skylineNames = await fetch('assets/artwork/skyline-landmarks.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const habitatNames = [
+  'Ocotillo', 'Yucca rosette', 'Joshua tree', 'Honeycomb sandstone', 'Varnished slabs',
+  'Lupine spires', 'Poppy patch', 'Mullein stalks', 'Rabbitbrush', 'Thistle crown',
+  'Fallen trunk', 'Uprooted snag', 'Fungus stump', 'Sword fern', 'Bramble arch',
+  'Granite tor', 'Lichen boulder', 'Scree fan', 'Cushion plant', 'Moraine erratic',
+  'Driftwood', 'Wrack windrow', 'Sea thrift', 'Marram grass', 'Shingle berm',
+  'Bog cotton', 'Skunk cabbage', 'Tussock sedge', 'Horsetail', 'Mud hummock',
+];
+const habitatFamilies = ['Desert', 'Meadow', 'Woodland', 'Alpine', 'Coast', 'Wetland'];
+const buildingRows = [
+  ['Deep-eave chalet', 'Adobe patio house', 'Pyramidal cottage', 'A-frame cabin', 'Courtyard ranch', 'Gambrel conversion'],
+  ['Butterfly duplex', 'Linked villas', 'Twin saltboxes', 'Patio duplex', 'Barrel-roof homes'],
+  ['Vaulted townhouses', 'Stairhouse row', 'Stepped-gable row', 'Sawtooth row', 'Hillside terraces'],
+  ['Bulk silos', 'Power house', 'Twin-bay hangar', 'Cooling plant', 'Repair works', 'Glasshouse range'],
+  ['Market arcade', 'Roadside diner', 'Corner bank', 'Theater', 'Corner storefronts'],
+];
+const buildingTiles = buildingRows.flatMap((row, y) => row.map((name, x) => ({ name, x, y })));
+const buildingFamilies = ['Detached homes', 'Duplexes', 'Townhouses', 'Industry', 'Main street'];
+
 const categories = [
+  { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 5, rows: 5,
+    name: index => skylineNames[index], animation: 'skyline-landmarks.gif' },
+  { title: 'Neighborhood buildings', label: 'Neighborhood building', atlas: 'neighborhood-buildings.png',
+    columns: 6, rows: 5, count: buildingTiles.length,
+    tile: index => [buildingTiles[index].x, buildingTiles[index].y],
+    name: index => buildingTiles[index].name, family: index => buildingFamilies[buildingTiles[index].y] },
+  { title: 'Habitat details', label: 'Habitat detail', atlas: 'habitat-details.png', columns: 5, rows: 6,
+    name: index => habitatNames[index], family: index => habitatFamilies[Math.floor(index / 5)] },
   { title: 'City towers', label: 'Tower', atlas: 'towers.png', columns: 10, rows: 25,
     family: index => towerFamilies[Math.floor(index / 10)] },
   { title: 'Trees', label: 'Tree', atlas: 'trees.png', family: index => treeSpecies[index & 15] },
@@ -90,7 +121,7 @@ const viewerInfo = document.querySelector('#viewer-info');
 let activeCategory = categories[0];
 
 function variantCount(category) {
-  return (category.columns || 16) * (category.rows || 16);
+  return category.count ?? (category.columns || 16) * (category.rows || 16);
 }
 
 function sprite(category, index) {
@@ -146,7 +177,8 @@ function render(category) {
         viewerInfo.append(' ', link);
       }
       viewerInfo.hidden = !viewerInfo.textContent;
-      viewerMedia.replaceChildren(sprite(category, index));
+      const animation = category.animation && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+      viewerMedia.replaceChildren(sprite(animation ? { ...category, atlas: category.animation } : category, index));
       viewer.showModal();
     });
     entry.append(button);

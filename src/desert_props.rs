@@ -1,5 +1,8 @@
 //! Low-poly foreground scenery anchored to surveyed desert and wetland surfaces.
 
+mod habitats;
+
+use habitats::Feature;
 use crate::math::sin_cos;
 use crate::render::{Camera, ScreenProjection, ScreenRect, floor_i32};
 use crate::world::{Sample, Surface};
@@ -16,6 +19,7 @@ enum PropKind {
     Rock,
     Bush,
     WetlandPlant,
+    Habitat(Feature),
 }
 
 #[derive(Clone, Copy)]
@@ -36,6 +40,7 @@ impl Prop {
             PropKind::Rock => rock_triangles(a, b, c, d, emit),
             PropKind::Bush => bush_triangles(a, b, c, d, emit),
             PropKind::WetlandPlant => wetland_triangles(a, b, c, d, emit),
+            PropKind::Habitat(feature) => feature.draw(self.variant, emit),
         }
     }
 }
@@ -305,6 +310,66 @@ mod tests {
     }
 
     #[test]
+    fn habitat_placement_draws_thirty_distinct_grounded_forms() {
+        use std::collections::HashSet;
+
+        let habitats = [
+            (Surface::Desert, 8.0),
+            (Surface::Grass, 18.0),
+            (Surface::Forest, 28.0),
+            (Surface::AlpineMeadow, 82.0),
+            (Surface::Sand, 1.4),
+            (Surface::WetMeadow, 3.0),
+        ];
+        let mut seen = HashSet::new();
+        for (surface, elevation) in habitats {
+            let camera = Camera { x: 17.0, z: -13.0, altitude: elevation + 16.0,
+                heading: 0.48, pitch: 0.50, bank: 0.0 };
+            let ground = |_, _| Sample { surface, elevation };
+            let mut forms = HashSet::new();
+            for seed in 0..96 {
+                let props = DesertProps::gather_with_habitats(camera, (60, 60), seed, true, ground, ground);
+                for prop in props.props.into_iter().flatten() {
+                    if let PropKind::Habitat(form) = prop.kind {
+                        assert!(props.region.is_some());
+                        forms.insert(form);
+                    }
+                }
+            }
+            assert_eq!(forms.len(), 5, "{surface:?} forms: {forms:?}");
+            seen.extend(forms);
+            let road = |_, _| Sample { surface: Surface::Pavement, elevation };
+            assert!(DesertProps::gather_with_habitats(camera, (60, 60), 1, true, ground, road).region().is_none());
+        }
+        assert_eq!(seen.len(), 30);
+
+        const SIDE: usize = 60;
+        let view = Camera { x: -3.5, z: -7.0, altitude: 3.8, heading: 0.464, pitch: 0.30, bank: 0.0 };
+        let sky = Sky::from_time(41, 0, 0.48);
+        let mut silhouettes = HashSet::new();
+        for form in seen {
+            for variant in 0..=u8::MAX {
+                let mut grounded = false;
+                form.draw(variant, |points, _| {
+                    for [x, y, z] in points {
+                        assert!(x.abs() <= HALF_SPAN && z.abs() <= HALF_SPAN, "{form:?}: {x}, {z}");
+                        assert!((0.0..=HEIGHT).contains(&y), "{form:?}: {y}");
+                        grounded |= y == 0.0;
+                    }
+                });
+                assert!(grounded, "{form:?}");
+            }
+            let mut pixels = [0; SIDE * SIDE];
+            let mut depth = [u16::MAX; SIDE * SIDE];
+            let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), view, &sky).unwrap();
+            form.draw(0, |points, _| mesh.triangle(points, [255; 3]));
+            let silhouette = pixels.map(|color| color != 0);
+            assert!(silhouette.contains(&true), "{form:?}");
+            assert!(silhouettes.insert(silhouette), "{form:?} duplicates another silhouette");
+        }
+    }
+
+    #[test]
     fn world_seeds_use_every_mesh_variant_of_each_kind() {
         let camera = Camera { x: 17.0, z: -13.0, altitude: 20.0, heading: 0.48, pitch: 0.50, bank: 0.0 };
         let ground = |_, _| Sample { surface: Surface::Desert, elevation: 4.0 };
@@ -312,7 +377,13 @@ mod tests {
         for seed in 0..512 {
             let scene = DesertProps::gather(camera, (60, 60), seed, ground, ground);
             for prop in scene.props.into_iter().flatten() {
-                seen[prop.kind as usize][usize::from(prop.variant)] = true;
+                let index = match prop.kind {
+                    PropKind::Cactus => 0,
+                    PropKind::Rock => 1,
+                    PropKind::Bush => 2,
+                    _ => continue,
+                };
+                seen[index][usize::from(prop.variant)] = true;
             }
         }
         assert!(seen.into_iter().flatten().all(|found| found));
@@ -382,6 +453,21 @@ impl DesertProps {
         camera: Camera, dimensions: (usize, usize), seed: u64, wetlands: bool,
         terrain: impl Fn(f32, f32) -> Sample, sample: impl Fn(f32, f32) -> Sample,
     ) -> Self {
+        Self::gather_details(camera, dimensions, seed, wetlands, false, terrain, sample)
+    }
+
+    pub fn gather_with_habitats(
+        camera: Camera, dimensions: (usize, usize), seed: u64, wetlands: bool,
+        terrain: impl Fn(f32, f32) -> Sample, sample: impl Fn(f32, f32) -> Sample,
+    ) -> Self {
+        Self::gather_details(camera, dimensions, seed, wetlands, true, terrain, sample)
+    }
+
+    #[inline(never)]
+    fn gather_details(
+        camera: Camera, dimensions: (usize, usize), seed: u64, wetlands: bool, habitats: bool,
+        terrain: impl Fn(f32, f32) -> Sample, sample: impl Fn(f32, f32) -> Sample,
+    ) -> Self {
         let mut result = Self { props: [None; 72], region: None };
         let (sin, cos) = sin_cos(camera.heading);
         let Some(projection) = ScreenProjection::new(camera, dimensions) else {
@@ -402,30 +488,63 @@ impl DesertProps {
                 if distance > REACH * REACH || forward < -12.0 {
                     continue;
                 }
-                let surface = terrain(x, z).surface;
+                let raw = terrain(x, z);
+                if camera.altitude - raw.elevation >= 72.0 { continue; }
+                let surface = raw.surface;
                 let sand = matches!(surface, Surface::Desert | Surface::DuneSand | Surface::Sand);
                 let next_to_water = wetlands && matches!(surface, Surface::Grass | Surface::Forest
                     | Surface::WetMeadow | Surface::ReedMarsh | Surface::RiverSilt);
-                if !sand && !next_to_water { continue; }
+                let new_candidate = habitats && (key >> 40) & 7 < 3
+                    && (next_to_water || matches!(surface, Surface::Grass | Surface::Forest | Surface::Rock
+                        | Surface::Desert | Surface::DryWash | Surface::DuneSand | Surface::Sand
+                        | Surface::AlpineMeadow | Surface::ScreeEdge | Surface::ScreeFine
+                        | Surface::ScreeCoarse | Surface::GlacierMoraine));
+                if !sand && !next_to_water && !new_candidate { continue; }
                 let ground = sample(x, z);
                 let wet_plant = wetlands
                     && (matches!(ground.surface, Surface::WetMeadow | Surface::ReedMarsh)
                         || ground.surface == Surface::RiverSilt && ground.elevation >= 0.45 && key & 3 == 0);
-                if !wet_plant && !matches!(ground.surface, Surface::Desert | Surface::DuneSand) { continue; }
+                let mut size = 1.12 + ((key >> 16) & 7) as f32 * 0.12;
+                let district = (u64::from((tx >> 2) as u32) << 32) | u64::from((tz >> 2) as u32);
+                let district = crate::math::mix(seed ^ district ^ 0x6863_583d_6157_6cbc);
+                let feature = if new_candidate && (!matches!(ground.surface,
+                    Surface::WetMeadow | Surface::ReedMarsh | Surface::RiverSilt) || wetlands)
+                {
+                    Feature::on(ground, key, district)
+                } else {
+                    None
+                };
+                if !wet_plant && !matches!(ground.surface, Surface::Desert | Surface::DuneSand) && feature.is_none() {
+                    continue;
+                }
+                if feature.is_some() {
+                    size *= 1.08;
+                }
                 let opacity = ((REACH * REACH - distance) / 1500.0).clamp(0.0, 1.0)
                     * ((66.0 - camera.altitude + ground.elevation) / 18.0).clamp(0.0, 1.0)
                     * ((forward + 12.0) / 6.0).clamp(0.0, 1.0);
                 if opacity < 0.02 { continue; }
-                let size = 1.12 + ((key >> 16) & 7) as f32 * 0.12;
                 let y = ground.elevation - 0.14;
                 let bounds = [[x - HALF_SPAN * size, y, z - HALF_SPAN * size],
                               [x + HALF_SPAN * size, y + HEIGHT * size, z + HALF_SPAN * size]];
                 let Some(rect) = projection.bounds(bounds) else { continue; };
+                if feature.is_some() {
+                    let pad = size * 1.55;
+                    let clear = [[-pad, 0.0], [pad, 0.0], [0.0, -pad], [0.0, pad]]
+                        .into_iter().all(|[dx, dz]| {
+                            let edge = sample(x + dx, z + dz);
+                            (edge.elevation - ground.elevation).abs() <= 0.95
+                                && Feature::on(edge, key, district).is_some()
+                        });
+                    if !clear {
+                        continue;
+                    }
+                }
                 result.region = Some(result.region.map_or(rect, |old| old.union(rect)));
-                let district = (u64::from((tx >> 2) as u32) << 32) | u64::from((tz >> 2) as u32);
-                let district = crate::math::mix(seed ^ district ^ 0x6863_583d_6157_6cbc);
                 let roll = (key >> 12) & 15;
-                let kind = if wet_plant {
+                let kind = if let Some(form) = feature {
+                    PropKind::Habitat(form)
+                } else if wet_plant {
                     PropKind::WetlandPlant
                 } else if ground.surface == Surface::DuneSand {
                     if roll < 4 { PropKind::Rock } else { PropKind::Bush }
@@ -442,7 +561,7 @@ impl DesertProps {
                 };
                 result.props[count] = Some(Prop {
                     origin: [x, y, z], size, kind,
-                    variant: if wet_plant {
+                    variant: if wet_plant && feature.is_none() {
                         let family = match ground.surface {
                             Surface::ReedMarsh => (key >> 29) & 1,
                             Surface::RiverSilt => 3,

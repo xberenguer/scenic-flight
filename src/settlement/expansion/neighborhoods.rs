@@ -413,7 +413,7 @@ impl Neighborhoods {
                     direction: [local.fx, local.fz],
                     base: f32::from((group & 255) - 1) * 0.25,
                     height: f32::from((group >> 8) & 15),
-                    profile: (index & 3) as u8,
+                    profile: (index & 3) as u16,
                 })
             })
     }

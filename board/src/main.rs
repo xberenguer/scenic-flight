@@ -1499,7 +1499,7 @@ fn main() -> ! {
             base
         };
         #[cfg(all(feature = "coastal-mesh", feature = "ground-cover"))]
-        let desert_props = scenic_flight::desert_props::DesertProps::gather_with_wetlands(
+        let desert_props = scenic_flight::desert_props::DesertProps::gather_with_habitats(
             camera, scene_dimensions, seed,
             {
                 #[cfg(feature = "river-stream")]
@@ -1507,7 +1507,16 @@ fn main() -> ! {
                 #[cfg(not(feature = "river-stream"))]
                 { false }
             },
-            |x, z| terrain.sample(x, z), &sample,
+            |x, z| terrain.sample(x, z),
+            |x, z| {
+                let ground = sample(x, z);
+                #[cfg(feature = "scenery")]
+                let ground = scenic_flight::world::Sample {
+                    surface: details.material(x, z, ground),
+                    ..ground
+                };
+                ground
+            },
         );
         #[cfg(all(feature = "coastal-mesh", feature = "ground-cover"))]
         let desert_region = desert_props.region();

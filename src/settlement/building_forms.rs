@@ -6,6 +6,8 @@
 use super::SettlementSurface;
 use SettlementSurface::{FlatRoof, PitchedRoof, TowerRoof};
 
+mod districts;
+
 type Roof = Option<(SettlementSurface, f32)>;
 
 fn gable(across: f32) -> f32 {
@@ -19,7 +21,9 @@ fn bay(across: f32, units: f32) -> (usize, f32) {
 }
 
 pub(super) fn cottage(variant: u8, [u, v]: [f32; 2]) -> Roof {
-    let roof = match variant % 6 {
+    let style = variant % 12;
+    if style >= 6 { return districts::cottage(style - 6, [u, v]); }
+    let roof = match style {
         // Long farmhouse with a narrower, lower kitchen wing to the rear.
         0 if v < -0.45 => {
             if !(-0.43..0.74).contains(&u) { return None; }
@@ -59,9 +63,11 @@ pub(super) fn cottage(variant: u8, [u, v]: [f32; 2]) -> Roof {
 }
 
 pub(super) fn duplex(variant: u8, [u, v]: [f32; 2]) -> Roof {
+    let style = variant % 10;
+    if style >= 5 { return districts::duplex(style - 5, [u, v]); }
     let (unit, fraction) = bay(u, 2.0);
     let roof_peak = gable(2.0 * fraction - 1.0);
-    let roof = match variant % 5 {
+    let roof = match style {
         0 if v > 0.81 && (fraction < 0.23 || fraction > 0.77) => return None,
         // Each home has its own front-facing gable and shares the party wall.
         0 => (PitchedRoof, 0.68 + 0.32 * roof_peak),
@@ -93,7 +99,8 @@ pub(super) fn duplex(variant: u8, [u, v]: [f32; 2]) -> Roof {
 }
 
 pub(super) fn rowhouse(variant: u8, [face, side]: [f32; 2]) -> Roof {
-    let style = variant % 6;
+    let style = variant % 11;
+    if style >= 6 { return districts::rowhouse(style - 6, [face, side]); }
     let units = if style == 0 || style == 5 { 4.0 } else { 3.0 };
     let (unit, fraction) = bay(side, units);
     let peak = gable(2.0 * fraction - 1.0);
@@ -132,7 +139,9 @@ pub(super) fn rowhouse(variant: u8, [face, side]: [f32; 2]) -> Roof {
 }
 
 pub(super) fn industrial(variant: u8, [face, side]: [f32; 2]) -> Roof {
-    let roof = match variant % 6 {
+    let style = variant % 12;
+    if style >= 6 { return districts::industrial(style - 6, [face, side]); }
+    let roof = match style {
         // Long shallow fields rise toward short glazed north-light slopes.
         0 if face > 0.82 => {
             if side.abs() > 0.81 { return None; }
@@ -193,7 +202,9 @@ pub(super) fn industrial(variant: u8, [face, side]: [f32; 2]) -> Roof {
 }
 
 pub(super) fn shop(variant: u8, [face, side]: [f32; 2]) -> Roof {
-    let roof = match variant % 4 {
+    let style = variant % 9;
+    if style >= 4 { return districts::shop(style - 4, [face, side]); }
+    let roof = match style {
         // Narrow corner store with a projecting street canopy and raised parapet.
         0 if face > 0.72 => {
             if side.abs() > 0.79 { return None; }
@@ -233,11 +244,11 @@ mod tests {
     fn all_low_rise_variants_have_distinct_profiles_inside_their_reserve() {
         assert_eq!(core::mem::size_of::<Building>(), 28);
         let lot = Area { x: -8.0, z: 13.0, half_width: 5.25, half_depth: 8.25 };
-        let variants = (0..6).map(Form::Cottage)
-            .chain((0..5).map(Form::Duplex))
-            .chain((0..6).map(|style| Form::Rowhouse(Frontage::Far, style)))
-            .chain((0..6).map(|style| Form::Industrial(Frontage::Far, style)))
-            .chain((0..4).map(|style| Form::Shop(Frontage::Far, style)));
+        let variants = (0..12).map(Form::Cottage)
+            .chain((0..10).map(Form::Duplex))
+            .chain((0..11).map(|style| Form::Rowhouse(Frontage::Far, style)))
+            .chain((0..12).map(|style| Form::Industrial(Frontage::Far, style)))
+            .chain((0..9).map(|style| Form::Shop(Frontage::Far, style)));
         let mut shapes = BTreeSet::new();
         for form in variants {
             let building = Building::new(lot, 7.0, 10.0, form);
@@ -252,11 +263,15 @@ mod tests {
                     occupied += 1;
                 }
             }
-            assert!(occupied > 255, "{form:?} does not cover enough of its reserved lot");
+            let minimum_coverage = match form {
+                Form::Industrial(_, 6) => 180, // Separated silos occupy only part of their apron.
+                _ => 255,
+            };
+            assert!(occupied > minimum_coverage, "{form:?} does not cover enough of its reserved lot");
             assert!(building.sample(lot.x, lot.z - lot.half_depth - 0.001).is_none());
             assert!(shapes.insert(signature), "duplicated height profile for {form:?}");
         }
-        assert_eq!(shapes.len(), 27);
+        assert_eq!(shapes.len(), 54);
     }
 
     #[test]
