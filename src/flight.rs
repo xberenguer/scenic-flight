@@ -36,6 +36,11 @@ impl Aircraft {
         Self::Glider, Self::Fighter, Self::Blackbird, Self::BaldEagle,
     ];
 
+    pub const PICKER_ORDER: [Self; Self::ALL.len()] = [
+        Self::BaldEagle, Self::Trike, Self::Glider, Self::BushPlane,
+        Self::Racer, Self::SportJet, Self::Fighter, Self::Blackbird,
+    ];
+
     pub const fn name(self) -> &'static str {
         match self {
             Self::BushPlane => "Bush Plane",
@@ -49,8 +54,12 @@ impl Aircraft {
         }
     }
 
+    pub(crate) fn picker_index(self) -> usize {
+        Self::PICKER_ORDER.iter().position(|&aircraft| aircraft == self).unwrap()
+    }
+
     fn next(self) -> Self {
-        Self::ALL[(self as usize + 1) % Self::ALL.len()]
+        Self::PICKER_ORDER[(self.picker_index() + 1) % Self::PICKER_ORDER.len()]
     }
 
     pub fn ratings(self) -> [u8; 3] {
@@ -1492,7 +1501,7 @@ impl Game {
         Self {
             seed_state: seed,
             controls: Controls::default(),
-            aircraft: Aircraft::BushPlane,
+            aircraft: Aircraft::PICKER_ORDER[0],
             world_seed: 0,
             world: None,
             flight: None,
@@ -2044,7 +2053,7 @@ mod tests {
         let up = Buttons::default();
         game.read_buttons(0, next);
         game.read_buttons(30, next);
-        assert_eq!(game.selected(), Aircraft::Racer);
+        assert_eq!(game.selected(), Aircraft::Trike);
         game.read_buttons(60, fly);
         game.read_buttons(90, fly);
         let old_seed = game.world_seed().unwrap();
@@ -2053,22 +2062,24 @@ mod tests {
         game.read_buttons(700, next);
         game.read_buttons(740, next);
         assert_eq!(game.read_buttons(1900, next), Some(Command::ReturnToPicker));
-        assert_eq!(game.selected(), Aircraft::Racer);
+        assert_eq!(game.selected(), Aircraft::Trike);
         assert_eq!(game.read_buttons(1950, next), None);
         game.read_buttons(2000, fly);
         game.read_buttons(2030, fly);
-        assert_eq!(game.active().unwrap().1.aircraft, Aircraft::Racer);
+        assert_eq!(game.active().unwrap().1.aircraft, Aircraft::Trike);
         assert_ne!(game.world_seed().unwrap(), old_seed);
         assert!(!game.flight_info_visible());
     }
 
     #[test]
     fn ratings_reflect_the_actual_flight_profiles() {
-        let speeds = [
-            Aircraft::BaldEagle, Aircraft::Trike, Aircraft::Glider, Aircraft::BushPlane,
-            Aircraft::Racer, Aircraft::SportJet, Aircraft::Fighter, Aircraft::Blackbird,
-        ];
-        for pair in speeds.windows(2) {
+        assert_eq!(Game::new(1).selected(), Aircraft::BaldEagle);
+        assert_eq!(Aircraft::Blackbird.next(), Aircraft::BaldEagle);
+        for (index, &aircraft) in Aircraft::PICKER_ORDER.iter().enumerate() {
+            assert_eq!(aircraft.picker_index(), index);
+        }
+        for pair in Aircraft::PICKER_ORDER.windows(2) {
+            assert_eq!(pair[0].next(), pair[1]);
             assert!(pair[0].profile().speed < pair[1].profile().speed);
             assert!(pair[0].ratings()[0] <= pair[1].ratings()[0]);
         }

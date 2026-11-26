@@ -245,13 +245,14 @@ pub fn draw_picker_labels_on(
     }
     canvas.grid_label_at(33, 91, "FLY", 1, TEXT);
     canvas.grid_label_at(69, 91, "NEXT", 1, TEXT);
-    for (index, _) in Aircraft::ALL.iter().enumerate() {
-        let ink = if index == selected {
+    let picker_index = aircraft.picker_index();
+    for (index, _) in Aircraft::PICKER_ORDER.iter().enumerate() {
+        let ink = if index == picker_index {
             TEXT
         } else {
             INACTIVE_POSITION
         };
-        let left = (LAYOUT_SIDE - (Aircraft::ALL.len() * 6 - 2)) / 2;
+        let left = (LAYOUT_SIDE - (Aircraft::PICKER_ORDER.len() * 6 - 2)) / 2;
         canvas.grid_rect(left + index * 6, 105, 4, 2, ink);
     }
 }

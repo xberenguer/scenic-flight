@@ -12,7 +12,7 @@
 <body>
   <header class="masthead">
     <a class="brand" href="#" aria-label="Scenic Flight home"><span class="brand-mark" aria-hidden="true"></span>Scenic Flight</a>
-    <nav aria-label="Page sections"><a href="./play.html">Play in browser</a><a href="#gameplay">Gameplay</a><a href="#gallery">Gallery</a><a href="#artwork">Artwork</a><a href="#project">Controls</a><a href="https://xn--sg8hhb.ws/flasher/?project=scenic-flight">Install</a></nav>
+    <nav aria-label="Page sections"><a href="./play.html">Play in browser</a><a href="#gameplay">Gameplay</a><a href="#gallery">Gallery</a><a href="#artwork">Artwork</a><a href="#world-generation">World generation</a><a href="#project">Controls</a><a href="https://xn--sg8hhb.ws/flasher/?project=scenic-flight">Install</a></nav>
   </header>
   <main class="shell">
     <section class="hero" id="gameplay" aria-labelledby="title">
@@ -39,7 +39,7 @@
 
     <section id="artwork" aria-labelledby="artwork-title">
       <div class="section-heading">
-        <h2 id="artwork-title">Scenery artwork</h2>
+        <h2 id="artwork-title">World artwork</h2>
         <p id="artwork-count" aria-live="polite"></p>
       </div>
       <div class="toolbar">
@@ -51,7 +51,7 @@
           <select id="artwork-family" aria-controls="artwork-grid"></select>
         </label>
       </div>
-      <ul id="artwork-grid" class="artwork-grid" aria-label="Scenery artwork variants"></ul>
+      <ul id="artwork-grid" class="artwork-grid" aria-label="World artwork variants"></ul>
     </section>
 
     <section id="flight-reference">
@@ -63,6 +63,23 @@
         </table></div>
         <ul id="encounter-rates" class="rates"></ul>
       </details>
+    </section>
+
+    <section id="world-generation" aria-labelledby="world-generation-title">
+      <div class="section-heading">
+        <h2 id="world-generation-title">World generation</h2>
+        <a href="https://github.com/xberenguer/scenic-flight/blob/main/docs/WORLD-GENERATION.md">City dimensions and placement rules</a>
+      </div>
+      <div class="cards">
+        <figure class="urban-plan">
+          <a href="assets/planning/urban-16--3--7.png"><img loading="lazy" decoding="async" src="assets/planning/urban-16--3--7.png" width="512" height="512" alt="Generated streets, buildings and hills in the largest surveyed settlement"></a>
+          <figcaption>Largest surveyed settlement · 504 × 760 world units</figcaption>
+        </figure>
+        <figure class="urban-plan">
+          <a href="assets/planning/urban-21-2-2.png"><img loading="lazy" decoding="async" src="assets/planning/urban-21-2-2.png" width="512" height="512" alt="Generated streets and outlying neighborhoods around a regional town"></a>
+          <figcaption>Regional town and outskirts · seed 21</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section id="project" class="project">

@@ -7,6 +7,11 @@ use crate::math::{fraction, mix, sin_cos, smoothstep};
 pub const SECONDS_PER_DAY: u32 = 24 * 60;
 const DAY_TICKS: u64 = SECONDS_PER_DAY as u64 * TICKS_PER_SECOND as u64;
 const LUNATION_TICKS: u64 = 59 * DAY_TICKS / 2;
+// Tropical year, rounded to a game tick.
+const YEAR_TICKS: u64 = (DAY_TICKS * 3_652_422 + 5_000) / 10_000;
+const AXIAL_TILT: f32 = 23.44_f32.to_radians();
+const SIN_AXIAL_TILT: f32 = sin_cos(AXIAL_TILT).0;
+
 const WEATHER_TICKS: u64 = 210 * TICKS_PER_SECOND as u64;
 
 #[derive(Clone, Copy, Debug)]
@@ -21,6 +26,7 @@ pub struct Sky {
     pub meteor: Option<Meteor>,
     pub(crate) weather: Option<WeatherField>,
     pub(crate) sun_rising: bool,
+    pub(crate) freezing_height: f32,
     #[cfg(feature = "ground-cover")]
     pub(crate) ground_seed: u32,
 }
@@ -53,7 +59,7 @@ impl Sky {
 
     fn build(seed: u64, ticks: u64, day_fraction: f32, position: Option<[f32; 3]>) -> Self {
         let latitude = 0.43 + fraction(mix(seed ^ 23)) * 0.39;
-        let declination = (fraction(mix(seed ^ 49)) - 0.50) * 0.68;
+        let declination = solar_declination(seed, ticks);
         let hour = (day_fraction - 0.5) * TAU;
         let (lat_sin, lat_cos) = sin_cos(latitude);
         let (turn_sin, turn_cos) = sin_cos(fraction(mix(seed ^ 83)) * TAU);
@@ -85,6 +91,8 @@ impl Sky {
             cloud_cover: local.cloud_cover, cloud_base: local.cloud_base, haze,
             cloud_offset: field.wind.map(|dir| field.seconds * dir * 0.18),
             meteor: None, weather: position.map(|_| field), sun_rising: solar_hour.0 < 0.0,
+            freezing_height: 124.0 + 42.0 * (declination / AXIAL_TILT)
+                - 52.0 * (latitude - 0.62),
             #[cfg(feature = "ground-cover")]
             ground_seed: (seed ^ seed.rotate_right(32)) as u32,
         };
@@ -106,6 +114,31 @@ impl Sky {
         self.haze = (self.haze + strength * 0.35).min(0.67);
         self
     }
+}
+
+/// Advance solar longitude through an Earth-length year. The world's initial
+/// declination sets the starting point, and the seed chooses which half of the
+/// orbit it occupies.
+fn solar_declination(seed: u64, ticks: u64) -> f32 {
+    let initial = (fraction(mix(seed ^ 49)) - 0.50) * 0.68;
+    let elapsed = ticks % YEAR_TICKS;
+    if elapsed == 0 {
+        return initial;
+    }
+    let start_sin = sin_cos(initial).0 / SIN_AXIAL_TILT;
+    let perpendicular = 1.0 - start_sin * start_sin;
+    let estimate = f32::from_bits((perpendicular.to_bits() >> 1) + 0x1fc0_0000);
+    let root = (estimate + perpendicular / estimate) * 0.5;
+    let start_cos = (root + perpendicular / root) * 0.5;
+    let start_cos = if mix(seed ^ 0x7b32_c15d) & 1 == 0 { start_cos } else { -start_cos };
+    let (advance_sin, advance_cos) = sin_cos(elapsed as f32 * (TAU / YEAR_TICKS as f32));
+    let sin_delta = SIN_AXIAL_TILT * (start_sin * advance_cos + start_cos * advance_sin);
+
+    // Inverse sine series accurate to well under a hundredth of a degree at
+    // Earth's obliquity, without requiring a platform math library.
+    let square = sin_delta * sin_delta;
+    sin_delta * (1.0 + square * (1.0 / 6.0 + square * (3.0 / 40.0
+        + square * (5.0 / 112.0 + square * (35.0 / 1152.0)))))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -227,6 +260,29 @@ mod tests {
                 last_up = up;
             }
             assert_eq!((rises, sets), (1, 1));
+        }
+    }
+
+    #[test]
+    fn a_world_gets_earlier_sunrises_and_later_sunsets_in_summer() {
+        for seed in [7, 38, 145] {
+            let days = (0..365).map(|day| day * DAY_TICKS);
+            let summer = days.clone().max_by(|&a, &b| solar_declination(seed, a).total_cmp(&solar_declination(seed, b))).unwrap();
+            let winter = days.min_by(|&a, &b| solar_declination(seed, a).total_cmp(&solar_declination(seed, b))).unwrap();
+            assert!((solar_declination(seed, summer) - AXIAL_TILT).abs() < 0.0002);
+            assert!((solar_declination(seed, winter) + AXIAL_TILT).abs() < 0.0002);
+            let times = |ticks| {
+                let visible = |minute| Sky::from_time(seed, ticks, minute as f32 / 1440.0).sun_direction[1] >= 0.0;
+                ((0..1440).find(|&minute| visible(minute)).unwrap(),
+                 (0..1440).rev().find(|&minute| visible(minute)).unwrap())
+            };
+            let (summer_rise, summer_set) = times(summer);
+            let (winter_rise, winter_set) = times(winter);
+            assert!(summer_rise + 45 < winter_rise && summer_set > winter_set + 45);
+            assert!(Sky::from_time(seed, summer, 0.5).sun_direction[1]
+                > Sky::from_time(seed, winter, 0.5).sun_direction[1] + 0.25);
+            assert_eq!(solar_declination(seed, 123_456), solar_declination(seed, YEAR_TICKS + 123_456));
+            assert!((solar_declination(seed, 0) - solar_declination(seed, YEAR_TICKS - 1)).abs() < 0.00002);
         }
     }
 

@@ -118,3 +118,17 @@ details[open] summary { margin-bottom:16px; }
 }
 .artwork-number { display: block; padding: 0 3px; font-size: .72rem; font-variant-numeric: tabular-nums; }
 #viewer-media .artwork-sprite { width: min(384px, 80vw, 64vh); margin-inline: auto; }
+
+.urban-plan {
+  margin: 0;
+}
+
+.urban-plan img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.urban-plan figcaption {
+  margin-top: 0.5rem;
+}

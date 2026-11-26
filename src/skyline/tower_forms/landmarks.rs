@@ -757,7 +757,7 @@ pub(crate) const LANDMARKS: [Landmark; 100] = [
         ],
     ),
     building(
-        "Lantern causeway",
+        "Skybridge towers",
         1.36,
         0.87,
         61.0,

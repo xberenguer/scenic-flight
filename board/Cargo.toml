@@ -2,7 +2,7 @@
 
 [package]
 name = "scenic-flight-waveshare"
-version = "0.1.119"
+version = "0.1.120"
 edition = "2024"
 
 [features]

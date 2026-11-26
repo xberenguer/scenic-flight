@@ -1,0 +1,54 @@
+# How Scenic Flight generates a world
+
+[Play Scenic Flight](https://xberenguer.github.io/scenic-flight/play.html) · [Gameplay and artwork](../README.md)
+
+A world seed determines where terrain, roads, cities, airfields and coastlines form. Flight time advances the sky, weather and encounters over that layout.
+
+## City sizes
+
+The survey ran from the Racer's starting area in seeds **0–31** using the same terrain, street, waterway and settlement preparation as the flight renderer. It found **78 settlements** in 29 of those 32 starting areas. A settlement includes its core streets, subdivisions and outer boroughs. Distances are in engine world units.
+
+| Measurement | Result |
+| --- | ---: |
+| Median longest side | 456 units |
+| Median streets, roofs, industrial sites and parks combined | 53,800 square units |
+| Largest measured footprint | 504 × 760 units |
+| Developed surface in the largest example | Approximately 117,000 square units |
+| Road planning region | 1,024 × 1,024 units |
+| Spacing between intersections in the core street grid | 18 units |
+| Outer collector grid spacing | 36 or 54 units |
+
+The largest example covered about 31% of its bounding rectangle. This was a survey of generated starting areas. The dimensions of individual towns depend on the seed and buildable land. Open land between two settlements and the highway joining them are excluded from city coverage. Measurements use a 4-unit sampling grid, so narrow roads and small roofs introduce some measurement variation. [Raw measurements](assets/planning/settlement-sample.tsv)
+
+## Generated street maps
+
+Each map shows one 1,024-unit road planning region at the same scale. Cream and orange mark rooftops, tan marks streets, lavender marks industrial buildings, green marks civic green space and blue marks water. Seed and region coordinates identify the source. Regions can contain multiple settlements.
+
+| Seed 16 · region −3, −7 | Seed 15 · region 1, 0 |
+| --- | --- |
+| ![Street map of the largest measured settlement and its surrounding hills](assets/planning/urban-16--3--7.png) | ![Street map of a wider town and its approach roads](assets/planning/urban-15-1-0.png) |
+
+| Seed 21 · region 2, 2 | Seed 24 · region −1, 5 |
+| --- | --- |
+| ![Street map of a settlement with a tower cluster and peripheral districts](assets/planning/urban-21-2-2.png) | ![Street map of a settlement with shorter wings and a distinct approach](assets/planning/urban-24--1-5.png) |
+
+## Roads, districts and buildings
+
+The road planner looks for pairs of dry approaches it can connect at a usable grade. A road terminus may grow into a town if its slope permits a connected street network and enough buildings. The center starts with a 7-column street grid that can reach 7 rows. It can gain hillside extensions and shift with the terrain. [Road planner](../src/roads.rs) · [Town generation](../src/settlement.rs)
+
+The 25 neighborhood templates define where the next set of streets may grow. Each candidate street still has to connect and pass the ground checks. Farther out, wider-spaced collector roads support houses, shops, industry and open blocks. Other planned land uses, waterways and steep ground can cut gaps in the street network. When a dry approach reaches a usable shore, the same survey can site a waterfront extension. [Neighborhood templates](../src/settlement/district_layouts.rs) · [Outer boroughs](../src/settlement/expansion/boroughs.rs) · [Waterfront extensions](../src/settlement/expansion/waterfront.rs)
+
+## What can appear where
+
+| System | Placement |
+| --- | --- |
+| Terrain and ground cover | Elevation and climate shape coasts, open land, forest, rock, desert and snow cover. Plants and ground details vary with habitat, land form and seed. [Terrain](../src/world.rs) · [Ground details](../src/ground_details.rs) |
+| Rivers and alpine lakes | Drainage follows the terrain. The regional river planner places banks and crossings where they fit. Alpine lake basins have their own survey. [Watersheds](../src/watershed.rs) · [Alpine lakes](../src/alpine_lakes.rs) |
+| Ports, vessels and lighthouses | Port candidates need a coastal road approach, compatible shoreline, enough water depth and a pier site. Moorings and lighthouse headlands use separate coastal surveys. [Ports](../src/ports.rs) · [Anchorages](../src/maritime.rs) · [Lighthouses](../src/lighthouses.rs) |
+| Airfields | Country strips need enough open, suitable ground for a runway. Regional airfields also plan their access from the road network. [Airfields](../src/airfield.rs) |
+| Rail and industry | Regional rail corridors join suitable endpoints and can serve quarries, terminals and stations. Trains follow the surveyed corridors. [Rail surveys](../src/rail_survey.rs) · [Regional rail](../src/rail_stream.rs) |
+| Sky and weather | The sun follows a seasonal path. The Moon changes phase. Local cloud cover, haze and elevation affect which showers form and where they fall as snow. [Sky](../src/sky.rs) · [Precipitation](../src/weather_effects.rs) |
+
+## Where a flight starts
+
+The launch survey scores headings and positions for land, relief, terrain ahead and the aircraft's clearance. Some coastal starts are retained. If the aircraft would spend too long leaving open water, the survey can look farther away for land. Eligible flights can start on a town approach when a suitable town is already prepared. The Blackbird starts at high altitude. [Aircraft and launch survey](../src/flight.rs)

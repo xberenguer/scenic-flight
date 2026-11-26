@@ -1,11 +1,14 @@
-//! Rare distant rain, retained in world coordinates and composited through depth.
+//! Distant precipitation, retained in world coordinates and composited through depth.
 
 use crate::flight::TICKS_PER_SECOND;
 use crate::math::{fraction, mix, sin_cos, smoothstep};
 use crate::render::{encoded_depth, view_distance, Camera};
 use crate::sky::Sky;
+use crate::world::World;
 
+mod snow_profiles;
 mod valley_mist;
+pub use snow_profiles::{SNOWFALL_PROFILES, SnowfallProfile};
 pub use valley_mist::{MistView, ValleyMist};
 
 const CELL: f32 = 648.0;
@@ -23,6 +26,9 @@ pub struct RainShaft {
     tint: u16,
     cloud_tint: u16,
     asymmetry: f32,
+    snow: f32,
+    snow_profile: u8,
+    drift: f32,
     rainbow: Option<Rainbow>,
 }
 
@@ -42,6 +48,7 @@ pub struct WeatherView {
 struct Site {
     key: u64,
     center: [f32; 2],
+    ground: f32,
     width: f32,
     period: u16,
     phase: u16,
@@ -49,7 +56,7 @@ struct Site {
 }
 
 /// Nine neighboring cells, refreshed only after the weather gate passes and
-/// the camera enters a different cell or world. No terrain probes are needed.
+/// the camera enters a different cell or world.
 pub struct WeatherEffects {
     region: Option<(u64, i32, i32)>,
     sites: [Option<Site>; 9],
@@ -155,9 +162,12 @@ impl Site {
         let field = mix(key ^ 0x97d2_7808_4ab4_9b67);
         let position = |tile, bits| (tile as f32 + (0.44 + fraction(bits) * 0.12)) * CELL;
         let period = (122 + (mix(field ^ 0x6421) % 66)) * TICKS;
+        let center = [position(x, field), position(z, mix(field))];
+        let ground = World::new(seed).elevation(center[0], center[1]);
         Some(Self {
             key,
-            center: [position(x, field), position(z, mix(field))],
+            center,
+            ground,
             width: 28.0 + fraction(mix(field ^ 0x9724)) * 20.0,
             period: period as u16,
             phase: (mix(field ^ 0x11c3) % period) as u16,
@@ -191,30 +201,50 @@ impl Site {
         let z = self.center[1] - wind[1] * scale * (0.22 + progress * 0.50);
         let y = local.cloud_base + fraction(mix(self.key ^ 48)) * 6.0;
         let color = |base: f32, day: f32| base + (day - base) * sky.daylight;
-        let tint = rgb565([color(71.0, 131.0), color(90.0, 150.0), color(115.0, 174.0)]);
+        let snow = if sky.weather.is_some() {
+            smoothstep((self.ground - sky.freezing_height + 5.0) / 12.0)
+                * smoothstep((y - self.ground - 4.0) / 18.0)
+        } else {
+            0.0
+        };
+        let rain_tint = rgb565([color(71.0, 131.0), color(90.0, 150.0), color(115.0, 174.0)]);
+        let snow_tint = rgb565([color(149.0, 215.0), color(158.0, 226.0), color(174.0, 238.0)]);
+        let tint = blend(rain_tint, snow_tint, snow);
         let cloud_tint = rgb565([color(80.0, 182.0), color(95.0, 190.0), color(121.0, 201.0)]);
         let sun_height = sky.sun_direction[1];
         let light = smoothstep(sun_height / 0.13)
             * (1.0 - smoothstep((sun_height - 0.40) / 0.23))
             * (1.0 - smoothstep((sky.cloud_cover - 0.44) / 0.31));
-        let rainbow = (sky.weather.is_some() && light > 0.04).then_some(Rainbow {
+        let rainbow = (sky.weather.is_some() && light > 0.04 && snow < 0.25).then_some(Rainbow {
             sun: sky.sun_direction,
             clarity: light,
         });
         Some(RainShaft {
             top: [x - wind[0] * scale * 0.38, y, z - wind[1] * scale * 0.38],
-            foot: [x + wind[0] * scale * 0.64, -2.0, z + wind[1] * scale * 0.64],
+            foot: [x + wind[0] * scale * 0.64, -2.0 + snow * self.ground,
+                z + wind[1] * scale * 0.64],
             half_width: self.width * (1.0 + progress * 0.18 + pulse * 0.055),
             opacity,
             tint,
             cloud_tint,
             asymmetry: 0.22 * (fraction(mix(self.key ^ 775)) - 0.5) + 0.07 * pulse,
+            snow,
+            snow_profile: (mix(self.key ^ 0x242b) % SNOWFALL_PROFILES.len() as u64) as u8,
+            drift: (ticks % (4 * TICKS)) as f32 / (4 * TICKS) as f32,
             rainbow,
         })
     }
 }
 
 impl RainShaft {
+    pub fn snow_fraction(&self) -> f32 {
+        self.snow
+    }
+
+    pub fn snow_profile(&self) -> Option<&'static SnowfallProfile> {
+        (self.snow > 0.5).then(|| &SNOWFALL_PROFILES[usize::from(self.snow_profile)])
+    }
+
     fn local_strength(self, camera: Camera) -> f32 {
         let height = ((camera.altitude - self.foot[1]) / (self.top[1] - self.foot[1])).clamp(0.0, 1.0);
         let x = self.foot[0] + (self.top[0] - self.foot[0]) * height;
@@ -314,7 +344,14 @@ impl RainShaft {
                     let filaments = 0.76
                         + 0.28 * bell((across + 0.34 + self.asymmetry) * 2.5)
                         + 0.23 * bell((across - 0.37 + self.asymmetry * 0.6) * 2.8);
-                    opacity * softened * softened * vertical * filaments
+                    let rain = softened * softened * vertical * filaments;
+                    let snow = if self.snow > 0.0 {
+                        SNOWFALL_PROFILES[usize::from(self.snow_profile)]
+                            .opacity(across, falling, self.drift)
+                    } else {
+                        0.0
+                    };
+                    opacity * (rain + (snow - rain) * self.snow)
                 } else {
                     0.0
                 };
@@ -659,6 +696,29 @@ mod tests {
         let (inner, _) = spectrum(anti, 0.827, 0.0).unwrap();
         assert!((outer >> 11) > (inner >> 11));
         assert!((inner & 31) > (outer & 31));
+    }
+
+    #[test]
+    fn cold_high_ground_turns_the_same_shower_to_snow() {
+        let seed = 13;
+        let ticks = 15_390;
+        let camera = Camera { x: 1004.0, z: -1332.0, altitude: 58.0,
+            heading: 2.923976, pitch: 0.04, bank: 0.0 };
+        let mut sky = Sky::at_position(seed, ticks, [camera.x, camera.altitude, camera.z]);
+        let mut weather = WeatherEffects::new();
+        assert!(weather.visible(seed, ticks, camera, &sky).is_some());
+        let site = weather.sites.into_iter().flatten()
+            .find(|site| site.shower(ticks, camera.altitude, &sky).is_some()).unwrap();
+        let native_rain = site.shower(ticks, camera.altitude, &sky).unwrap();
+        let hillside = Site { ground: native_rain.top[1] - 24.0, ..site };
+        sky.freezing_height = hillside.ground + 15.0;
+        let summer = hillside.shower(ticks, camera.altitude, &sky).unwrap();
+        sky.freezing_height = hillside.ground - 18.0;
+        let winter = hillside.shower(ticks, camera.altitude, &sky).unwrap();
+        assert_eq!(summer.snow_fraction(), 0.0);
+        assert!(winter.snow_fraction() > 0.95 && winter.rainbow.is_none());
+        assert!(winter.foot[1] > summer.foot[1] + 36.0);
+        assert_ne!(winter.tint, summer.tint);
     }
 
     #[test]

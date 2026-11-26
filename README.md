@@ -22,9 +22,67 @@ Select a preview to open the full-size clip or screenshot.
   </tr>
 </table>
 
+## Aircraft and picker screens
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/assets/picker-7.png"><img src="docs/assets/picker-7.png" width="168" alt="Bald Eagle picker screen"></a><br><a href="docs/assets/turntable-7.gif"><img src="docs/assets/turntable-7.gif" width="168" alt="Bald Eagle turntable"></a><br>Bald Eagle</td>
+    <td align="center"><a href="docs/assets/picker-3.png"><img src="docs/assets/picker-3.png" width="168" alt="Ultralight picker screen"></a><br><a href="docs/assets/turntable-3.gif"><img src="docs/assets/turntable-3.gif" width="168" alt="Ultralight turntable"></a><br>Ultralight</td>
+    <td align="center"><a href="docs/assets/picker-4.png"><img src="docs/assets/picker-4.png" width="168" alt="Glider picker screen"></a><br><a href="docs/assets/turntable-4.gif"><img src="docs/assets/turntable-4.gif" width="168" alt="Glider turntable"></a><br>Glider</td>
+    <td align="center"><a href="docs/assets/picker-0.png"><img src="docs/assets/picker-0.png" width="168" alt="Bush Plane picker screen"></a><br><a href="docs/assets/turntable-0.gif"><img src="docs/assets/turntable-0.gif" width="168" alt="Bush Plane turntable"></a><br>Bush Plane</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/assets/picker-1.png"><img src="docs/assets/picker-1.png" width="168" alt="Racer picker screen"></a><br><a href="docs/assets/turntable-1.gif"><img src="docs/assets/turntable-1.gif" width="168" alt="Racer turntable"></a><br>Racer</td>
+    <td align="center"><a href="docs/assets/picker-2.png"><img src="docs/assets/picker-2.png" width="168" alt="Sport Jet picker screen"></a><br><a href="docs/assets/turntable-2.gif"><img src="docs/assets/turntable-2.gif" width="168" alt="Sport Jet turntable"></a><br>Sport Jet</td>
+    <td align="center"><a href="docs/assets/picker-5.png"><img src="docs/assets/picker-5.png" width="168" alt="F/A-18 Fighter picker screen"></a><br><a href="docs/assets/turntable-5.gif"><img src="docs/assets/turntable-5.gif" width="168" alt="F/A-18 Fighter turntable"></a><br>F/A-18 Fighter</td>
+    <td align="center"><a href="docs/assets/picker-6.png"><img src="docs/assets/picker-6.png" width="168" alt="SR-71 Blackbird picker screen"></a><br><a href="docs/assets/turntable-6.gif"><img src="docs/assets/turntable-6.gif" width="168" alt="SR-71 Blackbird turntable"></a><br>SR-71 Blackbird</td>
+  </tr>
+</table>
+
+| Aircraft | Real-world speed reference |
+| --- | --- |
+| Bald Eagle | 30–35 mph in level flight ([Bureau of Land Management](https://www.blm.gov/sites/blm.gov/files/uploads/programs_fish-and-wildlife_wildlife_eagle-%20watch_about-bald-eagles_baldeagle_funfacts.pdf)) |
+| Ultralight | 40 mph cruise ([North Wing Maverick trike](https://northwing.com/Maverick_Trike_Owners_Manual.pdf)) |
+| Glider | 56 mph at best glide ([Schleicher ASK 21 Mi](https://www.alexander-schleicher.de/wp-content/uploads/2015/04/AS-Einzelprosp-ASK-21-Mi-15-k.pdf)) |
+| Bush Plane | 80 mph top speed ([Smithsonian Piper J-3 Cub](https://www.si.edu/object/nasm_A19771128000)) |
+| Racer | 181 knots indicated cruise ([Extra 330LX handbook](https://www.electronicsandbooks.com/edt/manual/Hardware/E/Extra%20Aircraft/POH_330LX_US_20170412_CUS.pdf)) |
+| Sport Jet | 317 knots maximum cruise ([Cirrus Vision Jet](https://cirrusaircraft.com/aircraft/vision-jet/)) |
+| F/A-18 Fighter | Mach 1.8+ top speed ([NASA F/A-18](https://www.nasa.gov/aeronautics/f-a-18-mission-support-aircraft/)) |
+| SR-71 Blackbird | Mach 3.2 cruise ([NASA SR-71](https://www.nasa.gov/image-article/sr-71-3/)) |
+
+## World generation
+
+Cities grow around road approaches and expand where the land allows. The largest of 78 sampled settlements spanned **504 × 760 world units**.
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/assets/planning/urban-16--3--7.png"><img src="docs/assets/planning/urban-16--3--7.png" width="320" alt="Map of generated streets and buildings"></a><br>Largest surveyed footprint · seed 16</td>
+    <td align="center"><a href="docs/assets/planning/urban-21-2-2.png"><img src="docs/assets/planning/urban-21-2-2.png" width="320" alt="Map of generated districts and approach roads"></a><br>Regional town and outskirts · seed 21</td>
+  </tr>
+</table>
+
+[City dimensions, street grids, and placement rules](docs/WORLD-GENERATION.md)
+
+## Gameplay gallery
+
+[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · [Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · [Artwork gallery](#artwork-gallery)
+
 ### Sky & Weather
 
 <table>
+  <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-snow-0.mp4"><img src="docs/assets/readme/sky-weather-snow-0.gif" width="220" alt="Snow curtain over high country"></a><br><a href="docs/assets/current/sky-weather-snow-0.png">Still</a><br>Snow curtain over high country</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-snow-1.mp4"><img src="docs/assets/readme/sky-weather-snow-1.gif" width="220" alt="Narrow snow shaft"></a><br><a href="docs/assets/current/sky-weather-snow-1.png">Still</a><br>Narrow snow shaft</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-snow-18.mp4"><img src="docs/assets/readme/sky-weather-snow-18.gif" width="220" alt="Wind-swept snow sheet"></a><br><a href="docs/assets/current/sky-weather-snow-18.png">Still</a><br>Wind-swept snow sheet</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-snow-23.mp4"><img src="docs/assets/readme/sky-weather-snow-23.gif" width="220" alt="Broken snow curtains"></a><br><a href="docs/assets/current/sky-weather-snow-23.png">Still</a><br>Broken snow curtains</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-summer-sunset.mp4"><img src="docs/assets/readme/sky-weather-summer-sunset.gif" width="220" alt="Summer sunset"></a><br><a href="docs/assets/current/sky-weather-summer-sunset.png">Still</a><br>Summer sunset</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-winter-sunset.mp4"><img src="docs/assets/readme/sky-weather-winter-sunset.gif" width="220" alt="Winter sunset"></a><br><a href="docs/assets/current/sky-weather-winter-sunset.png">Still</a><br>Winter sunset</td>
+  </tr>
   <tr>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-clouds.mp4"><img src="docs/assets/readme/sky-weather-clouds.gif" width="220" alt="Drifting clouds above the coast"></a><br><a href="docs/assets/current/sky-weather-clouds.png">Still</a><br>Drifting clouds above the coast</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-rain.mp4"><img src="docs/assets/readme/sky-weather-rain.gif" width="220" alt="Rain shaft over the coast"></a><br><a href="docs/assets/current/sky-weather-rain.png">Still</a><br>Rain shaft over the coast</td>
@@ -415,38 +473,15 @@ Select a preview to open the full-size clip or screenshot.
 
 ## Artwork gallery
 
-### Aircraft and picker screens
+[Weather artwork](#weather-artwork) · [Mountains and ice](#mountains-and-ice) · [Rivers and lakes](#rivers-and-lakes) · [Coasts](#coasts) · [Deserts and badlands](#deserts-and-badlands) · [Vegetation and ground cover](#vegetation-and-ground-cover) · [Farms and industry](#farms-and-industry) · [Cities and towns](#cities-and-towns) · [Roads and mountain routes](#roads-and-mountain-routes) · [Railways](#railways) · [Airfields](#airfields) · [Ports and vessels](#ports-and-vessels)
 
-<table>
-  <tr>
-    <td align="center"><a href="docs/assets/picker-7.png"><img src="docs/assets/picker-7.png" width="168" alt="Bald Eagle picker screen"></a><br><a href="docs/assets/turntable-7.gif"><img src="docs/assets/turntable-7.gif" width="168" alt="Bald Eagle turntable"></a><br>Bald Eagle</td>
-    <td align="center"><a href="docs/assets/picker-3.png"><img src="docs/assets/picker-3.png" width="168" alt="Ultralight picker screen"></a><br><a href="docs/assets/turntable-3.gif"><img src="docs/assets/turntable-3.gif" width="168" alt="Ultralight turntable"></a><br>Ultralight</td>
-    <td align="center"><a href="docs/assets/picker-4.png"><img src="docs/assets/picker-4.png" width="168" alt="Glider picker screen"></a><br><a href="docs/assets/turntable-4.gif"><img src="docs/assets/turntable-4.gif" width="168" alt="Glider turntable"></a><br>Glider</td>
-    <td align="center"><a href="docs/assets/picker-0.png"><img src="docs/assets/picker-0.png" width="168" alt="Bush Plane picker screen"></a><br><a href="docs/assets/turntable-0.gif"><img src="docs/assets/turntable-0.gif" width="168" alt="Bush Plane turntable"></a><br>Bush Plane</td>
-  </tr>
-</table>
+### Weather artwork
 
-<table>
-  <tr>
-    <td align="center"><a href="docs/assets/picker-1.png"><img src="docs/assets/picker-1.png" width="168" alt="Racer picker screen"></a><br><a href="docs/assets/turntable-1.gif"><img src="docs/assets/turntable-1.gif" width="168" alt="Racer turntable"></a><br>Racer</td>
-    <td align="center"><a href="docs/assets/picker-2.png"><img src="docs/assets/picker-2.png" width="168" alt="Sport Jet picker screen"></a><br><a href="docs/assets/turntable-2.gif"><img src="docs/assets/turntable-2.gif" width="168" alt="Sport Jet turntable"></a><br>Sport Jet</td>
-    <td align="center"><a href="docs/assets/picker-5.png"><img src="docs/assets/picker-5.png" width="168" alt="F/A-18 Fighter picker screen"></a><br><a href="docs/assets/turntable-5.gif"><img src="docs/assets/turntable-5.gif" width="168" alt="F/A-18 Fighter turntable"></a><br>F/A-18 Fighter</td>
-    <td align="center"><a href="docs/assets/picker-6.png"><img src="docs/assets/picker-6.png" width="168" alt="SR-71 Blackbird picker screen"></a><br><a href="docs/assets/turntable-6.gif"><img src="docs/assets/turntable-6.gif" width="168" alt="SR-71 Blackbird turntable"></a><br>SR-71 Blackbird</td>
-  </tr>
-</table>
+#### Snowfall profiles · 25 variants
 
-| Aircraft | Real-world speed reference |
-| --- | --- |
-| Bald Eagle | 30–35 mph in level flight ([Bureau of Land Management](https://www.blm.gov/sites/blm.gov/files/uploads/programs_fish-and-wildlife_wildlife_eagle-%20watch_about-bald-eagles_baldeagle_funfacts.pdf)) |
-| Ultralight | 40 mph cruise ([North Wing Maverick trike](https://northwing.com/Maverick_Trike_Owners_Manual.pdf)) |
-| Glider | 56 mph at best glide ([Schleicher ASK 21 Mi](https://www.alexander-schleicher.de/wp-content/uploads/2015/04/AS-Einzelprosp-ASK-21-Mi-15-k.pdf)) |
-| Bush Plane | 80 mph top speed ([Smithsonian Piper J-3 Cub](https://www.si.edu/object/nasm_A19771128000)) |
-| Racer | 181 knots indicated cruise ([Extra 330LX handbook](https://www.electronicsandbooks.com/edt/manual/Hardware/E/Extra%20Aircraft/POH_330LX_US_20170412_CUS.pdf)) |
-| Sport Jet | 317 knots maximum cruise ([Cirrus Vision Jet](https://cirrusaircraft.com/aircraft/vision-jet/)) |
-| F/A-18 Fighter | Mach 1.8+ top speed ([NASA F/A-18](https://www.nasa.gov/aeronautics/f-a-18-mission-support-aircraft/)) |
-| SR-71 Blackbird | Mach 3.2 cruise ([NASA SR-71](https://www.nasa.gov/image-article/sr-71-3/)) |
+<a href="docs/assets/artwork/snowfall-profiles.png"><img src="docs/assets/artwork/snowfall-profiles.png" width="780" alt="Snowfall profiles"></a>
 
-[Mountains and ice](#mountains-and-ice) · [Rivers and lakes](#rivers-and-lakes) · [Coasts](#coasts) · [Deserts and badlands](#deserts-and-badlands) · [Vegetation and ground cover](#vegetation-and-ground-cover) · [Farms and industry](#farms-and-industry) · [Cities and towns](#cities-and-towns) · [Roads and mountain routes](#roads-and-mountain-routes) · [Railways](#railways) · [Airfields](#airfields) · [Ports and vessels](#ports-and-vessels)
+<a href="docs/assets/artwork/snowfall-profiles.gif"><img src="docs/assets/artwork/snowfall-profiles.gif" width="550" alt="Snowfall profiles animated atlas"></a>
 
 ### Mountains and ice
 

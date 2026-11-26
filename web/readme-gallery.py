@@ -65,14 +65,7 @@ def render(entries, order):
         "Select a preview to open the full-size clip or screenshot.",
         grid([gameplay_card(videos[key]) for key in FEATURED]),
     ]
-    categories = dict.fromkeys(["Sky & Weather", "Encounters", "Biomes", "Built World",
-                                "Aircraft", "Interface", *(entry["category"] for entry in entries)])
-    for category in categories:
-        group = [gameplay_card(entry) for entry in reversed(entries)
-                 if entry["category"] == category and entry["id"] not in FEATURED]
-        if group:
-            sections.extend((f"### {category}", grid(group)))
-    sections.extend(("## Artwork gallery", "### Aircraft and picker screens"))
+    sections.append("## Aircraft and picker screens")
     aircraft = order["aircraft"]
     for start in range(0, len(aircraft), 4):
         cards = []
@@ -89,6 +82,32 @@ def render(entries, order):
         for entry in aircraft
     )
     sections.append("\n".join(speeds))
+    sections.extend((
+        "## World generation",
+        "Cities grow around road approaches and expand where the land allows. "
+        "The largest of 78 sampled settlements spanned **504 × 760 world units**.",
+        grid([
+            ("Largest surveyed footprint · seed 16", preview(
+                "Map of generated streets and buildings", "docs/assets/planning/urban-16--3--7.png", width=320)),
+            ("Regional town and outskirts · seed 21", preview(
+                "Map of generated districts and approach roads", "docs/assets/planning/urban-21-2-2.png", width=320)),
+        ], columns=2),
+        "[City dimensions, street grids, and placement rules](docs/WORLD-GENERATION.md)",
+    ))
+    sections.extend((
+        "## Gameplay gallery",
+        "[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · "
+        "[Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · "
+        "[Artwork gallery](#artwork-gallery)",
+    ))
+    categories = dict.fromkeys(["Sky & Weather", "Encounters", "Biomes", "Built World",
+                                "Aircraft", "Interface", *(entry["category"] for entry in entries)])
+    for category in categories:
+        group = [gameplay_card(entry) for entry in reversed(entries)
+                 if entry["category"] == category and entry["id"] not in FEATURED]
+        if group:
+            sections.extend((f"### {category}", grid(group)))
+    sections.append("## Artwork gallery")
     groups = order["scenery"]
     anchors = " · ".join(
         f'[{group["title"]}](#{group["title"].lower().replace(" ", "-")})'

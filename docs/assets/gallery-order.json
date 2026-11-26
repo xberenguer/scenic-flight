@@ -59,6 +59,16 @@
   ],
   "scenery": [
     {
+      "title": "Weather artwork",
+      "sections": [
+        {
+          "title": "Snowfall profiles",
+          "id": "snowfall-profiles",
+          "count": 25
+        }
+      ]
+    },
+    {
       "title": "Mountains and ice",
       "sections": [
         {

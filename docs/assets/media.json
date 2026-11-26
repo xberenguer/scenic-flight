@@ -2358,5 +2358,68 @@
     "poster": "assets/current/sky-weather-clouds.png",
     "src": "assets/current/sky-weather-clouds.mp4",
     "note": "Clouds change in coverage, height, and drift with the air mass."
+  },
+  {
+    "id": "sky-weather-winter-sunset",
+    "title": "Winter sunset",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-winter-sunset.png",
+    "src": "assets/current/sky-weather-winter-sunset.mp4",
+    "note": "Time-lapse. Shorter days and a different sunset direction."
+  },
+  {
+    "id": "sky-weather-summer-sunset",
+    "title": "Summer sunset",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-summer-sunset.png",
+    "src": "assets/current/sky-weather-summer-sunset.mp4",
+    "note": "Time-lapse. The setting sun is shown from the same location as the winter clip."
+  },
+  {
+    "id": "sky-weather-snow-23",
+    "title": "Broken snow curtains",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-snow-23.png",
+    "src": "assets/current/sky-weather-snow-23.mp4"
+  },
+  {
+    "id": "sky-weather-snow-18",
+    "title": "Wind-swept snow sheet",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-snow-18.png",
+    "src": "assets/current/sky-weather-snow-18.mp4"
+  },
+  {
+    "id": "sky-weather-snow-1",
+    "title": "Narrow snow shaft",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-snow-1.png",
+    "src": "assets/current/sky-weather-snow-1.mp4"
+  },
+  {
+    "id": "sky-weather-snow-0",
+    "title": "Snow curtain over high country",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-snow-0.png",
+    "src": "assets/current/sky-weather-snow-0.mp4",
+    "note": "Snow forms where cold, moist air meets high ground."
   }
 ]
