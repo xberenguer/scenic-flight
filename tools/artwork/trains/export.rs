@@ -34,11 +34,19 @@ mod art {
 
     pub fn export(metadata_path: &std::path::Path) -> io::Result<()> {
         let camera = Camera {
-            x: 10.4,
-            z: -7.2,
-            altitude: 8.4,
+            x: 11.9,
+            z: -8.25,
+            altitude: 9.45,
             heading: -0.966,
             pitch: 0.445,
+            bank: 0.0,
+        };
+        let opposite = Camera {
+            x: -12.3,
+            z: -8.4,
+            altitude: 9.30,
+            heading: 0.972,
+            pitch: 0.440,
             bank: 0.0,
         };
         let sky = Sky::from_time(41, 0, 0.5);
@@ -46,29 +54,23 @@ mod art {
         let height = SIDE * GRID * (FAMILIES / 2);
         let mut rgb = vec![0; width * height * 3];
         let mut geometry = BTreeSet::new();
-        let mut metadata = Vec::with_capacity(250);
-        for variant in 0..250_u8 {
+        let mut silhouettes = BTreeSet::new();
+        let mut reduced_silhouettes = BTreeSet::new();
+        let mut metadata = Vec::with_capacity(usize::from(freight_catalog::DESIGN_COUNT));
+        for variant in 0..freight_catalog::DESIGN_COUNT {
             let design = freight_catalog::design(variant);
-            metadata.push(format!(r#"{{"family":{:?},"kind":{:?},"cargo":{:?},"equipment":{:?}}}"#,
-                design.family.name(), design.kind(), design.cargo, design.equipment));
+            metadata.push(format!(
+                r#"{{"family":{:?},"kind":{:?},"cargo":{:?},"equipment":{:?},"assignment":{:?},"purpose":{:?},"reference":{:?}}}"#,
+                design.family.name(), design.kind(), design.cargo, design.equipment, design.assignment,
+                design.purpose, design.reference_url(),
+            ));
             let family = usize::from(variant) / 25;
             let position = usize::from(variant) % 25;
             let tile_x = (family % 2) * GRID + position % GRID;
             let tile_y = (family / 2) * GRID + position / GRID;
-            let mut pixels = [0; SIDE * SIDE];
-            let mut depth = [u16::MAX; SIDE * SIDE];
-            let mut mesh =
-                WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), camera, &sky).unwrap();
-            wagons::draw(
-                |t, side, height| [-side, height, (t - 0.5) * 13.6],
-                |[a, b, c, d], color| {
-                    mesh.triangle([a, b, c], color);
-                    mesh.triangle([a, c, d], color);
-                },
-                [[174, 78, 62], [95, 135, 151], [174, 146, 91], [109, 133, 112], [167, 167, 154]][position / 5],
-                variant,
-                true,
-            );
+            let paint = [[174, 78, 62], [95, 135, 151], [174, 146, 91], [109, 133, 112], [167, 167, 154]][position / 5];
+            let (pixels, depth) = render_wagon(variant, design.body_length(), paint, camera, &sky);
+            let (_, other_depth) = render_wagon(variant, design.body_length(), paint, opposite, &sky);
             let mut visible = 0;
             for (index, pixel) in pixels.into_iter().enumerate() {
                 let [x, y] = [index % SIDE, index / SIDE];
@@ -82,14 +84,52 @@ mod art {
                 rgb[offset..offset + 3].copy_from_slice(&tint);
             }
             assert!(visible > 80, "empty wagon {variant}");
+            assert!(silhouettes.insert(depth.map(|pixel| pixel != u16::MAX)),
+                "repeated wagon silhouette at {SIDE} px for car {variant}");
+            reduced_silhouettes.insert([coverage_at_third_scale(&depth), coverage_at_third_scale(&other_depth)]);
             assert!(geometry.insert(depth), "repeated wagon geometry {variant}");
         }
         std::fs::write(metadata_path, format!("[\n{}\n]\n", metadata.join(",\n")))?;
-        eprintln!("Verified {} non-identical freight depth renders.", geometry.len());
+        eprintln!(
+            "Freight audit: {} depth renders, {} material-independent silhouettes at {} px, {} two-angle pairs at {} px.",
+            geometry.len(), silhouettes.len(), SIDE, reduced_silhouettes.len(), SIDE / 3,
+        );
         let mut out = io::BufWriter::new(io::stdout().lock());
         write!(out, "P6\n{width} {height}\n255\n")?;
         out.write_all(&rgb)?;
         out.flush()
+    }
+
+    fn render_wagon(variant: u8, length: f32, paint: [u8; 3], camera: Camera, sky: &Sky)
+        -> ([u16; SIDE * SIDE], [u16; SIDE * SIDE])
+    {
+        let mut pixels = [0; SIDE * SIDE];
+        let mut depth = [u16::MAX; SIDE * SIDE];
+        let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), camera, sky).unwrap();
+        wagons::draw(
+            |t, side, height| [-side, height, (t - 0.5) * length],
+            |[a, b, c, d], color| {
+                mesh.triangle([a, b, c], color);
+                mesh.triangle([a, c, d], color);
+            },
+            paint,
+            variant,
+            true,
+            true,
+        );
+        (pixels, depth)
+    }
+
+    fn coverage_at_third_scale(depth: &[u16; SIDE * SIDE]) -> [bool; SIDE * SIDE / 9] {
+        let side = SIDE / 3;
+        std::array::from_fn(|i| {
+            let x = 3 * (i % side);
+            let y = 3 * (i / side);
+            (0..3)
+                .flat_map(|dy| (0..3).map(move |dx| depth[(y + dy) * SIDE + x + dx]))
+                .filter(|&pixel| pixel != u16::MAX)
+                .count() >= 5
+        })
     }
 
     pub fn export_locomotives(path: &std::path::Path) -> io::Result<()> {

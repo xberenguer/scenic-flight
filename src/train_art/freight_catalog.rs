@@ -1,6 +1,6 @@
 // North American freight-car classes, cargo and dispatch patterns.
-// Equipment references: Union Pacific Rail Equipment, BNSF Railcar Types,
-// and CSX Railroad Equipment. Dimensions are represented at Scenic Flight scale.
+// Equipment references: BNSF, Greenbrier, TTX, and Union Pacific.
+// Dimensions are represented at Scenic Flight scale.
 
 const CONFIGURATIONS: u8 = 5;
 const JOBS_PER_FAMILY: u8 = 5;
@@ -117,8 +117,8 @@ const CARGO: [[&str; 5]; 10] = [
         "Finished vehicles in an open bi-level rack",
         "SUVs and pickups",
         "Passenger cars",
-        "Finished vehicles in articulated racks",
-        "Delivery trucks and tall vans",
+        "Finished vehicles in articulated bi-level racks",
+        "Delivery trucks and tall vans in an enclosed single-level carrier",
     ],
     [
         "Coal",
@@ -150,78 +150,82 @@ const CARGO: [[&str; 5]; 10] = [
     ],
 ];
 
-const EQUIPMENT: [[&str; 5]; 10] = [
+// Each load has an origin or destination in the simulated freight economy.
+// The gallery pairs this description with the equipment fitted for that load.
+const ASSIGNMENTS: [[&str; 5]; 10] = [
     [
-        "Short well",
-        "Standard well",
-        "Extended well",
-        "Split-frame well",
-        "Heavy-end well",
+        "Reposition to a terminal for its next load",
+        "Transfer one overseas shipment between ship and rail",
+        "Consolidate two small overseas shipments in one well",
+        "Carry a domestic shipment between truck and rail hubs",
+        "Carry two levels of containers on a high-clearance route",
     ],
     [
-        "Single sliding door",
-        "Double sliding doors",
-        "Compact plug door",
-        "Offset plug door",
-        "High-cube body",
+        "Carry paper from the mill to a printer or converter",
+        "Deliver palletized goods to a distribution warehouse",
+        "Keep packaged drinks dry on the way to a wholesaler",
+        "Supply a food producer with dry, bagged ingredients",
+        "Keep milled lumber under cover on the way to a warehouse",
     ],
     [
-        "Compact two-bay body",
-        "Standard three-bay body",
-        "Four-bay centerflow body",
-        "Deep three-bay body",
-        "Five-bay high-capacity body",
+        "Move loose grain from an elevator to a processor or export terminal",
+        "Deliver powdered cement to a ready-mix depot",
+        "Supply a plastics plant with resin pellets",
+        "Deliver dry industrial sand to a plant",
+        "Move bulk sugar to a packaging or food plant",
     ],
     [
-        "Short tank",
-        "Standard tank",
-        "Long tank",
-        "Insulated jacket",
-        "High-capacity tank",
+        "Supply a food plant with liquid ingredients",
+        "Deliver paving material to an asphalt terminal",
+        "Move ethanol from a distillery to a fuel terminal",
+        "Move liquefied gas in a pressure vessel",
+        "Transfer bulk water between industrial terminals",
     ],
     [
-        "Low flat deck",
-        "End bulkheads",
-        "Raised ends",
-        "Depressed deck",
-        "Reinforced deck",
+        "Return an empty deck to a loading yard",
+        "Deliver long pipe to a utility or construction depot",
+        "Move equipment too large for an enclosed boxcar",
+        "Deliver long steel sections from a mill to a fabricator",
+        "Move unprocessed timber from a log landing to a mill",
     ],
     [
-        "Compact rack frame",
-        "Standard rack",
-        "Long corrugated-side rack",
-        "Reinforced rack",
-        "High-clearance rack",
+        "Move finished vehicles between a plant and an unloading ramp",
+        "Deliver taller pickups and utility vehicles to a regional ramp",
+        "Carry smaller finished cars at higher deck density",
+        "Move a block of finished vehicles through a distribution corridor",
+        "Deliver high-roof vans and light trucks to a vehicle terminal",
     ],
     [
-        "Short body",
-        "Standard body",
-        "Long body",
-        "Reinforced ribs",
-        "High-capacity body",
+        "Haul loose coal from a mine to a bulk terminal",
+        "Move crushed stone from a quarry to a construction-material yard",
+        "Haul dense ore from a mine to a mill or bulk terminal",
+        "Deliver recyclable steel to a mill for remelting",
+        "Move flat steel plate from a mill to a fabricator",
     ],
     [
-        "Short truss",
-        "Standard truss",
-        "Long truss",
-        "Solid spine",
-        "Tall bulkheads",
+        "Return the empty truss to a mill or lumber yard",
+        "Move weather-wrapped lumber from a mill to a dealer",
+        "Deliver bundled framing stock to a building-material yard",
+        "Move stacked wallboard to a construction distributor",
+        "Deliver packaged ties to a railroad materials yard",
     ],
     [
-        "Compact cradle",
-        "Raised side sill",
-        "Long cradle",
-        "High-sill cradle",
-        "Heavy-duty cradle",
+        "Move weather-tolerant hot-rolled coils from a mill",
+        "Protect one coil on the way to a fabricator",
+        "Move a paired shipment of weather-sensitive coils",
+        "Move smaller covered coils in separate cradles",
+        "Support heavy coils crosswise for delivery to a processor",
     ],
     [
-        "Compact end refrigeration unit",
-        "Standard end refrigeration unit",
-        "Extended double doors",
-        "Underfloor refrigeration unit",
-        "High-cube body",
+        "Keep produce cool from packing house to market",
+        "Maintain the freezer chain to a distribution warehouse",
+        "Keep meat chilled through delivery to cold storage",
+        "Move dairy products between refrigerated facilities",
+        "Protect temperature-sensitive drinks in transit",
     ],
 ];
+
+include!("freight_profiles.rs");
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Design {
@@ -229,17 +233,72 @@ pub struct Design {
     pub job: u8,
     pub build: u8,
     pub cargo: &'static str,
+    pub assignment: &'static str,
     pub equipment: &'static str,
+    pub purpose: &'static str,
 }
 
 impl Design {
+    pub const fn reference_url(self) -> &'static str {
+        match self.family {
+            Family::Well | Family::Deck | Family::Autorack | Family::Centerbeam => {
+                "https://www.ttx.com/about/equipment/"
+            }
+            Family::Boxcar => "https://www.gbrx.com/boxcars/",
+            Family::CoveredHopper => "https://www.gbrx.com/covered-hoppers/",
+            Family::Tank => "https://www.gbrx.com/tank-cars/",
+            Family::OpenBulk => "https://bnsf.com/ship/by-method/railcar-types",
+            Family::Coil => "https://www.up.com/shipping/resources/rail-equipment/definitions",
+            Family::Reefer => "https://www.gbrx.com/railcars/72-3-refrigerated-boxcar/",
+        }
+    }
+
+    /// Coupler-to-coupler length in flight-world units. The equipment keeps
+    /// relative prototype lengths within the compact regional train scale.
+    pub const fn body_length(self) -> f32 {
+        let lengths = match (self.family, self.job) {
+            (Family::Well, _) => [11.1, 12.0, 13.4, 13.0, 13.8],
+            (Family::Boxcar, _) => [12.2, 13.8, 11.7, 13.3, 15.5],
+            (Family::CoveredHopper, 1 | 3) => [10.6, 11.2, 12.0, 11.6, 12.4],
+            (Family::CoveredHopper, 2) => [12.3, 13.4, 14.3, 14.7, 15.7],
+            (Family::CoveredHopper, _) => [11.5, 12.6, 14.0, 13.3, 14.7],
+            (Family::Tank, 0) => [11.7, 12.8, 13.9, 12.5, 14.1],
+            (Family::Tank, 1) => [10.7, 11.5, 12.5, 11.9, 12.9],
+            (Family::Tank, 2) => [12.2, 13.1, 14.2, 13.6, 14.6],
+            (Family::Tank, 3) => [12.9, 14.2, 15.3, 14.9, 15.7],
+            (Family::Tank, _) => [10.8, 11.9, 13.0, 12.4, 13.3],
+            (Family::Deck, 1 | 3) => [13.5, 14.5, 15.6, 14.2, 16.5],
+            (Family::Deck, 2) => [12.0, 13.5, 14.4, 12.7, 15.9],
+            (Family::Deck, _) => [12.1, 13.9, 14.8, 13.4, 16.0],
+            (Family::Autorack, 3) => [14.1, 14.7, 15.1, 15.7, 16.2],
+            (Family::Autorack, _) => [15.2, 15.8, 16.4, 16.0, 16.8],
+            (Family::OpenBulk, 2) => [10.6, 11.0, 11.6, 11.2, 12.1],
+            (Family::OpenBulk, 0 | 1) => [11.5, 12.2, 13.3, 12.6, 14.0],
+            (Family::OpenBulk, _) => [11.8, 13.0, 14.4, 13.6, 15.4],
+            (Family::Centerbeam, _) => [13.0, 14.1, 15.6, 14.8, 16.3],
+            (Family::Coil, _) => [10.9, 11.7, 13.0, 12.0, 12.5],
+            (Family::Reefer, _) => [13.1, 14.3, 15.1, 14.7, 16.2],
+        };
+        lengths[self.build as usize]
+    }
+
     pub const fn kind(self) -> &'static str {
         match (self.family, self.job) {
+            (Family::Deck, 1) => "Pipe flatcar",
             (Family::Deck, 2) => "Machinery flatcar",
+            (Family::Deck, 3) => "Structural-steel flatcar",
             (Family::Deck, 4) => "Log flatcar",
             (Family::Deck, _) => "Bulkhead flatcar",
+            (Family::Autorack, 0) => "Open bi-level autorack",
+            (Family::Autorack, 1) => "Enclosed bi-level autorack",
+            (Family::Autorack, 2) => "Enclosed tri-level autorack",
+            (Family::Autorack, 3) => "Articulated bi-level autorack",
+            (Family::Autorack, _) => "Single-level vehicle carrier",
             (Family::OpenBulk, 0..=2) => "Open-top hopper",
             (Family::OpenBulk, _) => "Gondola",
+            (Family::Coil, 0) => "Open longitudinal coil car",
+            (Family::Coil, 4) => "Open transverse coil car",
+            (Family::Coil, _) => "Covered coil car",
             _ => self.family.name(),
         }
     }
@@ -249,12 +308,15 @@ pub const fn design(variant: u8) -> Design {
     let family = (variant % DESIGN_COUNT / CARS_PER_FAMILY) as usize;
     let job = variant % CARS_PER_FAMILY / CONFIGURATIONS;
     let build = variant % CONFIGURATIONS;
+    let profile = &PROFILES[family][job as usize][build as usize];
     Design {
         family: FAMILIES[family],
         job,
         build,
         cargo: CARGO[family][job as usize],
-        equipment: EQUIPMENT[family][build as usize],
+        assignment: ASSIGNMENTS[family][job as usize],
+        equipment: profile.name,
+        purpose: profile.purpose,
     }
 }
 
@@ -262,9 +324,14 @@ const fn job(family: Family, index: u8) -> u8 {
     family as u8 * CARS_PER_FAMILY + index * CONFIGURATIONS
 }
 
-/// The route selects a compatible cargo job. Each car's key then picks its frame.
-/// The keys are stable for a full trip, including a stop or direction change.
-pub fn choose_variant(route: FreightRoute, train: u64, car: u64) -> u8 {
+pub(super) fn grain_elevator_variant(car: u64) -> u8 {
+    let cargo = car ^ car.rotate_right(19);
+    job(Family::CoveredHopper, 0) + (cargo % u64::from(CONFIGURATIONS)) as u8
+}
+
+/// Select a compatible cargo job and a stable equipment frame for this wagon.
+/// On mixed trains neighboring wagons can share an interchange block.
+pub fn choose_variant(route: FreightRoute, train: u64, wagon: usize, car: u64) -> u8 {
     use Family::*;
     use FreightRoute::*;
 
@@ -295,7 +362,7 @@ pub fn choose_variant(route: FreightRoute, train: u64, car: u64) -> u8 {
         job(Boxcar, 4),
         job(Deck, 4),
     ];
-    const MILL_INBOUND: [u8; 3] = [job(OpenBulk, 3), job(Coil, 0), job(Deck, 0)];
+    const MILL_INBOUND: [u8; 2] = [job(OpenBulk, 3), job(Deck, 0)];
     const MILL_OUTBOUND: [u8; 8] = [
         job(Coil, 0),
         job(Coil, 1),
@@ -321,12 +388,19 @@ pub fn choose_variant(route: FreightRoute, train: u64, car: u64) -> u8 {
     let cargo = car ^ car.rotate_right(19);
     let job = match route {
         Mixed => {
-            let work = MIXED[(manifest % MIXED.len() as u64) as usize];
+            let block = manifest.rotate_right((wagon / 2 * 11) as u32);
+            let work = MIXED[match block & 15 {
+                0..=6 => 0,
+                7..=9 => 4,
+                10..=11 => 1,
+                12..=13 => 2,
+                _ => 3,
+            }];
             pick(work, cargo >> 22)
         }
         Intermodal if manifest & 7 == 0 => job(Well, 0),
         Intermodal => job(Well, 1 + ((cargo >> 22) & 3) as u8),
-        Agriculture => pick(&AGRICULTURAL, manifest),
+        Agriculture => job(CoveredHopper, if manifest & 7 == 0 { 4 } else { 0 }),
         Liquid => job(Tank, (manifest % 5) as u8),
         Mill if manifest & 3 == 0 => pick(&MILL_INBOUND, cargo >> 22),
         Mill => pick(&MILL_OUTBOUND, cargo >> 22),
@@ -367,9 +441,9 @@ mod tests {
         for route in ROUTES {
             for number in 0..2048_u64 {
                 let train = number.wrapping_mul(0x9e37_79b9_7f4a_7c15);
-                for car in 1..4 {
+                for car in 1..7 {
                     let wagon = example_car_key(train, car);
-                    reached[choose_variant(route, train, wagon) as usize] = true;
+                    reached[choose_variant(route, train, car as usize - 1, wagon) as usize] = true;
                 }
             }
         }
@@ -380,18 +454,26 @@ mod tests {
                 "undispatched freight car {index}: {car:?}"
             );
             assert!(car.job < JOBS_PER_FAMILY && car.build < CONFIGURATIONS);
-            assert!(!car.cargo.is_empty() && !car.equipment.is_empty());
+            assert!(
+                !car.cargo.is_empty() && !car.assignment.is_empty() && !car.equipment.is_empty()
+            );
+            assert!(!car.purpose.is_empty());
+            assert!(car.reference_url().starts_with("https://"));
+            assert!((10.6..=16.8).contains(&car.body_length()));
             assert!((0..index).all(|previous| {
                 let previous = design(previous);
-                (car.kind(), car.cargo, car.equipment)
-                    != (previous.kind(), previous.cargo, previous.equipment)
+                car.equipment != previous.equipment && car.purpose != previous.purpose
             }));
+            let first = index - car.build;
+            assert!((first..index)
+                .all(|previous| { design(previous).body_length() != car.body_length() }));
         }
     }
 
     #[test]
     fn dedicated_consists_keep_their_cargo_and_use_compatible_equipment() {
         for (route, family) in [
+            (FreightRoute::Agriculture, Family::CoveredHopper),
             (FreightRoute::Automotive, Family::Autorack),
             (FreightRoute::Liquid, Family::Tank),
             (FreightRoute::Perishable, Family::Reefer),
@@ -399,12 +481,18 @@ mod tests {
             (FreightRoute::Aggregate, Family::OpenBulk),
         ] {
             for train in 0..128 {
-                let loaded = design(choose_variant(route, train, 0));
+                let loaded = design(choose_variant(route, train, 0, 0));
                 assert_eq!(loaded.family, family);
+                assert!(route != FreightRoute::Agriculture || [0, 4].contains(&loaded.job));
                 assert!(route != FreightRoute::Quarry || loaded.job <= 2);
                 assert!(route != FreightRoute::Aggregate || loaded.job == 1);
                 for car in 1..8 {
-                    let wagon = design(choose_variant(route, train, car));
+                    let wagon = design(choose_variant(
+                        route,
+                        train,
+                        car,
+                        example_car_key(train, car as u64),
+                    ));
                     assert_eq!((loaded.family, loaded.job), (wagon.family, wagon.job));
                 }
             }
@@ -425,6 +513,7 @@ mod tests {
                 design(choose_variant(
                     FreightRoute::Intermodal,
                     train,
+                    car as usize - 1,
                     example_car_key(train, car),
                 ))
             });
@@ -435,5 +524,33 @@ mod tests {
             found_mixed_loaded |= !empty && cars.iter().any(|car| car.job != cars[0].job);
         }
         assert!(found_return && found_mixed_loaded);
+    }
+
+    #[test]
+    fn long_mixed_trains_carry_more_than_one_interchange_block() {
+        assert!((0..256_u64).any(|number| {
+            let train = number.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            let cars = [0, 1, 2, 3].map(|wagon| {
+                design(choose_variant(
+                    FreightRoute::Mixed,
+                    train,
+                    wagon,
+                    example_car_key(train, wagon as u64),
+                ))
+            });
+            cars[..2].iter().all(|car| car.family == Family::Boxcar)
+                && cars[2..].iter().all(|car| car.family == Family::Coil)
+        }));
+    }
+
+    #[test]
+    fn grain_elevators_use_all_grain_hoppers_with_no_sugar_equipment() {
+        let mut visited = [false; CONFIGURATIONS as usize];
+        for key in 0..64 {
+            let car = design(grain_elevator_variant(key));
+            assert_eq!((car.family, car.cargo), (Family::CoveredHopper, "Grain"));
+            visited[car.build as usize] = true;
+        }
+        assert!(visited.into_iter().all(|seen| seen));
     }
 }

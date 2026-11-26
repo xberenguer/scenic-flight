@@ -23,6 +23,7 @@ struct Request {
     generation: u32,
     camera: Camera,
     sky: Sky,
+    dimensions: (usize, usize),
 }
 
 static MAILBOX: Mutex<RefCell<Option<Request>>> = Mutex::new(RefCell::new(None));
@@ -74,7 +75,7 @@ impl PreparedSky {
     }
 }
 
-pub fn request(camera: Camera, sky: Sky) -> PreparedSky {
+pub fn request(camera: Camera, sky: Sky, dimensions: (usize, usize)) -> PreparedSky {
     let colors = colors();
     if colors.is_empty() {
         return PreparedSky { generation: 0, colors, prefix: Some(0), reused: 0, fallback: 0 };
@@ -85,6 +86,7 @@ pub fn request(camera: Camera, sky: Sky) -> PreparedSky {
             generation,
             camera,
             sky,
+            dimensions,
         });
     });
     REQUESTED.store(generation, Ordering::Release);
@@ -123,9 +125,7 @@ impl SkyWorker {
             let request = critical_section::with(|cs| MAILBOX.borrow_ref_mut(cs).take());
             if let Some(request) = request {
                 self.generation = request.generation;
-                self.raster =
-                    SkyTileRaster::new(request.camera, &request.sky, (LOGICAL_SIDE, LOGICAL_SIDE))
-                        .ok();
+                self.raster = SkyTileRaster::new(request.camera, &request.sky, request.dimensions).ok();
                 self.count = 0;
                 self.odd = None;
                 READY_COLORS.store(0, Ordering::Release);

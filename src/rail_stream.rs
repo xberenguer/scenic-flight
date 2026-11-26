@@ -17,7 +17,7 @@ use crate::render::{view_distance, Camera};
 use crate::river_stream::RiverStream;
 use crate::train_art::FreightRoute;
 use crate::world::{Sample, World};
-use crate::world_mesh::bounds_in_view;
+use crate::world_mesh::{bounds_in_range, bounds_in_view};
 
 type Area = [f32; 4];
 const ACTIVE: usize = 2;
@@ -374,9 +374,10 @@ impl RailStream {
     }
 
     pub fn rails(&self, camera: Camera, reach: f32) -> impl Iterator<Item = &RailCorridor> {
+        let view_reach = view_distance(camera.altitude).max(reach);
         self.published().filter(move |line| {
             let area = line.bounds();
-            distance_squared(camera, area) <= reach * reach && bounds_in_view(camera, area)
+            distance_squared(camera, area) <= reach * reach && bounds_in_range(camera, area, view_reach)
         })
     }
 
@@ -619,6 +620,10 @@ mod tests {
         assert_eq!(rails.rails(safe, 512.0).count(), 0);
         assert_eq!(rails.rails(visible, 512.0).next(), Some(&line));
         assert_eq!(rails.rails(visible, 2.0).next(), Some(&line));
+        let [left, near, right, _] = line.bounds();
+        let approach = Camera { x: (left + right) * 0.5, z: near - 615.0, heading: 0.0, ..visible };
+        assert!(!bounds_in_view(approach, line.bounds()));
+        assert_eq!(rails.rails(approach, crate::train_art::TRAIN_RENDER_REACH).next(), Some(&line));
 
         // Exercise a complete published grade with its depot-change state queued.
         // The camera can turn away from the track while still close enough for a train.

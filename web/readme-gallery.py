@@ -11,7 +11,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PAGES = "https://xberenguer.github.io/scenic-flight/"
-FEATURED = ("mountain-pass", "coastal-soaring", "city-approach", "high-cruise", "fighter-afterburners")
+FEATURED = ("mountain-pass", "coastal-soaring", "city-approach", "high-cruise", "river-valley")
 AIRCRAFT = ("Bush Plane", "Racer", "Sport Jet", "Ultralight", "Glider",
             "F/A-18 Fighter", "SR-71 Blackbird", "Bald Eagle")
 ARTWORK = (("Trees", "trees", 256), ("Rocks", "rocks", 256), ("Bushes", "bushes", 256),

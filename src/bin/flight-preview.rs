@@ -20,6 +20,7 @@ use scenic_flight::highway_art::HighwayRibbon;
 use scenic_flight::highway_stream::HighwayStream;
 use scenic_flight::horizon_cache::HorizonCache;
 use scenic_flight::distant_roads::DistantRoads;
+use scenic_flight::distant_airfields::DistantAirfields;
 use scenic_flight::land_stream::{LandBudget, LandStream};
 use scenic_flight::lighthouses::{Lighthouse, LIGHTHOUSE_TILE};
 use scenic_flight::local_routes::{LocalRouteStream, route_reservation};
@@ -38,7 +39,7 @@ use scenic_flight::scenery::{CoastalScenery, DistrictRegion, overlay_airfield, o
 use scenic_flight::sky::Sky;
 use scenic_flight::skyline::Skyline;
 use scenic_flight::terrain_cache::TerrainCache;
-use scenic_flight::train_art::{Train, TRAIN_REACH};
+use scenic_flight::train_art::{Train, TRAIN_RENDER_REACH};
 use scenic_flight::ui;
 use scenic_flight::watershed::{Watershed, WatershedWork};
 use scenic_flight::weather_effects::{ValleyMist, WeatherEffects};
@@ -501,6 +502,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         first_view = camera(flight.view);
         district.preflight(first_view, false);
     }
+    district.preflight_skyline(first_view);
     facilities.preflight(&district);
     rivers.preflight(&district, &facilities, first_view, &mut river_work);
     routes.preflight(&district, first_view, |key, route| {
@@ -683,13 +685,12 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             .reduce(ScreenRect::union);
         let corridor_region = regional_rail.rails(view, scenic_flight::render::view_distance(view.altitude))
             .filter_map(|line| corridor_screen_region(line, view, dimensions)).reduce(ScreenRect::union);
-        let trains: [_; 2] = {
-            let mut visible = facilities.rails(view, TRAIN_REACH)
+        let trains = Train::visible_pair(
+            facilities.rails(view, TRAIN_RENDER_REACH)
                 .filter_map(|line| Train::at(line, seed, flight.ticks, view, dimensions))
-                .chain(regional_rail.rails(view, TRAIN_REACH)
-                    .filter_map(|line| Train::on_corridor(line, seed, flight.ticks, view, dimensions)));
-            std::array::from_fn(|_| visible.next())
-        };
+                .chain(regional_rail.rails(view, TRAIN_RENDER_REACH)
+                    .filter_map(|line| Train::on_corridor(line, seed, flight.ticks, view, dimensions))),
+        );
         let train_region = trains.iter().flatten().map(Train::depth_region).reduce(ScreenRect::union);
         let visible_highways = highways.has_visible_links(view);
         let highway_ribbons: [_; 4] = {
@@ -712,11 +713,15 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         let distant_bridges = bridge_silhouettes.prepare(view, flight.ticks, &sky, dimensions,
             rivers.bridges().chain(highways.coastal_links().map(|(_, link)| link.bridge())),
             |x, z| horizon.backdrop(x, z));
+        let distant_airfields = DistantAirfields::prepare(
+            facilities.airfields(), view, &sky, dimensions, |x, z| horizon.backdrop(x, z),
+        );
         let clipped_depth = light_region.into_iter().chain(tower_region).chain(skyline_region)
             .chain(bridge_region).chain(route_region).chain(rail_region).chain(corridor_region)
             .chain(train_region).chain(highway_region)
             .chain(coastal_bridge_region)
             .chain(distant_bridges.bounds())
+            .chain(distant_airfields.depth_region())
             .chain(waterfall_region)
             .chain(mist.depth_region())
             .reduce(ScreenRect::union);
@@ -753,6 +758,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             view, &sky, &mut pixels, &mut work, depth_region.map(|rect| (&mut depth[..], rect)),
             dimensions, |_| {}, |_| None,
         ).map_err(|error| format!("Render failed ({error:?})"))?;
+        distant_airfields.draw(&mut pixels, &depth);
         distant_roads.draw(&mut pixels, &depth, &mut work, dimensions);
         distant_road_frames += usize::from(distant_roads.bounds().is_some());
         distant_bridges.draw(&mut pixels, &depth);

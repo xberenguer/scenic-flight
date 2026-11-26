@@ -5,6 +5,9 @@ use crate::rail_station_art::{StationFixtures, StationLayout};
 use crate::roads::RoadNetwork;
 use crate::world::{World, SEA_LEVEL};
 
+mod grain;
+pub use grain::GrainTerminal;
+
 const LANES: usize = 15;
 const CENTER: usize = LANES / 2;
 const LANE: f32 = 8.0;
@@ -138,6 +141,7 @@ pub struct RailLine {
     run: [f32; MAX_POINTS],
     used: u8,
     siding: Option<[RailPoint; 4]>,
+    grain_terminal: Option<GrainTerminal>,
     bounds: Bounds,
 }
 
@@ -224,6 +228,31 @@ impl RailLine {
         self.siding.as_ref()
     }
 
+    pub fn grain_terminal(&self) -> Option<&GrainTerminal> {
+        self.grain_terminal.as_ref()
+    }
+
+    pub(crate) fn survey_grain_terminal(
+        &mut self,
+        world: &World,
+        seed: u64,
+        road: &RoadNetwork,
+        reserved: impl FnMut(f32, f32) -> bool,
+        pulse: impl FnMut(),
+    ) {
+        let Some(terminal) = grain::survey(self, world, seed, road, reserved, pulse) else { return };
+        let [left, near, right, far] = terminal.bounds();
+        self.bounds.include(Point::new(left, near), 0.0);
+        self.bounds.include(Point::new(right, far), 0.0);
+        self.grain_terminal = Some(terminal);
+        self.service = RailService::Freight;
+        self.freight_route = crate::train_art::FreightRoute::Agriculture;
+        for index in 0..self.stations.len() {
+            let fixtures = self.stations[index].fixtures(self.service);
+            self.stations[index].fixture_mask = fixtures.fit(|x, z| self.sample(x, z).map(|sample| sample.material));
+        }
+    }
+
     /// Conservative sample areas for prepared facility coverage. Each rail
     /// span uses its swept width, with extra room for world-space rounding.
     pub(crate) fn sample_bounds(&self, mut emit: impl FnMut([f32; 4])) {
@@ -248,6 +277,9 @@ impl RailLine {
             access.include(station.access.a, 1.25 + ROUNDING);
             access.include(station.access.b, 1.25 + ROUNDING);
             emit(access.coordinates());
+        }
+        if let Some(terminal) = self.grain_terminal() {
+            emit(terminal.bounds());
         }
     }
 
@@ -296,6 +328,7 @@ impl RailLine {
         self.stations
             .iter()
             .find_map(|station| station.sample(point, self.service))
+            .or_else(|| self.grain_terminal()?.sample(x, z))
     }
 
     fn connect(
@@ -448,6 +481,7 @@ impl RailLine {
             run,
             used: used as u8,
             siding: None,
+            grain_terminal: None,
             bounds,
         })
     }

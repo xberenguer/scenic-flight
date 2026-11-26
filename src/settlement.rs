@@ -757,6 +757,9 @@ enum Form {
     Hall,
     Tower,
     Civic(Frontage),
+    Terrace(Frontage),
+    CourtWing(Frontage),
+    Workshop(Frontage),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -804,13 +807,49 @@ impl Building {
                 )
             }
             Form::Hall => (SettlementSurface::FlatRoof, self.height),
+            Form::Terrace(frontage) => {
+                let [face, row] = frontage.roof_axes(self.area, x, z);
+                let along = ((row + 1.0) * 1.5).min(2.9999);
+                let bay = along as u8;
+                let gable = 1.0 - (2.0 * (along - f32::from(bay)) - 1.0).abs();
+                // The center house reaches the street first. Its neighbors
+                // share the wall behind their shallower front gardens.
+                if bay != 1 && face > 0.76 {
+                    return None;
+                }
+                let cap = [0.88, 1.0, 0.93][usize::from(bay)];
+                (SettlementSurface::PitchedRoof, self.height * cap * (0.70 + 0.30 * gable))
+            }
+            Form::CourtWing(frontage) => {
+                let [face, side] = frontage.roof_axes(self.area, x, z);
+                let side = side.abs();
+                // Both higher tiers retreat from the green and leave a lower
+                // terrace across the two ends of the apartment wing.
+                if face < 0.12 && side < 0.63 {
+                    (SettlementSurface::TowerRoof, self.height)
+                } else if face < 0.64 && side < 0.84 {
+                    (SettlementSurface::FlatRoof, self.height * 0.77)
+                } else {
+                    (SettlementSurface::FlatRoof, self.height * 0.56)
+                }
+            }
+            Form::Workshop(frontage) => {
+                let [face, side] = frontage.roof_axes(self.area, x, z);
+                let along = ((face + 1.0) * 1.5).min(2.9999);
+                let rise = along - f32::from(along as u8);
+                // Three roof bays rise toward their clerestories. A shallower
+                // roof at the yard edge gives the loading front its own line.
+                if side.abs() > 0.94 || face > 0.91 {
+                    (SettlementSurface::FlatRoof, self.height * 0.69)
+                } else if rise > 0.78 {
+                    (SettlementSurface::TowerRoof, self.height * (0.72 + 0.28 * rise))
+                } else {
+                    (SettlementSurface::FlatRoof, self.height * (0.72 + 0.28 * rise))
+                }
+            }
             Form::Civic(frontage) => {
-                let (front, side) = match frontage {
-                    Frontage::Near => ((self.area.z - z) / self.area.half_depth, across),
-                    Frontage::Far => ((z - self.area.z) / self.area.half_depth, across),
-                    Frontage::Left => ((self.area.x - x) / self.area.half_width, along),
-                    Frontage::Right => ((x - self.area.x) / self.area.half_width, along),
-                };
+                let [front, side] = frontage.roof_axes(self.area, x, z);
+                let side = side.abs();
                 // The entrance tower shares the hall's walls and faces its connected street.
                 if front >= 0.15 && side <= 0.52 {
                     let cap = (side / 0.52).max(((front - 0.575) / 0.425).abs());
@@ -926,6 +965,16 @@ enum Frontage {
 }
 
 impl Frontage {
+    fn roof_axes(self, area: Area, x: f32, z: f32) -> [f32; 2] {
+        let [u, v] = [(x - area.x) / area.half_width, (z - area.z) / area.half_depth];
+        match self {
+            Self::Near => [-v, u],
+            Self::Far => [v, u],
+            Self::Left => [-u, v],
+            Self::Right => [u, v],
+        }
+    }
+
     fn edge(self, col: usize, row: usize) -> (usize, u8) {
         let node = row * COLS + col;
         match self {
@@ -1492,6 +1541,7 @@ mod tests {
                             towers += 1;
                             1.35
                         }
+                        _ => panic!("neighborhood roof in the core: {:?}", building.form),
                     };
                     let area = building.area;
                     assert_eq!(
@@ -1559,6 +1609,7 @@ mod tests {
                     Form::House => 0,
                     Form::Hall | Form::Civic(_) => 1,
                     Form::Tower => 2,
+                    _ => panic!("neighborhood roof in the core: {:?}", building.form),
                 };
                 roof_count[kind] += 1;
             }

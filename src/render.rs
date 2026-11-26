@@ -183,7 +183,7 @@ pub const HIGH_VIEW_DISTANCE: f32 = 896.0;
 /// Shared outer distance for terrain silhouettes and distant scenery.
 pub const SCENERY_HORIZON: f32 = 1920.0;
 /// Maximum reach of compact, streamed city silhouettes.
-pub const CITY_HORIZON: f32 = 2880.0;
+pub const CITY_HORIZON: f32 = 5000.0;
 /// Maximum reach of the coarse, terrain-only background.
 pub const TERRAIN_BACKDROP_DISTANCE: f32 = 10.0 * SCENERY_HORIZON;
 type Color = [f32; 3];
@@ -201,14 +201,24 @@ pub fn view_distance(altitude: f32) -> f32 {
     LOW_VIEW_DISTANCE + (HIGH_VIEW_DISTANCE - LOW_VIEW_DISTANCE) * high_cruise(altitude)
 }
 
+/// The heightfield can show roofs and roads farther away than the near meshes.
+pub(crate) fn terrain_detail_distance(altitude: f32) -> f32 {
+    const LOW_TERRAIN_DISTANCE: f32 = 640.0;
+    LOW_TERRAIN_DISTANCE + (HIGH_VIEW_DISTANCE - LOW_TERRAIN_DISTANCE) * high_cruise(altitude)
+}
+
 fn high_cruise(altitude: f32) -> f32 {
     smoothstep((altitude - 244.0) / 80.0)
 }
 
 pub(crate) fn clear_cruise_visibility(altitude: f32, sun_up: f32, haze: f32) -> f32 {
+    high_cruise(altitude) * clear_daylight_visibility(sun_up, haze)
+}
+
+fn clear_daylight_visibility(sun_up: f32, haze: f32) -> f32 {
     let high_sun = smoothstep((sun_up - 0.18) / 0.25);
     let clear_air = smoothstep((0.29 - haze) / 0.19);
-    high_cruise(altitude) * high_sun * clear_air
+    high_sun * clear_air
 }
 
 /// Render a circular viewport in steady daylight. Extra buffer space is preserved.
@@ -772,7 +782,7 @@ fn render_inner_with_horizon(
 #[path = "render_packed.rs"]
 mod packed;
 #[cfg(feature = "terrain-fork")]
-pub use packed::render_with_packed_terrain_fork;
+pub use packed::{render_with_packed_terrain_fork, render_with_packed_terrain_fork_sized};
 
 #[cfg(feature = "terrain-fork")]
 #[derive(Clone, Copy)]
@@ -1008,6 +1018,26 @@ fn draw_joined_bands(
     edge[..SIDE].iter().copied().min().unwrap_or(SIDE as i16) as usize
 }
 
+fn distant_stride_growth(diameter: usize) -> f32 {
+    if cfg!(feature = "small-raster-ray-budget") && diameter <= 112 {
+        0.70 + ((diameter as f32 - 64.0) / 24.0).clamp(0.0, 0.35)
+    } else {
+        0.0
+    }
+}
+
+#[inline]
+fn next_terrain_distance(distance: f32, far: f32, high_cruise: f32, stride_growth: f32) -> f32 {
+    if stride_growth > 0.0 && distance > 60.0 {
+        // Preserve near detail and the same horizon at smaller raster sizes.
+        let stride = (1.8 + distance * (0.064 + high_cruise * 0.043))
+            * (1.0 + stride_growth * smoothstep((distance - 60.0) / 60.0));
+        (distance + stride).min(far)
+    } else {
+        (distance + 1.8 + distance * (0.064 + high_cruise * 0.043)).min(far)
+    }
+}
+
 #[cfg(feature = "terrain-fork")]
 #[derive(Clone, Copy)]
 struct TerrainBands {
@@ -1059,6 +1089,7 @@ fn draw_near_bands<const CLIPPED: bool>(
     let mut slope_height = [0.0; MAX_BANDS];
     let mut slope_center = [0_u16; MAX_BANDS];
     let mut open = work.end - work.first;
+    let stride_growth = distant_stride_growth(aperture.diameter);
     let mut distance: f32 = 5.0;
     let mut previous = 0.0;
     let sun_forward = atmosphere.sun[0] * view.heading_sin + atmosphere.sun[2] * view.heading_cos;
@@ -1073,7 +1104,7 @@ fn draw_near_bands<const CLIPPED: bool>(
     let light_forward = light_x * view.heading_sin + light_z * view.heading_cos;
     let light_right = light_x * view.heading_cos - light_z * view.heading_sin;
     let ambient = 0.26 + atmosphere.daylight * 0.74 + moonlight * 0.16;
-    let far = view_distance(camera.altitude);
+    let far = terrain_detail_distance(camera.altitude);
     let clear_contrast = 0.145 * clear_cruise_visibility(camera.altitude, atmosphere.sun[1], atmosphere.haze);
     let curvature = view.high_cruise * 0.000040;
     let curved = curvature != 0.0;
@@ -1247,7 +1278,7 @@ fn draw_near_bands<const CLIPPED: bool>(
             break;
         }
         previous = distance;
-        distance = (distance + 1.8 + distance * (0.064 + view.high_cruise * 0.043)).min(far);
+        distance = next_terrain_distance(distance, far, view.high_cruise, stride_growth);
     }
 }
 
@@ -1291,11 +1322,7 @@ fn draw_terrain<const CLIPPED: bool>(
     let mut slope_height = [0.0; MAX_BANDS];
     let mut slope_center = [0_u16; MAX_BANDS];
     let mut open = bands;
-    let distant_stride_growth = if cfg!(feature = "small-raster-ray-budget") && aperture.diameter <= 112 {
-        0.70 + ((aperture.diameter as f32 - 64.0) / 24.0).clamp(0.0, 0.35)
-    } else {
-        0.0
-    };
+    let stride_growth = distant_stride_growth(aperture.diameter);
     let mut distance: f32 = 5.0;
     let mut previous = 0.0;
     let sun_forward = atmosphere.sun[0] * view.heading_sin + atmosphere.sun[2] * view.heading_cos;
@@ -1310,7 +1337,7 @@ fn draw_terrain<const CLIPPED: bool>(
     let light_forward = light_x * view.heading_sin + light_z * view.heading_cos;
     let light_right = light_x * view.heading_cos - light_z * view.heading_sin;
     let ambient = 0.26 + atmosphere.daylight * 0.74 + moonlight * 0.16;
-    let far = view_distance(camera.altitude);
+    let far = terrain_detail_distance(camera.altitude);
     let clear_contrast = 0.145 * clear_cruise_visibility(camera.altitude, atmosphere.sun[1], atmosphere.haze);
     let curvature = view.high_cruise * 0.000040;
     let curved = curvature != 0.0;
@@ -1481,15 +1508,7 @@ fn draw_terrain<const CLIPPED: bool>(
             break;
         }
         previous = distance;
-        if distant_stride_growth > 0.0 && distance > 60.0 {
-            // Preserve near terrain detail and the same distant horizon. At
-            // small raster sizes a longer step is enough farther into the view.
-            let stride = (1.8 + distance * (0.064 + view.high_cruise * 0.043))
-                * (1.0 + distant_stride_growth * smoothstep((distance - 60.0) / 60.0));
-            distance = (distance + stride).min(far);
-        } else {
-            distance = (distance + 1.8 + distance * (0.064 + view.high_cruise * 0.043)).min(far);
-        }
+        distance = next_terrain_distance(distance, far, view.high_cruise, stride_growth);
     }
     if let Some(ground_horizon) = ground_horizon.filter(|_| open > 0) {
         draw_far_horizon::<CLIPPED>(
@@ -1565,7 +1584,7 @@ fn trace_far_horizon(
     height: usize,
     mut paint: impl FnMut(usize, usize, usize, usize, u16, f32),
 ) {
-    let near_far = view_distance(camera.altitude);
+    let near_far = terrain_detail_distance(camera.altitude);
     let far = horizon_distance(camera.altitude);
     let left = (width - aperture.diameter) / 2;
     let right = left + aperture.diameter;
@@ -1574,6 +1593,7 @@ fn trace_far_horizon(
     let inverse_focal = 1.0 / view.focal;
     let old_fog = (0.80 + atmosphere.haze * 0.64).min(0.97);
     let clear_contrast = 0.145 * clear_cruise_visibility(camera.altitude, atmosphere.sun[1], atmosphere.haze);
+    let city_band_contrast = 0.06 * clear_daylight_visibility(atmosphere.sun[1], atmosphere.haze);
     let land_tint = mix(
         [25.0, 34.0, 45.0],
         [91.0, 116.0, 102.0],
@@ -1630,7 +1650,10 @@ fn trace_far_horizon(
                                 - clear_contrast * (1.0 - smoothstep(progress));
                             let beyond = (distance - far).max(0.0);
                             let outer_fade = smoothstep(beyond / (TERRAIN_BACKDROP_DISTANCE - far));
-                            fog + (0.98 - fog) * outer_fade
+                            // Keep enough land contrast to read the city silhouettes in fair air.
+                            let city_band = smoothstep((distance - far * 0.62) / (far * 0.38))
+                                * (1.0 - smoothstep((distance - CITY_HORIZON) * (3.0 / CITY_HORIZON)));
+                            fog + (0.98 - fog) * outer_fade - city_band_contrast * city_band
                         });
                         let color = if elevation == 0.0 {
                             *ring_water.get_or_insert_with(|| rgb565(mix(water_tint, horizon, fog)))
@@ -1660,7 +1683,10 @@ fn trace_far_horizon(
         distance = if distance < far {
             (distance * 1.105).min(far)
         } else if distance < CITY_HORIZON {
-            (distance + 160.0).min(CITY_HORIZON)
+            // Keep track of intervening ridges in the city band. Beyond the
+            // first six rings, the smaller projection needs fewer samples.
+            let spacing = if distance < SCENERY_HORIZON + 960.0 { 160.0 } else { 320.0 };
+            (distance + spacing).min(CITY_HORIZON)
         } else {
             (distance * 1.38).min(TERRAIN_BACKDROP_DISTANCE)
         };
@@ -1929,7 +1955,9 @@ fn ground_color(
             let close = 1.0 - smoothstep((dx * dx + dy * dy + dz * dz - 54.0 * 54.0)
                 * (1.0 / (112.0 * 112.0 - 54.0 * 54.0)));
             let pigment = surface.canopy_color().unwrap_or([61, 117, 55]).map(f32::from);
-            (forest_color(mix(woodland(), pigment, close), position[1]), false)
+            // The same seeded woodland palette colors adjoining crowns and the canopy behind them.
+            let foliage = mix(woodland(), pigment, 0.16 * close);
+            (forest_color(foliage, position[1]), false)
         }
         Surface::FieldGreen => ([111.0, 137.0, 69.0], false),
         Surface::FieldGold => ([183.0, 164.0, 86.0], false),
@@ -3107,6 +3135,32 @@ fn square_root(mut value: u32) -> u32 {
 mod tests {
     use super::*;
 
+    #[test]
+    fn nearby_crowns_keep_subtle_species_color_within_one_woodland_palette() {
+        let position = [12.0, 32.0, -9.0];
+        let eye = Camera { x: 12.0, z: -9.0, altitude: 45.0, heading: 0.0, pitch: 0.2, bank: 0.0 };
+        let light = GroundLight {
+            daylight: 1.0, ambient: 1.0, light_up: 0.6, horizon: [0.0; 3], fog: 0.0,
+            light_forward: 0.0, light_right: 0.0, lateral: 0.0, reflection: [0.0; 5],
+            #[cfg(feature = "ground-cover")]
+            ground_seed: 43_719,
+        };
+        let species = [Surface::TreeCanopy, Surface::SpruceCanopy, Surface::AspenCanopy,
+            Surface::MapleCanopy, Surface::JuniperCanopy];
+        let paint = |surface, camera| ground_color(surface, position, || [0.0; 2], 0.0, light, camera).0;
+        let near = species.map(|surface| paint(surface, &eye));
+        let channels = near.map(|color| [color >> 11, (color >> 5) & 63, color & 31]);
+        for (channel, limit) in [3, 3, 2].into_iter().enumerate() {
+            let values = channels.map(|color| color[channel]);
+            assert!(values.iter().max().unwrap() - values.iter().min().unwrap() <= limit);
+        }
+        assert!(near.iter().any(|color| color != &near[0]));
+
+        let distant = Camera { z: eye.z - 160.0, ..eye };
+        let far = species.map(|surface| paint(surface, &distant));
+        assert!(far.iter().all(|color| color == &far[0]));
+    }
+
     #[cfg(feature = "ground-cover")]
     #[test]
     fn long_rock_spans_sample_multiple_beds_and_fill_every_row() {
@@ -3150,6 +3204,33 @@ mod tests {
         }
         assert!(encoded_depth(TERRAIN_BACKDROP_DISTANCE) < u16::MAX - 1);
         assert!(encoded_depth(f32::INFINITY) < u16::MAX);
+    }
+
+    #[test]
+    fn low_flight_terrain_retains_roofs_beyond_the_near_mesh_limit() {
+        const SIDE: usize = 60;
+        let camera = Camera {
+            x: 0.0, z: 0.0, altitude: 56.0, heading: 0.0, pitch: 0.18, bank: 0.0,
+        };
+        let sky = Sky::from_time(49, 0, 0.44);
+        let flat = Sample { elevation: 12.0, surface: Surface::Grass };
+        let mut work = [0; SIDE * SIDE];
+        let mut plain = [0; SIDE * SIDE];
+        let mut city = plain;
+        render_from_with_sky_buffered(|_, _| flat, camera, &sky, &mut plain, &mut work, SIDE, SIDE).unwrap();
+        render_from_with_sky_buffered(
+            |x, z| {
+                if x.abs() < 48.0 && (575.0..=632.0).contains(&z) {
+                    Sample { elevation: 42.0, surface: Surface::FlatRoof }
+                } else {
+                    flat
+                }
+            },
+            camera, &sky, &mut city, &mut work, SIDE, SIDE,
+        ).unwrap();
+        assert_eq!(view_distance(camera.altitude), 512.0);
+        assert_eq!(terrain_detail_distance(camera.altitude), 640.0);
+        assert!(city.iter().zip(plain).filter(|(roof, ground)| **roof != *ground).count() >= 12);
     }
 
     #[test]

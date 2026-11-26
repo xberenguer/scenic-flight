@@ -21,6 +21,7 @@ pub mod controls;
 mod cove_dunes;
 pub mod crossings;
 pub mod distant_roads;
+pub mod distant_airfields;
 #[cfg(feature = "ground-cover")]
 pub mod desert_props;
 pub mod dry_landmarks;
@@ -61,6 +62,7 @@ pub mod river_district;
 pub mod river_stream;
 pub mod roads;
 pub mod scenery;
+pub mod scenic_turnout;
 pub mod scree_fans;
 pub mod settlement;
 pub mod sky;

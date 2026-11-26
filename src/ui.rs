@@ -236,15 +236,15 @@ pub fn draw_picker_labels_on(
         }
     }
 
-    // Use the same action labels for the physical picker and browser.
+    // Match the action order on the Waveshare's upright display.
     for (row, width) in [1, 2, 3, 4, 3, 2, 1].into_iter().enumerate() {
-        canvas.grid_rect(67, 91 + row, width, 1, ACCENT);
+        canvas.grid_rect(25, 91 + row, width, 1, ACCENT);
     }
     for (row, offset) in [0, 1, 2, 3, 2, 1, 0].into_iter().enumerate() {
-        canvas.grid_rect(25 + offset, 91 + row, 2, 1, MUTED);
+        canvas.grid_rect(61 + offset, 91 + row, 2, 1, MUTED);
     }
-    canvas.grid_label_at(33, 91, "NEXT", 1, TEXT);
-    canvas.grid_label_at(75, 91, "FLY", 1, TEXT);
+    canvas.grid_label_at(33, 91, "FLY", 1, TEXT);
+    canvas.grid_label_at(69, 91, "NEXT", 1, TEXT);
     for (index, _) in Aircraft::ALL.iter().enumerate() {
         let ink = if index == selected {
             TEXT

@@ -5,6 +5,8 @@ use crate::cove_dunes::CoveDune;
 use crate::math::{fraction, mix, sin_cos, smoothstep};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
+mod alluvial;
+
 pub const DRY_LANDMARK_TILE: i32 = 512;
 pub(crate) const MAX_DRY_BASINS: usize = 4;
 const SIDE: usize = 31;
@@ -21,6 +23,7 @@ pub enum DryLandmarkKind {
     Badlands,
     CoastalDune,
     CoastalBluff,
+    AlluvialFan,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -39,6 +42,7 @@ enum Shape {
     Badlands(Ravine),
     CoastalDune(CoveDune),
     CoastalBluff(CoastalBluff),
+    AlluvialFan(alluvial::Fan),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -90,6 +94,15 @@ impl DryLandmark {
                     world,
                     origin,
                     mix(seed ^ tile ^ 0xf2bc_c260_5d91_3644),
+                    &mut excluded,
+                    pulse,
+                )
+            })
+            .or_else(|| {
+                alluvial::Fan::survey(
+                    world,
+                    origin,
+                    mix(seed ^ tile ^ 0xf081_9acc_8617_2789),
                     &mut excluded,
                     pulse,
                 )
@@ -240,6 +253,7 @@ impl DryLandmark {
             Shape::Badlands(_) => DryLandmarkKind::Badlands,
             Shape::CoastalDune(_) => DryLandmarkKind::CoastalDune,
             Shape::CoastalBluff(_) => DryLandmarkKind::CoastalBluff,
+            Shape::AlluvialFan(_) => DryLandmarkKind::AlluvialFan,
         }
     }
 
@@ -261,10 +275,11 @@ impl DryLandmark {
         self.floor
     }
 
-    /// Direction from the head of a ravine towards the dry outlet.
+    /// Direction from the head of a ravine or fan towards its dry outlet.
     pub fn downhill(&self) -> Option<[f32; 2]> {
         match self.shape {
             Shape::Badlands(ravine) => Some(ravine.axis),
+            Shape::AlluvialFan(fan) => Some(fan.axis),
             _ => None,
         }
     }
@@ -290,6 +305,7 @@ impl DryLandmark {
             Shape::CoastalDune(plan) => plan.overlay([dx, dz], ground),
             Shape::CoastalBluff(plan) => plan.overlay([dx, dz], ground),
             _ if ground.surface != Surface::Desert => ground,
+            Shape::AlluvialFan(plan) => plan.overlay([dx, dz], ground),
             Shape::SaltPan(footprint) => {
                 let strength = Self::weight(footprint, dx, dz);
                 let surface = if strength > 0.63 && ground.elevation <= self.rim {

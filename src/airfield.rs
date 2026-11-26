@@ -174,6 +174,13 @@ impl AirfieldSite {
         [(a.x, a.z), (b.x, b.z)]
     }
 
+    pub(crate) fn runway_edges_at_center(&self) -> [(f32, f32); 2] {
+        [-self.runway.half_width, self.runway.half_width].map(|across| {
+            let point = self.local.world(0.0, across);
+            (point.x, point.z)
+        })
+    }
+
     pub fn road_contact(&self) -> Option<(f32, f32)> {
         self.access[0].map(|leg| (leg.start.x, leg.start.z))
     }

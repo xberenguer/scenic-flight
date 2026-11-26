@@ -40,11 +40,12 @@ const categories = [
     traits: ['Girth', 'Height', 'Spread'] },
   { title: 'Freight wagons', label: 'Freight wagon', atlas: 'wagons.png', columns: 10, rows: 25,
     family: index => wagonMetadata[index]?.family,
+    name: index => wagonMetadata[index]?.equipment,
+    reference: index => wagonMetadata[index]?.reference,
     detail: index => {
       const wagon = wagonMetadata[index];
       if (!wagon) return '';
-      const kind = wagon.kind === wagon.family ? '' : wagon.kind;
-      return [kind, wagon.cargo, wagon.equipment].filter(Boolean).join(' · ');
+      return [wagon.cargo, wagon.purpose || wagon.assignment].filter(Boolean).join('. ');
     },
     tile: index => [Math.floor(index / 25) % 2 * 5 + index % 5,
       Math.floor(index / 50) * 5 + Math.floor(index % 25 / 5)] },
@@ -105,7 +106,7 @@ function render(category) {
     displayed++;
     const entry = document.createElement('li');
     const button = document.createElement('button');
-    const title = `${family || category.label} ${String(index + 1).padStart(3, '0')}`;
+    const title = category.name?.(index) || `${family || category.label} ${String(index + 1).padStart(3, '0')}`;
     button.type = 'button';
     button.className = 'artwork-tile';
     button.setAttribute('aria-label', title);
@@ -116,6 +117,15 @@ function render(category) {
     button.addEventListener('click', () => {
       viewerTitle.textContent = title;
       viewerInfo.textContent = variantDetails(category, index);
+      const reference = category.reference?.(index);
+      if (reference?.startsWith('https://')) {
+        const link = document.createElement('a');
+        link.href = reference;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'Equipment reference';
+        viewerInfo.append(' ', link);
+      }
       viewerInfo.hidden = !viewerInfo.textContent;
       viewerMedia.replaceChildren(sprite(category, index));
       viewer.showModal();

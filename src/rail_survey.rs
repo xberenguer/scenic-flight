@@ -5,12 +5,12 @@ use crate::facilities::{short_haul, FacilitySample, RegionalFacilities};
 use crate::highway_links::HighwaySurvey;
 use crate::highway_stream::{HighwayPair, HighwayStream};
 use crate::ports::{PortKind, PortSurface};
-use crate::rail::{RailAnchorKind, RailService};
+use crate::rail::{RailAnchor, RailAnchorKind, RailService};
 use crate::rail_corridor::{CorridorGuide, CorridorStop, CorridorUse, CorridorWork, RailCorridor};
 use crate::roads::{RoadNetwork, RoadPoint};
 use crate::scenery::DistrictRegion;
 use crate::settlement::{SettlementSurface, Terminus};
-use crate::train_art::FreightRoute;
+use crate::train_art::{contextual_freight_route, FreightRoute};
 use crate::watershed::{Watershed, WatershedWork};
 use crate::world::World;
 
@@ -179,7 +179,8 @@ impl RailSurveyData {
                                     }
                                     FacilitySample::Airfield(_) | FacilitySample::Rail(_)
                                     | FacilitySample::Quarry | FacilitySample::Solar(_)
-                                    | FacilitySample::Quayside(_) | FacilitySample::WaterTower => true,
+                                    | FacilitySample::Quayside(_) | FacilitySample::WaterTower
+                                    | FacilitySample::ScenicTurnout(_) => true,
                                 }))
                 })
         };
@@ -197,6 +198,15 @@ impl RailSurveyData {
             ) {
                 if has_aggregate_transfer(&line, districts, facilities) {
                     line.freight_route = FreightRoute::Aggregate;
+                } else if line.service == RailService::Freight {
+                    let anchors = pair.map(|stop| {
+                        let [x, z] = stop.entry();
+                        RailAnchor { x, z, kind: stop.kind() }
+                    });
+                    line.freight_route = contextual_freight_route(world, seed, anchors, line.freight_route, |x, z| {
+                        blocked(x, z, CorridorUse::Trackbed)
+                            || line.sample(x, z, world.elevation(x, z)).is_some_and(|sample| sample.material.is_some())
+                    });
                 }
                 return Some(line);
             }

@@ -280,6 +280,7 @@ impl WaterNeighbors {
 /// A compact set of channels for one world-aligned region.
 #[derive(Clone, Copy)]
 pub struct Watershed {
+    seed: u64,
     streams: [Stream; MAX_STREAMS],
     stream_count: usize,
     links: [Link; MAX_LINKS],
@@ -292,6 +293,7 @@ pub struct Watershed {
 impl Watershed {
     pub const fn new() -> Self {
         Self {
+            seed: 0,
             streams: [Stream::EMPTY; MAX_STREAMS],
             stream_count: 0,
             links: [Link::EMPTY; MAX_LINKS],
@@ -319,6 +321,7 @@ impl Watershed {
         &mut self, world: &World, seed: u64, region_x: i32, region_z: i32,
         work: &mut WatershedWork, pulse: &mut impl FnMut(),
     ) {
+        self.seed = seed;
         self.stream_count = 0;
         self.link_count = 0;
         self.link_at.fill(0);
@@ -358,6 +361,10 @@ impl Watershed {
 
     pub fn streams(&self) -> &[Stream] {
         &self.streams[..self.stream_count]
+    }
+
+    pub(crate) fn seed(&self) -> u64 {
+        self.seed
     }
 
     pub fn reaches(&self) -> impl Iterator<Item = Reach> + '_ {

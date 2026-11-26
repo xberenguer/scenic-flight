@@ -11,9 +11,10 @@ use crate::river_district::RiverDistrict;
 use crate::river_stream::RiverStream;
 use crate::lighthouses::Lighthouse;
 use crate::rail::RailLine;
-use crate::render::Camera;
+use crate::render::{view_distance, Camera};
 use crate::roads::{RoadNetwork, ROAD_REGION_SIZE};
 use crate::scenery::{overlay_facilities, DistrictRegion};
+use crate::scenic_turnout::ScenicTurnout;
 use crate::settlement::{Settlement, Terminus};
 use crate::solar_sites::SolarSite;
 use crate::water_tower::WaterTower;
@@ -207,9 +208,10 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
     }
 
     fn nearest_missing<'a>(&self, land: &'a LandStream<ACTIVE>, camera: Camera) -> Option<(RegionKey, &'a DistrictRegion)> {
-        land.districts().filter(|(key, _)| self.planned(*key).is_none()).min_by(|(a, _), (b, _)| {
-            distance_to_region(*a, camera).total_cmp(&distance_to_region(*b, camera))
-        })
+        land.facility_survey_districts(camera)
+            .filter(|(key, _, _)| self.planned(*key).is_none())
+            .min_by(|(_, _, a), (_, _, b)| a.0.cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)))
+            .map(|(key, district, _)| (key, district))
     }
 
     fn retain(&mut self, key: RegionKey, facilities: RegionalFacilities, proposed_roadside: Option<RoadsideSite>, land: &LandStream<ACTIVE>, camera: Camera) -> bool {
@@ -284,6 +286,11 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
         self.prepared.iter().flatten().filter_map(|record| record.facilities.quayside())
     }
 
+    pub fn airfields(&self) -> impl Iterator<Item = &crate::airfield::AirfieldSite> {
+        self.prepared.iter().flatten().filter(|record| record.published)
+            .filter_map(|record| record.facilities.airfield())
+    }
+
     pub fn water_towers(&self) -> impl Iterator<Item = &WaterTower> {
         self.prepared.iter().flatten().filter_map(|record| record.facilities.water_tower())
     }
@@ -346,12 +353,14 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
     }
 
     pub fn rails(&self, camera: Camera, reach: f32) -> impl Iterator<Item = &RailLine> {
+        let view_reach = view_distance(camera.altitude).max(reach);
         self.prepared.iter().flatten().filter_map(move |resident| {
             let line = resident.published.then(|| resident.facilities.rail()).flatten()?;
-            let [left, near, right, far] = line.bounds();
+            let bounds = line.bounds();
+            let [left, near, right, far] = bounds;
             ((left - reach..=right + reach).contains(&camera.x)
                 && (near - reach..=far + reach).contains(&camera.z)
-                && bounds_in_view(camera, line.bounds())).then_some(line)
+                && bounds_in_range(camera, bounds, view_reach)).then_some(line)
         })
     }
 
@@ -367,19 +376,22 @@ impl<const ACTIVE: usize> FacilityStream<ACTIVE> {
 
     pub fn obstruction(&self, x: f32, z: f32) -> f32 {
         let water_tower = self.water_towers().map(|tower| tower.obstruction(x, z)).fold(0.0, f32::max);
+        let nearby_structure = self.prepared.iter().flatten().filter(|record| record.published)
+            .filter_map(|record| record.facilities.rail()?.grain_terminal())
+            .map(|terminal| terminal.obstruction(x, z)).fold(water_tower, f32::max);
         if !self.prepared.iter().flatten().any(|region| {
             region.published && region.bounds.is_some_and(|[left, near, right, far]| {
                 (left..=right).contains(&x) && (near..=far).contains(&z)
             })
         }) {
-            return water_tower;
+            return nearby_structure;
         }
         let raw = self.world.sample(x, z);
         let placed = self.overlay(x, z, raw, raw);
         if placed.elevation > raw.elevation + 0.5 {
-            water_tower.max(placed.elevation + 1.5)
+            nearby_structure.max(placed.elevation + 1.5)
         } else {
-            water_tower
+            nearby_structure
         }
     }
 }
@@ -480,6 +492,10 @@ fn prepare_roadside(
             WaterTower::plan(world, seed, [key.0, key.1], road, towns, primary, &mut *pulse)
                 .map(RoadsideSite::WaterTower)
         })
+        .or_else(|| {
+            ScenicTurnout::survey(world, seed, [key.0, key.1], road, blocked, &mut *pulse)
+                .map(RoadsideSite::ScenicTurnout)
+        })
 }
 
 fn overlaps(a: [f32; 4], b: [f32; 4]) -> bool {
@@ -490,19 +506,174 @@ fn towns(region: &DistrictRegion) -> [Option<&crate::settlement::Settlement>; 2]
     [region.town(Terminus::Start), region.town(Terminus::End)]
 }
 
-fn distance_to_region((x, z): RegionKey, camera: Camera) -> f32 {
-    let side = ROAD_REGION_SIZE as f32;
-    let dx = (x as f32 + 0.5) * side - camera.x;
-    let dz = (z as f32 + 0.5) * side - camera.z;
-    dx * dx + dz * dz
-}
-
 #[cfg(test)]
 mod quarry_tests {
     use super::*;
     use crate::local_routes::route_reservation;
     use crate::natural_stream::{highway_reservation_with_nature, scenery_reservation_with_highways, NaturalBudget};
     use crate::watershed::WatershedWork;
+
+    #[test]
+    fn inland_elevator_and_its_road_publish_a_moving_non_passenger_grain_train() {
+        use crate::ground_details::GroundDetails;
+        use crate::rail::{GrainTerminal, RailAnchorKind, RailMaterial, RailService};
+        use crate::train_art::{FreightRoute, Train, TRAIN_RENDER_REACH};
+        use crate::world::Surface;
+
+        let seed = 165;
+        let key = (-7, -1);
+        let world = World::new(seed);
+        let view = Camera {
+            x: -6538.0, z: -690.0, altitude: 52.0,
+            heading: -1.16, pitch: 0.30, bank: 0.0,
+        };
+        let mut land = LandStream::<8>::new();
+        land.reset(world);
+        assert!(land.preflight(view, false));
+        let mut facilities = FacilityStream::<8>::new(world, seed);
+        facilities.preflight(&land);
+        let owner = facilities.planned(key).unwrap();
+        let line = owner.rail().unwrap();
+        let grain = line.grain_terminal().unwrap();
+        assert_eq!(line.service, RailService::Freight);
+        assert_eq!(line.freight_route, FreightRoute::Agriculture);
+        assert_eq!(line.stations().map(|site| site.anchor.kind), [RailAnchorKind::RoadTerminus, RailAnchorKind::Town]);
+        assert!(owner.ports().next().is_none());
+
+        let road = land.planned(key).flatten().unwrap().road().unwrap();
+        let original = RailLine::for_road_with_terminals(&world, seed, road,
+            [RailAnchorKind::RoadTerminus, RailAnchorKind::Town]).unwrap();
+        assert_eq!(original.polyline(), line.polyline());
+        let [cx, cz] = grain.road_contact();
+        assert_eq!([cx, cz], [-6608.0, -668.0]);
+        assert!(road.proximity(cx, cz).is_some_and(|hit| hit.distance_squared < 0.01));
+        assert_eq!(line.sample(cx, cz).unwrap().material, RailMaterial::StationAccess);
+        let [x, h, z] = grain.origin;
+        let sampler = facilities.sampler();
+        let raw = world.sample(x, z);
+        let rendered = sampler.overlay(x, z, raw, land.overlay(x, z, raw));
+        assert_eq!(rendered.surface, Surface::RailApron);
+        assert_eq!(rendered.elevation.to_bits(), h.to_bits());
+        assert!(facilities.obstruction(x, z) >= h + GrainTerminal::MAX_HEIGHT);
+        assert!(facilities.obstruction(grain.track[0], grain.track[2]) > grain.track[1] + 4.0);
+
+        let mut rivers = RiverStream::<3>::new(world, seed);
+        let mut routes = LocalRouteStream::<8>::new(world, seed);
+        let mut highways = HighwayStream::<4>::new(world, seed);
+        let mut nature = NaturalStream::new(world, seed);
+        rivers.preflight(&land, &facilities, view, &mut WatershedWork::new());
+        routes.preflight(&land, view, |key, route| route_reservation(&world, &facilities, &rivers, key, route));
+        highways.preflight_defer_coast(&land, view, |pair, link| {
+            highway_reservation_with_nature(&land, &facilities, &rivers, &routes, &nature, pair, link)
+        }, || {});
+        nature.preflight(view, NaturalBudget { alpine_tiles: 9, dry_tiles: 9 }, |bounds| {
+            scenery_reservation_with_highways(&land, &facilities, &rivers, &routes, &highways, bounds)
+        });
+        if let Some(Some(water)) = rivers.planned(key) {
+            assert!(!water.intersects_scenery(grain.bounds()));
+        }
+        if let Some(Some(roadside)) = routes.planned(key) {
+            let [a, b, c, d] = grain.bounds();
+            assert!(!roadside.conflicts_with(|[left, near, right, far]| left <= c && right >= a && near <= d && far >= b));
+        }
+
+        let mut crops = GroundDetails::new();
+        crops.reset(&world, seed, x, z);
+        let mut visible_fields = 0;
+        for dz in (-96..=96).step_by(12) {
+            for dx in (-96..=96).step_by(12) {
+                let [px, pz] = [x + dx as f32, z + dz as f32];
+                let raw = world.sample(px, pz);
+                let district = land.overlay(px, pz, raw);
+                let ground = sampler.overlay(px, pz, raw, district);
+                visible_fields += usize::from(matches!(crops.visible_material(px, pz, ground),
+                    Surface::FieldGold | Surface::FieldGreen | Surface::FieldSoil));
+            }
+        }
+        assert!(visible_fields > 4);
+
+        // This district also has a short-haul quarry. It must stay a road
+        // customer when the retained rail grade has a dedicated grain elevator.
+        let quarry = Quarry::gravel_pit(&world, seed, [key.0, key.1], road, |x, z| {
+            owner.sample(x, z, world.sample(x, z)).is_some()
+                || [Terminus::Start, Terminus::End].into_iter().any(|end| {
+                    land.planned(key).flatten().unwrap().town(end)
+                        .is_some_and(|town| town.sample(x, z).is_some())
+                })
+        }, || {}).expect("valid gravel pit within road-haul distance");
+        assert!(matches!(owner.roadside_quarry(quarry, road),
+            RoadsideSite::Quarry { local_transfer: false, .. }));
+        facilities.publish_roadside_sites(view, true, |bounds| {
+            roadside_reservation(&land, &rivers, &routes, &highways, &nature, bounds)
+        });
+        let line = facilities.planned(key).unwrap().rail().unwrap();
+        assert_eq!(line.freight_route, FreightRoute::Agriculture);
+        let [left, near, right, _] = line.bounds();
+        let approach = Camera { x: (left + right) * 0.5, z: near - 590.0, heading: 0.0, ..view };
+        assert!(!bounds_in_view(approach, line.bounds()));
+        assert!(facilities.rails(approach, TRAIN_RENDER_REACH).any(|candidate| core::ptr::eq(candidate, line)));
+        let tick = (0..30_000).step_by(27).find(|&tick| {
+            Train::line_motion(line, seed, tick).is_some_and(|motion| !motion.passenger && motion.speed > 2.0)
+                && Train::at(line, seed, tick, view, (128, 128)).is_some()
+        });
+        assert!(tick.is_some(), "the published freight timetable never moved a visible train");
+    }
+
+    #[test]
+    fn a_surveyed_road_turnout_clears_the_real_network_and_keeps_the_through_lane() {
+        use crate::world::Surface;
+
+        let seed = 4;
+        let key = (4, -4);
+        let world = World::new(seed);
+        let view = Camera { x: 4440.0, z: -3740.0, altitude: 85.0, heading: 0.0, pitch: 0.24, bank: 0.0 };
+        let mut land = LandStream::<8>::new();
+        land.reset(world);
+        assert!(land.preflight(view, false));
+        let mut facilities = FacilityStream::<8>::new(world, seed);
+        facilities.preflight(&land);
+        let owner = facilities.planned(key).unwrap();
+        assert!(owner.scenic_turnout().is_none());
+        let RoadsideSite::ScenicTurnout(site) = facilities.prepared.iter().flatten()
+            .find(|record| record.key == key).unwrap().proposed_roadside.unwrap()
+        else { panic!("scenic turnout missing"); };
+        let mut rivers = RiverStream::<3>::new(world, seed);
+        let mut routes = LocalRouteStream::<8>::new(world, seed);
+        let mut highways = HighwayStream::<4>::new(world, seed);
+        let mut nature = NaturalStream::new(world, seed);
+        rivers.preflight(&land, &facilities, view, &mut WatershedWork::new());
+        routes.preflight(&land, view, |key, route| route_reservation(&world, &facilities, &rivers, key, route));
+        highways.preflight_defer_coast(&land, view, |pair, link| {
+            highway_reservation_with_nature(&land, &facilities, &rivers, &routes, &nature, pair, link)
+        }, || {});
+        nature.preflight(view, NaturalBudget { alpine_tiles: 9, dry_tiles: 9 }, |bounds| {
+            scenery_reservation_with_highways(&land, &facilities, &rivers, &routes, &highways, bounds)
+        });
+        let reserve = |bounds| roadside_reservation(&land, &rivers, &routes, &highways, &nature, bounds);
+        assert_eq!(reserve(site.bounds()), RoadsideReservation::Clear);
+        facilities.publish_roadside_sites(view, true, reserve);
+        let site = facilities.planned(key).unwrap().scenic_turnout().unwrap();
+        assert!(facilities.reserves_roadside_site(site.bounds()));
+        let [x, h, z] = site.road_contact();
+        assert_eq!([x, z], [4440.0, -3740.0]);
+        let raw = world.sample(x, z);
+        let road = land.overlay(x, z, raw);
+        let sampler = facilities.sampler();
+        assert_eq!(road.surface, Surface::Pavement);
+        assert_eq!(sampler.overlay(x, z, raw, road), road);
+        let [dx, dz] = site.downhill();
+        assert!(world.elevation(x + 76.0 * dx, z + 76.0 * dz) < h - 8.0);
+        let cross = |r| {
+            let [px, pz] = [x + dx * r, z + dz * r];
+            let raw = world.sample(px, pz);
+            sampler.overlay(px, pz, raw, land.overlay(px, pz, raw))
+        };
+        assert_eq!(cross(4.0).surface, Surface::Pavement);
+        assert_eq!(cross(8.0).surface, Surface::Gravel);
+        let guard = cross(12.0);
+        assert_eq!(guard.surface, Surface::Rock);
+        assert!(guard.elevation > h + 0.75);
+    }
 
     #[test]
     fn dry_gravel_pit_supplies_a_retained_freight_rail_to_the_cargo_dock() {

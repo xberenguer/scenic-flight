@@ -34,6 +34,14 @@ struct Vertex {
     inverse_depth: f32,
 }
 
+struct TriangleStyle {
+    ink: [u8; 3],
+    distance: f32,
+    emission: f32,
+    alpha: u32,
+    shaded: Option<u16>,
+}
+
 pub struct WorldMesh<'a> {
     pixels: &'a mut [u16],
     depth: &'a mut [u16],
@@ -48,7 +56,9 @@ pub struct WorldMesh<'a> {
     clip_far: f32,
     curvature: f32,
     daylight: f32,
-    haze: f32,
+    ambient: f32,
+    fog_strength: f32,
+    horizon: [f32; 3],
     sun: [f32; 3],
 }
 
@@ -65,6 +75,9 @@ impl<'a> WorldMesh<'a> {
             return None;
         }
         let far = view_distance(camera.altitude);
+        let daylight = sky.daylight.clamp(0.0, 1.0);
+        let haze_color = [24.0, 38.0, 63.0];
+        let day_color = [175.0, 207.0, 232.0];
         Some(Self {
             pixels, depth, width, height, camera,
             heading: sin_cos(camera.heading),
@@ -74,8 +87,12 @@ impl<'a> WorldMesh<'a> {
             far,
             clip_far: far * 1.25,
             curvature: (far - 512.0) * (0.000040 / 384.0),
-            daylight: sky.daylight.clamp(0.0, 1.0),
-            haze: sky.haze.clamp(0.0, 1.0),
+            daylight,
+            ambient: 0.28 + daylight * 0.72,
+            fog_strength: 0.42 + sky.haze.clamp(0.0, 1.0) * 0.64,
+            horizon: core::array::from_fn(|channel| {
+                haze_color[channel] + (day_color[channel] - haze_color[channel]) * daylight
+            }),
             sun: sky.sun_direction,
         })
     }
@@ -96,12 +113,39 @@ impl<'a> WorldMesh<'a> {
         self.raster_triangle(points, color, opacity, 0.0);
     }
 
+    /// Draw the (0, 2) diagonal in the same order and with the same shading
+    /// as two triangles, reusing the shared projections for an unclipped face.
+    pub fn faded_quad(&mut self, points: [[f32; 3]; 4], color: [u8; 3], opacity: f32) {
+        let [a, b, c, d] = points.map(|point| self.camera_point(point));
+        if [a, b, c, d].iter().all(|point| point[2] >= NEAR && point.iter().all(|v| v.is_finite())) {
+            let [va, vb, vc, vd] = [a, b, c, d].map(|point| self.project(point));
+            for ([v0, v1, v2], depths) in [
+                ([va, vb, vc], [a[2], b[2], c[2]]),
+                ([va, vc, vd], [a[2], c[2], d[2]]),
+            ] {
+                if depths.iter().all(|&distance| distance > self.clip_far) {
+                    continue;
+                }
+                if let Some(mut style) = self.triangle_style(depths, color, opacity, 0.0) {
+                    self.paint([v0, v1, v2], &mut style);
+                }
+            }
+        } else {
+            self.raster_camera_triangle([a, b, c], color, opacity, 0.0);
+            self.raster_camera_triangle([a, c, d], color, opacity, 0.0);
+        }
+    }
+
     pub fn luminous_triangle(&mut self, points: [[f32; 3]; 3], color: [u8; 3], emission: f32) {
         self.raster_triangle(points, color, 1.0, emission.clamp(0.0, 1.0));
     }
 
     fn raster_triangle(&mut self, points: [[f32; 3]; 3], color: [u8; 3], opacity: f32, emission: f32) {
         let camera_points = points.map(|point| self.camera_point(point));
+        self.raster_camera_triangle(camera_points, color, opacity, emission);
+    }
+
+    fn raster_camera_triangle(&mut self, camera_points: [[f32; 3]; 3], color: [u8; 3], opacity: f32, emission: f32) {
         if !camera_points.iter().flatten().all(|value| value.is_finite())
             || camera_points.iter().all(|point| point[2] > self.clip_far)
         {
@@ -132,7 +176,17 @@ impl<'a> WorldMesh<'a> {
         if count < 3 {
             return;
         }
-        let middle_depth = camera_points.iter().map(|point| point[2]).sum::<f32>() / 3.0;
+        let Some(mut style) = self.triangle_style(camera_points.map(|point| point[2]), color, opacity, emission) else {
+            return;
+        };
+        let first = self.project(clipped[0]);
+        for index in 1..count - 1 {
+            self.paint([first, self.project(clipped[index]), self.project(clipped[index + 1])], &mut style);
+        }
+    }
+
+    fn triangle_style(&self, depths: [f32; 3], color: [u8; 3], opacity: f32, emission: f32) -> Option<TriangleStyle> {
+        let middle_depth = depths.into_iter().sum::<f32>() / 3.0;
         let fade_start = self.far * 1.25;
         let fade = if self.clip_far > fade_start && middle_depth > fade_start {
             smoothstep((self.clip_far - middle_depth) / (self.clip_far - fade_start))
@@ -140,12 +194,13 @@ impl<'a> WorldMesh<'a> {
             1.0
         };
         let alpha = ((opacity * fade).clamp(0.0, 1.0) * 32.0 + 0.5) as u32;
-        if alpha == 0 { return; }
-        let color = self.shade(color, middle_depth, emission);
-        let first = self.project(clipped[0]);
-        for index in 1..count - 1 {
-            self.paint([first, self.project(clipped[index]), self.project(clipped[index + 1])], color, alpha);
-        }
+        (alpha != 0).then_some(TriangleStyle {
+            ink: color,
+            distance: middle_depth,
+            emission,
+            alpha,
+            shaded: None,
+        })
     }
 
     pub fn lit_triangle(&mut self, points: [[f32; 3]; 3], color: [u8; 3]) {
@@ -207,6 +262,55 @@ impl<'a> WorldMesh<'a> {
         }
     }
 
+    /// Draw small distant geometry with fractional pixel coverage and terrain depth.
+    pub(crate) fn faded_segment(&mut self, [from, to]: [[f32; 3]; 2], diameter: f32, color: [u8; 3], opacity: f32) {
+        let [a, b] = [from, to].map(|point| self.camera_point(point));
+        if [a, b].iter().any(|point| point[2] < NEAR || point.iter().any(|v| !v.is_finite())) {
+            return;
+        }
+        let [a, b] = [a, b].map(|point| self.project(point));
+        let horizontal = (b.x - a.x).abs() >= (b.y - a.y).abs();
+        let axes = |v: Vertex| if horizontal { (v.x, v.y) } else { (v.y, v.x) };
+        let (a_major, a_minor) = axes(a);
+        let (b_major, b_minor) = axes(b);
+        let lower = a_major.min(b_major);
+        let upper = a_major.max(b_major);
+        let extent = if horizontal { self.width } else { self.height };
+        let first = ((lower + 0.5) as usize).min(extent);
+        let end = ((upper + 0.5) as usize).saturating_add(1).min(extent);
+        if first >= end || upper - lower < 0.001 { return; }
+        let size = (diameter * self.focal * (a.inverse_depth + b.inverse_depth) * 0.5).clamp(0.46, 1.0);
+        let strength = opacity * size * 32.0;
+        if strength * (upper - lower).min(1.0) < 0.499 { return; }
+        let fill = self.shade(color, 2.0 / (a.inverse_depth + b.inverse_depth), 0.0);
+        let step = 1.0 / (b_major - a_major);
+        let radius = self.width.min(self.height) as i32;
+        for major in first..end {
+            let at = major as f32;
+            let cover = (upper.min(at + 0.5) - lower.max(at - 0.5)).max(0.0);
+            let t = ((at - a_major) * step).clamp(0.0, 1.0);
+            let minor = a_minor + (b_minor - a_minor) * t;
+            let row = crate::render::floor_i32(minor);
+            let fraction = minor - row as f32;
+            let depth = encoded_depth(1.0 / (a.inverse_depth + (b.inverse_depth - a.inverse_depth) * t));
+            for (minor, weight) in [(row, 1.0 - fraction), (row.saturating_add(1), fraction)] {
+                let alpha = (weight * cover * strength + 0.5) as u32;
+                let (x, y) = if horizontal { (major as i32, minor) } else { (minor, major as i32) };
+                if alpha == 0 || x < 0 || x >= self.width as i32 || y < 0 || y >= self.height as i32 {
+                    continue;
+                }
+                let dx = 2 * x + 1 - self.width as i32;
+                let dy = 2 * y + 1 - self.height as i32;
+                if dx * dx + dy * dy > radius * radius { continue; }
+                let index = y as usize * self.width + x as usize;
+                if depth < self.depth[index] {
+                    self.depth[index] = depth;
+                    self.pixels[index] = blend(self.pixels[index], fill, alpha);
+                }
+            }
+        }
+    }
+
     fn camera_point(&self, [x, y, z]: [f32; 3]) -> [f32; 3] {
         let dx = x - self.camera.x;
         let dz = z - self.camera.z;
@@ -230,13 +334,10 @@ impl<'a> WorldMesh<'a> {
 
     fn shade(&self, rgb: [u8; 3], distance: f32, emission: f32) -> u16 {
         let d = (distance / self.far).clamp(0.0, 1.0);
-        let fog = (d * (0.42 + self.haze * 0.64) + d * d * 0.38).min(0.97);
-        let ambient = (0.28 + self.daylight * 0.72).max(emission);
-        let haze_color = [24.0, 38.0, 63.0];
-        let day_color = [175.0, 207.0, 232.0];
+        let fog = (d * self.fog_strength + d * d * 0.38).min(0.97);
+        let ambient = self.ambient.max(emission);
         let shaded: [f32; 3] = core::array::from_fn(|channel| {
-            let horizon = haze_color[channel] + (day_color[channel] - haze_color[channel]) * self.daylight;
-            f32::from(rgb[channel]) * ambient * (1.0 - fog) + horizon * fog
+            f32::from(rgb[channel]) * ambient * (1.0 - fog) + self.horizon[channel] * fog
         });
         let r = (shaded[0] * (31.0 / 255.0) + 0.5) as u16;
         let g = (shaded[1] * (63.0 / 255.0) + 0.5) as u16;
@@ -244,17 +345,22 @@ impl<'a> WorldMesh<'a> {
         (r << 11) | (g << 5) | b
     }
 
-    fn paint(&mut self, [a, b, c]: [Vertex; 3], color: u16, alpha: u32) {
+    fn paint(&mut self, [a, b, c]: [Vertex; 3], style: &mut TriangleStyle) {
+        let TriangleStyle { ink, distance, emission, alpha, shaded } = style;
+        let alpha = *alpha;
+        let min_x = a.x.min(b.x).min(c.x).max(0.0) as usize;
+        let min_y = a.y.min(b.y).min(c.y).max(0.0) as usize;
+        let end_x = ((a.x.max(b.x).max(c.x).max(0.0) as usize).saturating_add(1)).min(self.width);
+        let end_y = ((a.y.max(b.y).max(c.y).max(0.0) as usize).saturating_add(1)).min(self.height);
+        if min_x >= end_x || min_y >= end_y {
+            return;
+        }
         let area = orient(a, b, c.x, c.y);
         if area.abs() < 0.01 {
             return;
         }
         let inverse_area = 1.0 / area;
         let weight_x = [(b.y - c.y) * inverse_area, (c.y - a.y) * inverse_area];
-        let min_x = a.x.min(b.x).min(c.x).max(0.0) as usize;
-        let min_y = a.y.min(b.y).min(c.y).max(0.0) as usize;
-        let end_x = ((a.x.max(b.x).max(c.x).max(0.0) as usize).saturating_add(1)).min(self.width);
-        let end_y = ((a.y.max(b.y).max(c.y).max(0.0) as usize).saturating_add(1)).min(self.height);
         let diameter = self.width.min(self.height) as i32;
         for y in min_y..end_y {
             let dy = y as i32 * 2 + 1 - self.height as i32;
@@ -270,6 +376,8 @@ impl<'a> WorldMesh<'a> {
                     let depth = encoded_depth(1.0 / reciprocal);
                     let index = y * self.width + x;
                     if depth < self.depth[index] || (alpha == 32 && depth == self.depth[index]) {
+                        // Shade only a face that reaches a pixel. The clipped fan shares the result.
+                        let color = *shaded.get_or_insert_with(|| self.shade(*ink, *distance, *emission));
                         self.depth[index] = depth;
                         self.pixels[index] = if alpha == 32 { color } else { blend(self.pixels[index], color, alpha) };
                     }
@@ -297,6 +405,47 @@ fn blend(bottom: u16, top: u16, alpha: u32) -> u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quad_reuses_projections_without_changing_color_or_depth() {
+        const SIDE: usize = 60;
+        let sky = Sky::from_time(1, 0, 0.38);
+        for bank in [-0.28, 0.0, 0.31] {
+            let camera = Camera { x: 0.0, z: 0.0, altitude: 5.0, heading: 0.07, pitch: 0.15, bank };
+            for [first, last, span, bottom, top] in [
+                [16.0, 40.0, 4.0, 0.0, 8.0],
+                [-2.0, 14.0, 4.0, 3.0, 12.0],
+                [14.0, 25.0, 70.0, 2.0, 10.0],
+                [636.0, 755.0, 450.0, -130.0, 160.0],
+                [16.0, 39.0, 6.0, -3.0, f32::NAN],
+            ] {
+                let points = [
+                    [-span, bottom, first], [span, bottom, first],
+                    [span, bottom + 7.0, last], [-span, top, last],
+                ];
+                for opacity in [0.0, 0.38, 1.0] {
+                    let mut expected = [0x4242; SIDE * SIDE];
+                    let mut actual = expected;
+                    let mut expected_depth = core::array::from_fn::<_, { SIDE * SIDE }, _>(|i| {
+                        if i % 7 > 2 { u16::MAX } else { encoded_depth(25.0) }
+                    });
+                    let mut actual_depth = expected_depth;
+                    let mut reference = WorldMesh::new(&mut expected, &mut expected_depth, (SIDE, SIDE), camera, &sky).unwrap();
+                    let mut quad = WorldMesh::new(&mut actual, &mut actual_depth, (SIDE, SIDE), camera, &sky).unwrap();
+                    let color = [180, 122, 82];
+                    let [a, b, c, d] = points;
+                    reference.with_landmark_reach(790.0, |mesh| {
+                        mesh.faded_triangle([a, b, c], color, opacity);
+                        mesh.faded_triangle([a, c, d], color, opacity);
+                    });
+                    quad.with_landmark_reach(790.0, |mesh| mesh.faded_quad(points, color, opacity));
+                    assert_eq!(actual, expected);
+                    assert_eq!(actual_depth, expected_depth);
+                }
+            }
+        }
+    }
+
     #[test]
     fn distant_landmark_uses_terrain_depth_and_leaves_the_normal_clip_intact() {
         const SIDE: usize = 144;

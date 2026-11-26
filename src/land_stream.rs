@@ -2,7 +2,7 @@
 //! terrain sampling, and a region first becomes visible as a complete unit.
 
 use crate::math::sin_cos;
-use crate::render::{CITY_HORIZON, SCENERY_HORIZON, view_distance, Camera};
+use crate::render::{CITY_HORIZON, SCENERY_HORIZON, terrain_detail_distance, Camera};
 use crate::roads::{RoadNetwork, RoadPaintCache, RoadPlanner, RoadProgress, ROAD_REGION_SIZE};
 use crate::scenery::DistrictRegion;
 use crate::settlement::{Settlement, Terminus};
@@ -15,8 +15,10 @@ const REGION_HALF: f32 = REGION * 0.5;
 // Roads and their endpoint districts stay at least this far inside their tile.
 const SCENERY_MARGIN: f32 = 96.0;
 const SCENERY_HALF: f32 = REGION_HALF - SCENERY_MARGIN;
-const SIDE: usize = 8;
 const SCAN: i32 = 3;
+// A diagonal view can reach across a little more world than its forward cap.
+const CITY_SCAN: i32 = (CITY_HORIZON as i32 * 13 + 10 * ROAD_REGION_SIZE - 1) / (10 * ROAD_REGION_SIZE);
+const SIDE: usize = ((2 * CITY_SCAN + 1) as usize).next_power_of_two();
 const SKYLINE_PRIORITY: u8 = 3;
 const EMPTY: u8 = 254;
 const UNKNOWN: u8 = 255;
@@ -86,10 +88,7 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
         for resident in self.residents.iter_mut().flatten() {
             resident.published = true;
         }
-        while let Some(key) = self.next_missing(view, !ahead) {
-            if view.rank(key).is_some_and(|rank| rank.0 == SKYLINE_PRIORITY) {
-                break;
-            }
+        while let Some((key, _)) = self.next_ordinary_missing(view, !ahead) {
             let Some(road) = RoadNetwork::generate(&self.world, key.x, key.z) else {
                 self.set(key, EMPTY);
                 continue;
@@ -104,6 +103,34 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
             self.write_resident(slot, key, road, towns, true);
         }
         self.visible_ready(camera)
+    }
+
+    /// Prepare the first city on the flight path across the distant view.
+    /// Keep two resident slots open for the next foreground surveys.
+    pub fn preflight_skyline(&mut self, camera: Camera) {
+        let Some(view) = Window::new(camera).filter(|_| self.ready) else {
+            return;
+        };
+        let mut open = self.residents.iter().enumerate()
+            .filter_map(|(index, slot)| slot.is_none().then_some(index));
+        let Some(slot) = open.nth(2) else {
+            return;
+        };
+        for _ in 0..3 {
+            let Some((key, false, _)) = self.next_skyline_missing(view) else {
+                return;
+            };
+            let Some(road) = RoadNetwork::generate(&self.world, key.x, key.z) else {
+                self.set(key, EMPTY);
+                continue;
+            };
+            let towns = [
+                Settlement::generate(&self.world, &road, Terminus::Start),
+                Settlement::generate(&self.world, &road, Terminus::End),
+            ];
+            self.write_resident(slot, key, road, towns, true);
+            return;
+        }
     }
 
     /// Reports when the current view has all of its land regions available.
@@ -140,6 +167,19 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
     pub fn districts(&self) -> impl Iterator<Item = ((i32, i32), &DistrictRegion)> {
         self.residents.iter().flatten().map(|resident| {
             ((resident.key.x, resident.key.z), &resident.region)
+        })
+    }
+
+    /// Survey the detailed districts in viewing order. Far skyline silhouettes
+    /// need a road and town plan, with facilities reserved for the approach.
+    pub(crate) fn facility_survey_districts(
+        &self, camera: Camera,
+    ) -> impl Iterator<Item = ((i32, i32), &DistrictRegion, (u8, f32))> {
+        let view = Window::new(camera);
+        self.residents.iter().flatten().filter_map(move |resident| {
+            let rank = view?.rank(resident.key)?;
+            (rank.0 < SKYLINE_PRIORITY)
+                .then_some(((resident.key.x, resident.key.z), &resident.region, rank))
         })
     }
 
@@ -394,21 +434,45 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
         self.set(key, slot as u8);
     }
 
-    fn next_missing(&self, view: Window, visible_only: bool) -> Option<Key> {
+    fn next_ordinary_missing(&self, view: Window, visible_only: bool) -> Option<(Key, (u8, f32))> {
         let mut candidate: Option<(Key, (u8, f32))> = None;
         for key in view.keys() {
             let Some(rank) = view.rank(key) else { continue };
-            if visible_only && rank.0 != 0 || self.get(key) != UNKNOWN {
-                continue;
-            }
-            if rank.0 == SKYLINE_PRIORITY && self.available_slot(view, key).is_none() {
+            if rank.0 == SKYLINE_PRIORITY || visible_only && rank.0 != 0 || self.get(key) != UNKNOWN {
                 continue;
             }
             if candidate.is_none_or(|(_, best)| rank < best) {
                 candidate = Some((key, rank));
             }
         }
-        candidate.map(|(key, _)| key)
+        candidate
+    }
+
+    fn next_missing(&self, view: Window, visible_only: bool) -> Option<Key> {
+        let candidate = self.next_ordinary_missing(view, visible_only);
+        let ordinary = candidate.map(|(key, _)| key);
+        if visible_only || candidate.is_some_and(|(_, (priority, _))| priority < 2)
+            || self.residents.iter().all(|slot| slot.as_ref().is_some_and(|region| view.keep(region.key)))
+        {
+            return ordinary;
+        }
+        // Preview cities down the current flight path before preparing turn buffers.
+        match self.next_skyline_missing(view) {
+            Some((key, false, _)) => Some(key),
+            Some((key, true, _)) => ordinary.or(Some(key)),
+            None => ordinary,
+        }
+    }
+
+    fn next_skyline_missing(&self, view: Window) -> Option<(Key, bool, f32)> {
+        view.keys_within(CITY_SCAN).filter_map(|key| {
+            if self.get(key) != UNKNOWN { return None; }
+            let (kind, distance) = view.rank(key)?;
+            if kind != SKYLINE_PRIORITY || self.available_slot(view, key).is_none() { return None; }
+            let (along, across) = view.projected(key);
+            let off_axis = across > along * 0.30 + view.padding * 0.5;
+            Some((key, off_axis, distance))
+        }).min_by(|(_, a, ad), (_, b, bd)| a.cmp(b).then_with(|| ad.total_cmp(bd)))
     }
 
     fn get(&self, key: Key) -> u8 {
@@ -575,15 +639,19 @@ impl Window {
             z: camera.z,
             sin,
             cos,
-            horizon: view_distance(camera.altitude),
+            horizon: terrain_detail_distance(camera.altitude),
             padding: SCENERY_HALF * (sin.abs() + cos.abs()),
             center: Key::at(camera.x, camera.z),
         })
     }
 
     fn keys(self) -> impl Iterator<Item = Key> {
-        (self.center.z - SCAN..=self.center.z + SCAN).flat_map(move |z| {
-            (self.center.x - SCAN..=self.center.x + SCAN).map(move |x| Key { x, z })
+        self.keys_within(SCAN)
+    }
+
+    fn keys_within(self, scan: i32) -> impl Iterator<Item = Key> {
+        (self.center.z - scan..=self.center.z + scan).flat_map(move |z| {
+            (self.center.x - scan..=self.center.x + scan).map(move |x| Key { x, z })
         })
     }
 
@@ -598,9 +666,13 @@ impl Window {
     }
 
     fn intersects(self, pos: (f32, f32), reach: f32) -> bool {
+        self.intersects_width(pos, reach, 0.72)
+    }
+
+    fn intersects_width(self, pos: (f32, f32), reach: f32, width: f32) -> bool {
         let near = pos.0 - self.padding;
         let far = pos.0 + self.padding;
-        near <= reach && far >= 0.0 && pos.1 - self.padding <= far.min(reach) * 0.72
+        near <= reach && far >= 0.0 && pos.1 - self.padding <= far.min(reach) * width
     }
 
     fn visible(self, key: Key) -> bool {
@@ -632,7 +704,7 @@ impl Window {
         if self.keep(key) {
             return Some((2, self.distance_squared(key)));
         }
-        self.intersects(projected, CITY_HORIZON)
+        self.intersects_width(projected, CITY_HORIZON, 0.82)
             .then(|| (SKYLINE_PRIORITY, self.distance_squared(key)))
     }
 }
@@ -663,7 +735,9 @@ mod tests {
     fn outer_scenery_is_planned_for_low_and_high_aircraft() {
         let distant = Key { x: 0, z: 2 };
         let skyline = Key { x: 0, z: 3 };
-        let beyond = Key { x: 0, z: 4 };
+        let far_skyline = Key { x: 0, z: 4 };
+        let extended_skyline = Key { x: 0, z: 5 };
+        let beyond = Key { x: 0, z: 6 };
         for altitude in [22.0, 320.0] {
             let window = Window::new(camera(512.0, 900.0, altitude, 0.0)).unwrap();
             assert!(!window.visible(distant));
@@ -671,8 +745,133 @@ mod tests {
             assert!(window.keep(distant));
             assert_eq!(window.rank(skyline).map(|rank| rank.0), Some(SKYLINE_PRIORITY));
             assert!(!window.keep(skyline));
+            assert_eq!(window.rank(far_skyline).map(|rank| rank.0), Some(SKYLINE_PRIORITY));
+            assert!(window.keys_within(CITY_SCAN).any(|key| key == far_skyline));
+            assert!(!window.keys().any(|key| key == far_skyline));
+            assert_eq!(window.rank(extended_skyline).map(|rank| rank.0), Some(SKYLINE_PRIORITY));
+            assert!(window.keys_within(CITY_SCAN).any(|key| key == extended_skyline));
             assert_eq!(window.rank(beyond), None);
             assert_eq!(crate::render::horizon_distance(altitude), SCENERY_HORIZON);
+        }
+    }
+
+    #[test]
+    fn distant_city_planning_respects_priority_and_publishes_the_complete_district() {
+        let world = World::new(1);
+        let city = Key { x: 3, z: -3 };
+        let view = camera(-160.0, -2560.0, 55.0, core::f32::consts::FRAC_PI_2);
+        let window = Window::new(view).unwrap();
+        assert_eq!(window.projected(city).0, 3744.0);
+        assert!(window.intersects_width(window.projected(city), CITY_HORIZON, 0.82));
+        assert!(!window.intersects_width(window.projected(city), 2880.0, 0.82));
+        let mut stream = LandStream::<8>::new();
+        stream.reset(world);
+        let nearby = window.center;
+        for key in window.keys_within(CITY_SCAN).filter(|&key| key != city && key != nearby) {
+            stream.set(key, EMPTY);
+        }
+        assert_eq!(stream.next_missing(window, false), Some(nearby));
+        stream.set(nearby, EMPTY);
+        assert_eq!(stream.next_missing(window, true), None);
+        assert_eq!(stream.next_missing(window, false), Some(city));
+        let key = (city.x, city.z);
+        for _ in 0..128 {
+            stream.service(view, WORK);
+            if stream.district_published(key) { break; }
+        }
+        assert!(stream.district_published(key));
+        let published = stream.planned(key).flatten().unwrap();
+        assert!(published.towns().next().is_some());
+        let expected = DistrictRegion::build(&world, key.0, key.1);
+        assert_eq!(published.road().unwrap().polyline(), expected.road().unwrap().polyline());
+        assert_eq!(stream.facility_survey_districts(view).count(), 0);
+    }
+
+    #[test]
+    fn launch_preflight_can_prepare_a_city_past_three_thousand_without_using_foreground_slots() {
+        let world = World::new(1);
+        let city = Key { x: 3, z: -3 };
+        let view = camera(-160.0, -2560.0, 55.0, core::f32::consts::FRAC_PI_2);
+        let window = Window::new(view).unwrap();
+        let mut stream = LandStream::<3>::new();
+        stream.reset(world);
+        for key in window.keys_within(CITY_SCAN).filter(|&key| key != city) {
+            stream.set(key, EMPTY);
+        }
+        assert!(stream.preflight(view, false));
+        assert!(!stream.district_published((city.x, city.z)));
+        stream.preflight_skyline(view);
+        assert!(stream.district_published((city.x, city.z)));
+        assert!(stream.planned((city.x, city.z)).flatten().unwrap().towns().next().is_some());
+        assert_eq!(stream.residents.iter().filter(|slot| slot.is_none()).count(), 2);
+        assert!(stream.visible_ready(view));
+    }
+
+    #[test]
+    fn centerline_city_is_ready_before_turn_buffers_under_the_board_budget() {
+        let world = World::new(1);
+        let view = Camera {
+            x: -2790.6943, z: 2695.9517, altitude: 328.28,
+            heading: 2.36, pitch: 0.53, bank: 0.0,
+        };
+        let mut stream = LandStream::<8>::new();
+        stream.reset(world);
+        assert!(stream.preflight(view, false));
+        let near = (-2, 1);
+        let city = (-1, 0);
+        assert!(!stream.district_published(city));
+
+        let city_ready = (0..=840).step_by(2).find(|frame| {
+            stream.service(view, LandBudget {
+                expansions: 8,
+                terrain_samples: 32,
+                settlement_jobs: u8::from(frame % 16 == 2),
+            });
+            stream.district_published(city)
+        });
+        assert!(city_ready.is_some(), "centerline city missed the streaming window");
+        assert!(stream.district_published(near));
+        assert!(stream.visible_ready(view));
+        assert!(stream.planned(city).flatten().unwrap().towns().next().is_some());
+    }
+
+    #[test]
+    fn approach_surveys_publish_a_farther_harbor_before_a_closer_district_behind() {
+        use crate::facility_stream::FacilityStream;
+
+        let seed = 518;
+        let world = World::new(seed);
+        let behind = Key { x: 5, z: 3 };
+        let ahead = Key { x: 5, z: 5 };
+        let mut land = LandStream::<8>::new();
+        land.reset(world);
+        for (slot, key) in [behind, ahead].into_iter().enumerate() {
+            let road = RoadNetwork::generate(&world, key.x, key.z).unwrap();
+            let towns = [Terminus::Start, Terminus::End]
+                .map(|end| Settlement::generate(&world, &road, end));
+            land.write_resident(slot, key, road, towns, true);
+        }
+        for altitude in [55.0, 320.0] {
+            let view = camera(5632.0, 4150.0, altitude, 0.0);
+            let window = Window::new(view).unwrap();
+            assert_eq!(window.projected(behind).0, -566.0);
+            assert_eq!(window.projected(ahead).0, 1482.0);
+            assert_eq!(window.rank(behind).unwrap().0, 2);
+            assert_eq!(window.rank(ahead).unwrap().0, 1);
+
+            let mut facilities = FacilityStream::<8>::new(world, seed);
+            let result = facilities.request(&land, view, true).unwrap().prepare(|| {});
+            assert!(facilities.commit(result, &land, view));
+            assert!(facilities.planned((behind.x, behind.z)).is_none());
+            let port = facilities.planned((ahead.x, ahead.z)).unwrap().ports().next().unwrap();
+            let [x, z] = port.shore_origin();
+            let [dx, dz] = port.seaward();
+            assert!((-18..=18).any(|meters| {
+                let x = x + dx * meters as f32;
+                let z = z + dz * meters as f32;
+                let raw = world.sample(x, z);
+                port.sample(x, z, raw).is_some() && facilities.overlay(x, z, raw, raw) != raw
+            }));
         }
     }
 

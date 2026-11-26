@@ -3,8 +3,9 @@
 use crate::math::sin_cos;
 use crate::rail::{RailLine, RailMaterial, RailPoint, RailSample};
 use crate::rail_corridor::RailCorridor;
-use crate::rail_station_art::StationFixtures;
+use crate::rail_station_art::{GrainElevatorArt, StationFixtures};
 use crate::render::{view_distance, Camera, ScreenProjection, ScreenRect};
+use crate::train_art::FreightRoute;
 use crate::world::{Sample, Surface, SEA_LEVEL};
 use crate::world_mesh::WorldMesh;
 
@@ -111,8 +112,14 @@ pub fn draw_rail(
 ) {
     draw_tracks(mesh, line.bounds(), [line.polyline(), line.siding().map_or(&[], |points| &points[..])], camera, dimensions);
     draw_station_fixtures(
-        mesh, line.stations().map(|station| station.fixtures(line.service)), camera, dimensions,
+        mesh, line.stations().map(|station| station.fixtures(line.service)), line.freight_route,
+        camera, dimensions,
     );
+    if let Some(art) = line.grain_terminal().map(GrainElevatorArt::new) {
+        if let Some((_, opacity)) = art.visible(camera, dimensions) {
+            art.draw(mesh, opacity);
+        }
+    }
 }
 
 pub fn draw_rail_corridor(
@@ -129,13 +136,15 @@ pub fn draw_rail_corridor(
     }
     draw_tracks(mesh, line.bounds(), [line.polyline(), &[]], camera, dimensions);
     draw_station_fixtures(
-        mesh, line.stations().map(|station| station.fixtures(line.service)), camera, dimensions,
+        mesh, line.stations().map(|station| station.fixtures(line.service)), line.freight_route,
+        camera, dimensions,
     );
 }
 
 fn draw_station_fixtures(
     mesh: &mut WorldMesh<'_>,
     fixtures: [StationFixtures; 2],
+    cargo: FreightRoute,
     camera: Camera,
     dimensions: (usize, usize),
 ) {
@@ -144,7 +153,7 @@ fn draw_station_fixtures(
     };
     if let Some(projection) = ScreenProjection::new(camera, dimensions) {
         for fixture in fixtures {
-            fixture.draw(mesh, camera, &projection, range_squared);
+            fixture.draw(mesh, camera, &projection, range_squared, cargo);
         }
     }
 }
@@ -180,10 +189,7 @@ fn draw_tracks(
         return;
     };
     for track in tracks {
-        track_geometry(track, &view, &mut |[a, b, c, d], color| {
-            mesh.triangle([a, b, c], color);
-            mesh.triangle([a, c, d], color);
-        });
+        track_geometry(track, &view, false, &mut |quad, color| mesh.faded_quad(quad, color, 1.0));
     }
 }
 
@@ -199,6 +205,9 @@ pub fn rail_screen_region(
         .chain(station_screen_region(
             line.stations().map(|station| station.fixtures(line.service)), camera, dimensions,
         ))
+        .chain(line.grain_terminal().and_then(|terminal| {
+            GrainElevatorArt::new(terminal).visible(camera, dimensions).map(|(region, _)| region)
+        }))
         .reduce(ScreenRect::union)
 }
 
@@ -238,7 +247,8 @@ fn tracks_screen_region(
         region: None,
     };
     for track in tracks {
-        track_geometry(track, &view, &mut |quad, _| coverage.include(quad));
+        let sleeper_envelope = coverage.curvature == 0.0;
+        track_geometry(track, &view, sleeper_envelope, &mut |quad, _| coverage.include(quad));
     }
     coverage.region
 }
@@ -348,21 +358,24 @@ impl RailCoverage<'_> {
                 limits[3].max(py),
             ];
         };
-        for point in points {
-            if point[2] >= MESH_NEAR {
+        let in_front = points.map(|point| point[2] >= MESH_NEAR);
+        for (point, visible) in points.into_iter().zip(in_front) {
+            if visible {
                 include(point);
             }
         }
-        // These are the edges of both triangles, including the shared diagonal.
-        for (i, j) in [(0, 1), (1, 2), (2, 3), (3, 0), (0, 2)] {
-            let (a, b) = (points[i], points[j]);
-            if (a[2] >= MESH_NEAR) != (b[2] >= MESH_NEAR) {
-                let t = (MESH_NEAR - a[2]) / (b[2] - a[2]);
-                include([
-                    a[0] + (b[0] - a[0]) * t,
-                    a[1] + (b[1] - a[1]) * t,
-                    MESH_NEAR,
-                ]);
+        if in_front.iter().any(|&visible| visible) && in_front.iter().any(|&visible| !visible) {
+            // These are the edges of both triangles, including the shared diagonal.
+            for (i, j) in [(0, 1), (1, 2), (2, 3), (3, 0), (0, 2)] {
+                if in_front[i] != in_front[j] {
+                    let (a, b) = (points[i], points[j]);
+                    let t = (MESH_NEAR - a[2]) / (b[2] - a[2]);
+                    include([
+                        a[0] + (b[0] - a[0]) * t,
+                        a[1] + (b[1] - a[1]) * t,
+                        MESH_NEAR,
+                    ]);
+                }
             }
         }
         let [left, top, right, bottom] = limits;
@@ -425,7 +438,12 @@ impl Segment {
     }
 }
 
-fn track_geometry(track: &[RailPoint], view: &DetailView, emit: &mut impl FnMut(Face, [u8; 3])) {
+fn track_geometry(
+    track: &[RailPoint],
+    view: &DetailView,
+    sleeper_envelope: bool,
+    emit: &mut impl FnMut(Face, [u8; 3]),
+) {
     let mut distance = 0.0;
     for (index, pair) in track.windows(2).enumerate() {
         let segment = Segment::between(pair[0], pair[1]);
@@ -464,7 +482,15 @@ fn track_geometry(track: &[RailPoint], view: &DetailView, emit: &mut impl FnMut(
             }
 
             if let Some((near, far)) = segment.portion(view.eye, view.sleeper_reach) {
-                sleeper_geometry(view, segment, distance, near, far, emit);
+                if sleeper_envelope {
+                    // With zero world curvature, perspective and near-plane clipping
+                    // preserve containment. A single strip covers every tie centered
+                    // in this span, including its ends. Drawing still resolves each tie.
+                    let end_guard = (HALF_TIE_DEPTH + 0.005) / segment.length;
+                    emit(sleeper_strip(segment, (near - end_guard).max(0.0), (far + end_guard).min(1.0)), WOOD_COLOR);
+                } else {
+                    sleeper_geometry(view, segment, distance, near, far, emit);
+                }
             }
         }
         distance += segment.length;
@@ -523,21 +549,21 @@ fn sleeper_geometry(
         let t = (station - distance) / segment.length;
         let center = segment.center(t, SLEEPER_TOP);
         if view.resolves_sleeper(center, segment.center(t + step, SLEEPER_TOP)) {
-            let a = segment.center((t - tie_depth).max(0.0), SLEEPER_TOP);
-            let b = segment.center((t + tie_depth).min(1.0), SLEEPER_TOP);
-            let n = segment.normal;
             emit(
-                [
-                    lateral(a, n, -HALF_SLEEPER),
-                    lateral(a, n, HALF_SLEEPER),
-                    lateral(b, n, HALF_SLEEPER),
-                    lateral(b, n, -HALF_SLEEPER),
-                ],
+                sleeper_strip(segment, (t - tie_depth).max(0.0), (t + tie_depth).min(1.0)),
                 WOOD_COLOR,
             );
         }
         station += SLEEPER_PERIOD;
     }
+}
+
+fn sleeper_strip(segment: Segment, first: f32, last: f32) -> Face {
+    let a = segment.center(first, SLEEPER_TOP);
+    let b = segment.center(last, SLEEPER_TOP);
+    let n = segment.normal;
+    [lateral(a, n, -HALF_SLEEPER), lateral(a, n, HALF_SLEEPER),
+     lateral(b, n, HALF_SLEEPER), lateral(b, n, -HALF_SLEEPER)]
 }
 
 fn lateral(mut point: [f32; 3], normal: [f32; 2], offset: f32) -> [f32; 3] {

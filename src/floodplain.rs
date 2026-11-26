@@ -6,6 +6,8 @@ use crate::river_islands::RiverIsland;
 use crate::watershed::{Reach, RiverSample, Watershed, REGION_SIZE};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
+mod oxbow;
+
 type Area = [f32; 4];
 
 const MAX_SITES: usize = 6;
@@ -20,6 +22,7 @@ pub enum FloodplainKind {
     ReedMarsh,
     PointBar,
     RiverIsland,
+    OxbowLake,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -55,6 +58,11 @@ impl Floodplain {
         pulse: &mut impl FnMut(),
     ) -> Self {
         let mut result = Self::new();
+        if let Some(oxbow) = oxbow::survey(world, water, &mut reserved, pulse) {
+            result.bounds = Some(oxbow.bounds);
+            result.sites[0] = Some(oxbow);
+            result.count = 1;
+        }
         let mut trials = 0;
         for reach in water.reaches() {
             pulse();
@@ -282,8 +290,11 @@ impl Site {
         let dx = x - self.center[0];
         let dz = z - self.center[1];
         let along = (dx * self.axis[0] + dz * self.axis[1]) * self.inverse_size[0];
-        let across = (dz * self.axis[0] - dx * self.axis[1]) * self.inverse_size[1]
-            - self.curve * along * along;
+        let across = (dz * self.axis[0] - dx * self.axis[1]) * self.inverse_size[1];
+        if self.kind == FloodplainKind::OxbowLake {
+            return oxbow::overlay(*self, along, across, ground);
+        }
+        let across = across - self.curve * along * along;
         let footprint = along * along + across * across;
         if footprint >= 1.0 {
             return None;

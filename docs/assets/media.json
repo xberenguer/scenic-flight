@@ -11,19 +11,19 @@
   },
   {
     "id": "coastal-soaring",
-    "title": "Eagle along the cliffs",
+    "title": "Eagle over the foothills",
     "category": "Biomes",
     "aircraft": "Bald Eagle",
-    "biome": "Coast & Ocean",
+    "biome": "Foothills",
     "format": "Video",
     "poster": "assets/current/coastal-soaring.png",
     "src": "assets/current/coastal-soaring.mp4"
   },
   {
     "id": "city-approach",
-    "title": "Ultralight over the city",
+    "title": "Racer over the city after dark",
     "category": "Built World",
-    "aircraft": "Ultralight",
+    "aircraft": "Racer",
     "biome": "",
     "format": "Video",
     "poster": "assets/current/city-approach.png",
@@ -31,7 +31,7 @@
   },
   {
     "id": "river-valley",
-    "title": "Ultralight along the coastal bluffs",
+    "title": "Ultralight along the bay",
     "category": "Biomes",
     "aircraft": "Ultralight",
     "biome": "Coast & Ocean",
@@ -68,6 +68,17 @@
     "format": "Video",
     "poster": "assets/current/glider-coast.png",
     "src": "assets/current/glider-coast.mp4"
+  },
+  {
+    "id": "glider-reflection",
+    "title": "Sun glint in a thermal turn",
+    "category": "Aircraft",
+    "aircraft": "Glider",
+    "biome": "Alpine",
+    "format": "GIF",
+    "poster": "assets/current/glider-reflection.png",
+    "src": "assets/current/glider-reflection.gif",
+    "note": "Sunlight briefly catches the wingtip and canopy during an established thermal turn."
   },
   {
     "id": "racer-bank",
@@ -121,9 +132,9 @@
   },
   {
     "id": "woodland-stands",
-    "title": "Ultralight along the wooded slopes",
+    "title": "Bush Plane along the wooded slopes",
     "category": "Biomes",
-    "aircraft": "Ultralight",
+    "aircraft": "Bush Plane",
     "biome": "Woodland",
     "format": "Video",
     "poster": "assets/current/woodland-stands.png",
@@ -276,7 +287,7 @@
   },
   {
     "id": "freight-steel-coils",
-    "title": "Hot-rolled steel coil cars",
+    "title": "Steel coils and machinery freight",
     "category": "Built World",
     "aircraft": "Ultralight",
     "biome": "Coast & Ocean",
@@ -295,6 +306,39 @@
     "src": "assets/current/freight-platforms.png"
   },
   {
+    "id": "freight-loading",
+    "title": "Gravel and container loading aprons",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/freight-loading.png",
+    "src": "assets/current/freight-loading.png",
+    "note": "Gravel wagons by a bulk feeder and well cars by a container hoist."
+  },
+  {
+    "id": "grain-terminal",
+    "title": "Rural grain elevator and hopper train",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "",
+    "format": "GIF",
+    "poster": "assets/current/grain-terminal.png",
+    "src": "assets/current/grain-terminal.gif",
+    "note": "A road-fed grain elevator with covered hoppers on its loading track."
+  },
+  {
+    "id": "contour-fields",
+    "title": "Contour strips and grass buffers",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/contour-fields.png",
+    "src": "assets/current/contour-fields.png",
+    "note": "Curved crop strips follow the surveyed slope."
+  },
+  {
     "id": "gravel-freight",
     "title": "Gravel pit and aggregate freight",
     "category": "Built World",
@@ -303,6 +347,17 @@
     "format": "Still",
     "poster": "assets/current/gravel-freight.png",
     "src": "assets/current/gravel-freight.png"
+  },
+  {
+    "id": "aggregate-service",
+    "title": "Loaded gravel train and empty return",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coast & Ocean",
+    "format": "Still",
+    "poster": "assets/current/aggregate-service.png",
+    "src": "assets/current/aggregate-service.png",
+    "note": "Gravel on the way to the port, then empty cars returning to the quarry."
   },
   {
     "id": "rail-earthworks",
@@ -359,6 +414,17 @@
     "note": "Bridge deck joins both road approaches across a river."
   },
   {
+    "id": "oxbow-lake",
+    "title": "Oxbow lake",
+    "category": "Biomes",
+    "aircraft": "",
+    "biome": "Rivers & Wetlands",
+    "format": "Still",
+    "poster": "assets/current/oxbow-lake.png",
+    "src": "assets/current/oxbow-lake.png",
+    "note": "A cutoff river bend with shallow water, reed margins, and two dry plugs."
+  },
+  {
     "id": "alpine-tarn",
     "title": "Alpine tarn",
     "category": "Biomes",
@@ -368,6 +434,17 @@
     "poster": "assets/current/alpine-tarn.png",
     "src": "assets/current/alpine-tarn.png",
     "note": "A high lake set inside a dry rim."
+  },
+  {
+    "id": "columnar-rock",
+    "title": "Columnar rock above an alpine scree slope",
+    "category": "Biomes",
+    "aircraft": "",
+    "biome": "Alpine",
+    "format": "Still",
+    "poster": "assets/current/columnar-rock.png",
+    "src": "assets/current/columnar-rock.png",
+    "note": "Fractured rock columns rise from a surveyed exposed slope."
   },
   {
     "id": "salt-pan",
@@ -401,6 +478,17 @@
     "poster": "assets/current/badlands-ravine.png",
     "src": "assets/current/badlands-ravine.png",
     "note": "Dry gullies following the main ravine."
+  },
+  {
+    "id": "alluvial-fan",
+    "title": "Desert alluvial fan",
+    "category": "Biomes",
+    "aircraft": "",
+    "biome": "Drylands",
+    "format": "Still",
+    "poster": "assets/current/alluvial-fan.png",
+    "src": "assets/current/alluvial-fan.png",
+    "note": "Pale gravel washes fan out from a mountain drainage into desert scrub."
   },
   {
     "id": "cove-dune",

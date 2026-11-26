@@ -22,7 +22,7 @@ const events = [
 
 const categories = ['All', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Sky & Weather', 'Interface'];
 const biomeNames = ['Alpine', 'Coast & Ocean', 'Drylands', 'Rivers & Wetlands', 'Woodlands & Grasslands'];
-const featuredIds = ['mountain-pass', 'coastal-soaring', 'city-approach', 'high-cruise', 'fighter-afterburners'];
+const featuredIds = ['mountain-pass', 'coastal-soaring', 'city-approach', 'high-cruise', 'river-valley'];
 const qs = selector => document.querySelector(selector);
 const cards = qs('#cards');
 const dialog = qs('#viewer');

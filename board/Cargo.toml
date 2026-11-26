@@ -2,13 +2,14 @@
 
 [package]
 name = "scenic-flight-waveshare"
-version = "0.1.29"
+version = "0.1.39"
 edition = "2024"
 
 [features]
 scene-probe = []
 parallel-terrain = ["regional-rail", "far-horizon", "scenic-flight/terrain-fork"]
 terrain-opportunistic = ["parallel-terrain"]
+packed-60-terrain = ["terrain-opportunistic"]
 small-raster-ray-budget = ["scenic-flight/small-raster-ray-budget"]
 ground-cover = ["scenic-flight/ground-cover"]
 regional-climate = ["scenic-flight/regional-climate"]

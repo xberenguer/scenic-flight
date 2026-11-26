@@ -4,6 +4,9 @@ use crate::alpine_lakes::ALPINE_TILE_SIZE;
 use crate::math::{fraction, mix, smoothstep};
 use crate::world::{Sample, Surface, World};
 
+mod columnar;
+pub use columnar::ColumnarHeadwall;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScreeFan {
     center: [f32; 2],
@@ -14,6 +17,7 @@ pub struct ScreeFan {
     bend: f32,
     lobe: f32,
     spill: f32,
+    headwall: Option<ColumnarHeadwall>,
 }
 
 impl ScreeFan {
@@ -106,7 +110,7 @@ impl ScreeFan {
             let lip = width + bend.abs() + 2.0;
             let [ax, az] = downhill.map(f32::abs);
             let extent = [ax * length * 0.54 + az * lip, az * length * 0.54 + ax * lip];
-            let bounds = [
+            let mut bounds = [
                 cx - extent[0],
                 cz - extent[1],
                 cx + extent[0],
@@ -141,6 +145,21 @@ impl ScreeFan {
                 clear
             });
             if dry_lane {
+                let headwall = (site_key & 2 == 0)
+                    .then(|| ColumnarHeadwall::survey(world, site_key, center, downhill, length, pulse))
+                    .flatten()
+                    .filter(|face| {
+                        let area = face.bounds();
+                        (0..2).all(|j| area[j] >= origin[j] + 2.0
+                            && area[j + 2] <= origin[j] + ALPINE_TILE_SIZE as f32 - 2.0)
+                    });
+                if let Some(headwall) = &headwall {
+                    let area = headwall.bounds();
+                    for axis in 0..2 {
+                        bounds[axis] = bounds[axis].min(area[axis]);
+                        bounds[axis + 2] = bounds[axis + 2].max(area[axis + 2]);
+                    }
+                }
                 return Some(Self {
                     center,
                     downhill,
@@ -150,6 +169,7 @@ impl ScreeFan {
                     bend,
                     lobe: 0.31 + fraction(mix(site_key ^ 0xfb8d)) * 0.29,
                     spill: (fraction(mix(site_key ^ 0xda55)) - 0.5) * 0.29,
+                    headwall,
                 });
             }
         }
@@ -164,6 +184,9 @@ impl ScreeFan {
     }
     pub fn bounds(&self) -> [f32; 4] {
         self.bounds
+    }
+    pub fn headwall(&self) -> Option<&ColumnarHeadwall> {
+        self.headwall.as_ref()
     }
 
     pub fn overlay(&self, x: f32, z: f32, ground: Sample) -> Sample {

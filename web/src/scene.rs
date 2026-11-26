@@ -2,6 +2,7 @@ use scenic_flight::bridge_silhouette::BridgeSilhouettes;
 use scenic_flight::coastal_highways::CoastalHighwayWork;
 use scenic_flight::coastal_landforms::CoastalLandmarks;
 use scenic_flight::distant_roads::DistantRoads;
+use scenic_flight::distant_airfields::DistantAirfields;
 use scenic_flight::facility_stream::{roadside_reservation, FacilityStream, RoadsideReservation};
 use scenic_flight::flight::{Flight, Game, View};
 use scenic_flight::ground_details::GroundDetails;
@@ -27,7 +28,7 @@ use scenic_flight::scenery::CoastalScenery;
 use scenic_flight::sky::Sky;
 use scenic_flight::skyline::Skyline;
 use scenic_flight::terrain_cache::TerrainCache;
-use scenic_flight::train_art::{Train, TRAIN_REACH};
+use scenic_flight::train_art::{Train, TRAIN_RENDER_REACH};
 use scenic_flight::watershed::WatershedWork;
 use scenic_flight::weather_effects::{ValleyMist, WeatherEffects};
 use scenic_flight::world::World;
@@ -102,6 +103,7 @@ impl Scene {
             view = camera(game.active().unwrap().1.view);
             scene.land.preflight(view, false);
         }
+        scene.land.preflight_skyline(view);
         scene
             .terrain
             .reset_for_altitude(world, view.x, view.z, view.altitude);
@@ -381,6 +383,9 @@ impl Scene {
                 .chain(self.highways.coastal_links().map(|(_, link)| link.bridge())),
             |x, z| self.horizon.backdrop(x, z),
         );
+        let far_airfields = DistantAirfields::prepare(
+            self.facilities.airfields(), view, &sky, DIMENSIONS, |x, z| self.horizon.backdrop(x, z),
+        );
         let visible_cliff = |form: &&scenic_flight::coastal_landforms::CoastalLandform| {
             bounds_in_view(view, form.bounds()) && self.facilities.retains_landmark(form)
         };
@@ -417,20 +422,19 @@ impl Scene {
         let corridor_region = corridors()
             .filter_map(|line| corridor_screen_region(line, view, DIMENSIONS))
             .reduce(ScreenRect::union);
-        let trains: [_; 2] = {
-            let mut trains = self
+        let trains = Train::visible_pair(
+            self
                 .facilities
-                .rails(view, TRAIN_REACH)
+                .rails(view, TRAIN_RENDER_REACH)
                 .filter_map(|line| Train::at(line, self.seed, flight.ticks, view, DIMENSIONS))
                 .chain(
                     self.regional_rail
-                        .rails(view, TRAIN_REACH)
+                        .rails(view, TRAIN_RENDER_REACH)
                         .filter_map(|line| {
                             Train::on_corridor(line, self.seed, flight.ticks, view, DIMENSIONS)
                         }),
-                );
-            std::array::from_fn(|_| trains.next())
-        };
+                ),
+        );
         let train_region = trains
             .iter()
             .flatten()
@@ -501,6 +505,7 @@ impl Scene {
                 .chain(bridge_region)
                 .chain(crossing_region)
                 .chain(far_bridges.bounds())
+                .chain(far_airfields.depth_region())
                 .chain(self.distant_roads.bounds())
                 .chain(ribbons().map(HighwayRibbon::depth_region))
                 .chain(waterfall_region)
@@ -530,6 +535,7 @@ impl Scene {
         .expect("valid browser framebuffer and flight camera");
 
         if depth_region.is_some() {
+            far_airfields.draw(pixels, &self.depth);
             self.distant_roads
                 .draw(pixels, &self.depth, &mut self.work, DIMENSIONS);
             far_bridges.draw(pixels, &self.depth);

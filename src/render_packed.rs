@@ -2,13 +2,39 @@
 
 use super::*;
 
-const SIDE: usize = 466;
-const SPLIT: usize = 232;
-const RIGHT: usize = SIDE - SPLIT;
-const COUNT: usize = SIDE * SIDE;
+const fn split_column(side: usize) -> usize {
+    // The terrain marcher pairs even columns. Keep the seam between pairs.
+    (side / 2) & !1
+}
 
-#[inline(never)]
+#[inline]
 pub fn render_with_packed_terrain_fork(
+    executor: &mut impl TerrainFork,
+    sample: impl FnMut(f32, f32) -> Sample,
+    material: impl FnMut(f32, f32, Sample) -> Surface,
+    worker_sample: impl FnMut(f32, f32) -> Sample + Send,
+    worker_material: impl FnMut(f32, f32, Sample) -> Surface + Send,
+    camera: Camera,
+    sky: &Sky,
+    pixels: &mut [u16],
+    work: &mut [u16],
+    depth: Option<(&mut [u16], ScreenRect)>,
+    checkpoint: impl FnMut(RenderCheckpoint),
+    ready_sky_tile: impl FnMut(usize) -> Option<u16>,
+    ground_horizon: impl FnMut(f32, f32) -> f32,
+) -> Result<(), RenderError> {
+    render_with_packed_terrain_fork_sized::<466>(
+        executor, sample, material, worker_sample, worker_material, camera, sky, pixels, work,
+        depth, checkpoint, ready_sky_tile, ground_horizon,
+    )
+}
+
+/// Render a 60- or 466-pixel square through the packed terrain fork.
+///
+/// A banked view with depth uses two full planes in `work`. An unbanked
+/// view, or depth with only one available work plane, uses the serial path.
+#[inline(never)]
+pub fn render_with_packed_terrain_fork_sized<const SIDE: usize>(
     executor: &mut impl TerrainFork,
     mut sample: impl FnMut(f32, f32) -> Sample,
     mut material: impl FnMut(f32, f32, Sample) -> Surface,
@@ -23,17 +49,23 @@ pub fn render_with_packed_terrain_fork(
     ready_sky_tile: impl FnMut(usize) -> Option<u16>,
     mut ground_horizon: impl FnMut(f32, f32) -> f32,
 ) -> Result<(), RenderError> {
+    if !matches!(SIDE, 60 | 466) {
+        return Err(RenderError::InvalidDimensions);
+    }
+    let count = SIDE * SIDE;
+    let split = split_column(SIDE);
+    let right_columns = SIDE - split;
     let view = View::new(camera, SIDE, SIDE);
     if (view.roll_sin.abs() < 0.000_001 && view.roll_cos > 0.0)
-        || (depth.is_some() && work.len() < 2 * COUNT)
+        || (depth.is_some() && work.len() < 2 * count)
     {
         return render_terrain_layer_region_with_horizon(
             (sample, material), ground_horizon, camera, sky, pixels, work, depth,
             (SIDE, SIDE), checkpoint, ready_sky_tile,
         );
     }
-    if pixels.len() < COUNT || work.len() < COUNT
-        || depth.as_ref().is_some_and(|(buffer, _)| buffer.len() < COUNT)
+    if pixels.len() < count || work.len() < count
+        || depth.as_ref().is_some_and(|(buffer, _)| buffer.len() < count)
     {
         return Err(RenderError::BufferTooSmall);
     }
@@ -44,20 +76,20 @@ pub fn render_with_packed_terrain_fork(
     let aperture = Aperture::new(SIDE, SIDE);
     let horizon = atmosphere.horizon();
     let upright = View { roll_sin: 0.0, roll_cos: 1.0, ..view };
-    let pixels = &mut pixels[..COUNT];
+    let pixels = &mut pixels[..count];
     pixels.fill(0);
     depth = depth.map(|(depth, rect)| {
-        let depth = &mut depth[..COUNT];
+        let depth = &mut depth[..count];
         depth.fill(u16::MAX);
         (depth, rect.clamped(SIDE, SIDE))
     });
-    let (color_work, depth_work) = work.split_at_mut(COUNT);
+    let (color_work, depth_work) = work.split_at_mut(count);
     color_work.fill(0);
-    let (left_color, right_color) = color_work.split_at_mut(SPLIT * SIDE);
+    let (left_color, right_color) = color_work.split_at_mut(split * SIDE);
     let mut depth_work = depth.as_ref().map(|(_, rect)| {
-        let work = &mut depth_work[..COUNT];
+        let work = &mut depth_work[..count];
         work.fill(u16::MAX);
-        let (left, right) = work.split_at_mut(SPLIT * SIDE);
+        let (left, right) = work.split_at_mut(split * SIDE);
         ([left, right], rect.upright(&view, SIDE, SIDE))
     });
     executor.terrain_checkpoint(TerrainForkPhase::UprightPrepared);
@@ -71,26 +103,26 @@ pub fn render_with_packed_terrain_fork(
         || draw_near_bands::<false>(
             &mut sample, &mut material, camera, atmosphere, horizon, left_color, left,
             SIDE, SIDE, &aperture, &upright, &mut edge,
-            TerrainBands { first: 0, end: SPLIT, write_from: 0, row_width: SPLIT, origin_x: 0 },
+            TerrainBands { first: 0, end: split, write_from: 0, row_width: split, origin_x: 0 },
         ),
         || draw_near_bands::<false>(
             worker_sample, worker_material, camera, atmosphere, horizon, right_color, right,
             SIDE, SIDE, &aperture, &upright, &mut right_edge,
-            TerrainBands { first: SPLIT - 2, end: SIDE, write_from: SPLIT, row_width: RIGHT, origin_x: SPLIT },
+            TerrainBands { first: split - 2, end: SIDE, write_from: split, row_width: right_columns, origin_x: split },
         ),
     );
     executor.terrain_checkpoint(TerrainForkPhase::NearJoined);
-    debug_assert_eq!(&edge[SPLIT - 2..SPLIT], &right_edge[SPLIT - 2..SPLIT]);
-    edge[SPLIT..SIDE].copy_from_slice(&right_edge[SPLIT..SIDE]);
+    debug_assert_eq!(&edge[split - 2..split], &right_edge[split - 2..split]);
+    edge[split..SIDE].copy_from_slice(&right_edge[split..SIDE]);
     executor.terrain_checkpoint(TerrainForkPhase::SlabMerged);
     if edge[..SIDE].iter().any(|&row| row > 0) {
         trace_far_horizon(
             &mut ground_horizon, camera, atmosphere, horizon, &upright, &aperture,
             &mut edge[..SIDE], 1, SIDE, SIDE, |x0, x1, y0, y1, color, z| {
-                let (origin, width, index, target) = if x0 < SPLIT {
-                    (0, SPLIT, 0, &mut *left_color)
+                let (origin, width, index, target) = if x0 < split {
+                    (0, split, 0, &mut *left_color)
                 } else {
-                    (SPLIT, RIGHT, 1, &mut *right_color)
+                    (split, right_columns, 1, &mut *right_color)
                 };
                 paint_span::<false>(target, width, SIDE, &aperture, &upright,
                     x0 - origin, x1 - origin, y0, y1, color);
@@ -116,13 +148,13 @@ pub fn render_with_packed_terrain_fork(
     if let (Some(([left, right], _)), Some((depth, rect))) = (depth_work, depth) {
         let depth_source = [&*left, &*right];
         if rect.left == 0 && rect.top == 0 && rect.right == SIDE && rect.bottom == SIDE {
-            rotate_packed::<true>(color_source, pixels, Some((depth_source, depth)), &aperture, &view, full, first_ground);
+            rotate_packed::<SIDE, true>(color_source, pixels, Some((depth_source, depth)), &aperture, &view, full, first_ground);
         } else {
-            rotate_packed::<false>(color_source, pixels, None, &aperture, &view, full, first_ground);
-            rotate_packed::<false>(depth_source, depth, None, &aperture, &view, rect, first_ground);
+            rotate_packed::<SIDE, false>(color_source, pixels, None, &aperture, &view, full, first_ground);
+            rotate_packed::<SIDE, false>(depth_source, depth, None, &aperture, &view, rect, first_ground);
         }
     } else {
-        rotate_packed::<false>(color_source, pixels, None, &aperture, &view, full, first_ground);
+        rotate_packed::<SIDE, false>(color_source, pixels, None, &aperture, &view, full, first_ground);
     }
     checkpoint(RenderCheckpoint::Rotation);
     if atmosphere.clouds > 0.48 {
@@ -159,7 +191,7 @@ pub fn render_with_packed_terrain_fork(
 
 type Slabs<'a> = [&'a [u16]; 2];
 
-fn rotate_packed<const PAIRED: bool>(
+fn rotate_packed<const SIDE: usize, const PAIRED: bool>(
     source: Slabs<'_>,
     pixels: &mut [u16],
     mut other: Option<(Slabs<'_>, &mut [u16])>,
@@ -197,16 +229,16 @@ fn rotate_packed<const PAIRED: bool>(
             None
         };
         if inside && copy_runs {
-            rotate_packed_runs::<PAIRED>(source, out, other_row, source_x, source_y, cosine, sine, inv_x, inv_y);
+            rotate_packed_runs::<SIDE, PAIRED>(source, out, other_row, source_x, source_y, cosine, sine, inv_x, inv_y);
         } else if inside {
-            gather_packed::<PAIRED, false>(source, out, other_row, source_x, source_y, cosine, sine);
+            gather_packed::<SIDE, PAIRED, false>(source, out, other_row, source_x, source_y, cosine, sine);
         } else {
-            gather_packed::<PAIRED, true>(source, out, other_row, source_x, source_y, cosine, sine);
+            gather_packed::<SIDE, PAIRED, true>(source, out, other_row, source_x, source_y, cosine, sine);
         }
     }
 }
 
-fn gather_packed<const PAIRED: bool, const CLAMPED: bool>(
+fn gather_packed<const SIDE: usize, const PAIRED: bool, const CLAMPED: bool>(
     source: Slabs<'_>,
     output: &mut [u16],
     mut other: Option<(Slabs<'_>, &mut [u16])>,
@@ -215,13 +247,15 @@ fn gather_packed<const PAIRED: bool, const CLAMPED: bool>(
     cosine: i32,
     sine: i32,
 ) {
+    let split = split_column(SIDE);
+    let right_columns = SIDE - split;
     for (i, out) in output.iter_mut().enumerate() {
         let sx = if CLAMPED { (x >> 16).clamp(0, SIDE as i32 - 1) } else { x >> 16 } as usize;
         let sy = if CLAMPED { (y >> 16).clamp(0, SIDE as i32 - 1) } else { y >> 16 } as usize;
-        let (slab, at) = if sx < SPLIT {
-            (0, sy * SPLIT + sx)
+        let (slab, at) = if sx < split {
+            (0, sy * split + sx)
         } else {
-            (1, sy * RIGHT + sx - SPLIT)
+            (1, sy * right_columns + sx - split)
         };
         *out = source[slab][at];
         if PAIRED {
@@ -233,7 +267,7 @@ fn gather_packed<const PAIRED: bool, const CLAMPED: bool>(
     }
 }
 
-fn rotate_packed_runs<const PAIRED: bool>(
+fn rotate_packed_runs<const SIDE: usize, const PAIRED: bool>(
     source: Slabs<'_>,
     output: &mut [u16],
     mut other: Option<(Slabs<'_>, &mut [u16])>,
@@ -244,6 +278,8 @@ fn rotate_packed_runs<const PAIRED: bool>(
     inv_x: u32,
     inv_y: u32,
 ) {
+    let split = split_column(SIDE);
+    let right_columns = SIDE - split;
     let mut offset = 0;
     while offset < output.len() {
         let remaining = output.len() - offset;
@@ -254,10 +290,10 @@ fn rotate_packed_runs<const PAIRED: bool>(
         let run_y = if sine == 0 { remaining } else { 1 + ((room_y * inv_y) >> 16) as usize };
         let sx = (x >> 16) as usize;
         let sy = (y >> 16) as usize;
-        let (slab, at, boundary) = if sx < SPLIT {
-            (0, sy * SPLIT + sx, SPLIT - sx)
+        let (slab, at, boundary) = if sx < split {
+            (0, sy * split + sx, split - sx)
         } else {
-            (1, sy * RIGHT + sx - SPLIT, SIDE - sx)
+            (1, sy * right_columns + sx - split, SIDE - sx)
         };
         let count = run_x.min(run_y).min(remaining).min(boundary);
         output[offset..offset + count].copy_from_slice(&source[slab][at..at + count]);
@@ -268,5 +304,179 @@ fn rotate_packed_runs<const PAIRED: bool>(
         offset += count;
         x += cosine * count as i32;
         y -= sine * count as i32;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ground_details::GroundDetails,
+        horizon_cache::HorizonCache,
+        terrain_cache::TerrainCache,
+    };
+
+    #[derive(Default)]
+    struct TestFork {
+        count: usize,
+    }
+
+    impl TerrainFork for TestFork {
+        fn fork(&mut self, left: impl FnOnce(), right: impl FnOnce() + Send) {
+            self.count += 1;
+            std::thread::scope(|scope| {
+                let right = scope.spawn(right);
+                left();
+                right.join().unwrap();
+            });
+        }
+    }
+
+    fn check_frame<const SIDE: usize>(
+        seed: u64,
+        camera: Camera,
+        sky: &Sky,
+        regions: &[Option<ScreenRect>],
+        spare_plane: bool,
+    ) {
+        let world = World::new(seed);
+        let mut terrain = TerrainCache::new();
+        terrain.reset_for_altitude(world, camera.x, camera.z, camera.altitude);
+        let mut horizon = HorizonCache::new();
+        horizon.reset(world, camera.x, camera.z);
+        let mut details = GroundDetails::new();
+        details.reset(&world, seed, camera.x, camera.z);
+        let material = |x, z, sample| details.visible_material(x, z, sample);
+        let trees = || details.tree_sampler().for_view(camera.x, camera.altitude, camera.z);
+
+        let count = SIDE * SIDE;
+        let mut serial = std::vec![0; count];
+        let mut packed = std::vec![0x82a5; count];
+        let mut serial_depth = std::vec![0; count];
+        let mut packed_depth = std::vec![0; count];
+        let mut serial_work = std::vec![0; count];
+        let mut packed_work = std::vec![0xad82; count * if spare_plane { 2 } else { 1 }];
+
+        for &region in regions {
+            let serial_trees = trees();
+            render_terrain_layer_region_with_horizon(
+                (
+                    |x, z| serial_trees.geometry(x, z, terrain.sample(x, z)),
+                    material,
+                ),
+                |x, z| horizon.backdrop(x, z),
+                camera,
+                sky,
+                &mut serial,
+                &mut serial_work,
+                region.map(|region| (&mut serial_depth[..], region)),
+                (SIDE, SIDE),
+                |_| {},
+                |_| None,
+            )
+            .unwrap();
+
+            let mut fork = TestFork::default();
+            let left_trees = trees();
+            let right_trees = trees();
+            let right_terrain = &terrain;
+            render_with_packed_terrain_fork_sized::<SIDE>(
+                &mut fork,
+                |x, z| left_trees.geometry(x, z, terrain.sample(x, z)),
+                material,
+                move |x, z| right_trees.geometry(x, z, right_terrain.sample(x, z)),
+                material,
+                camera,
+                sky,
+                &mut packed,
+                &mut packed_work,
+                region.map(|region| (&mut packed_depth[..], region)),
+                |_| {},
+                |_| None,
+                |x, z| horizon.backdrop(x, z),
+            )
+            .unwrap();
+
+            let expect_fork = camera.bank.abs() > 0.000_001 && (spare_plane || region.is_none());
+            assert_eq!(
+                fork.count,
+                usize::from(expect_fork),
+                "{SIDE}px, bank {}, region {region:?}",
+                camera.bank
+            );
+            assert!(
+                serial == packed,
+                "{SIDE}px color differs for seed {seed}, camera {camera:?}, region {region:?}"
+            );
+            assert!(
+                serial_depth == packed_depth,
+                "{SIDE}px depth differs for seed {seed}, camera {camera:?}, region {region:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn packed_sixty_matches_serial_color_and_depth() {
+        const SIDE: usize = 60;
+        let regions = [
+            None,
+            Some(ScreenRect::full((SIDE, SIDE))),
+            Some(ScreenRect {
+                left: 7, right: 53, top: 11, bottom: 49,
+            }),
+            Some(ScreenRect {
+                left: 31, right: 58, top: 4, bottom: 33,
+            }),
+        ];
+
+        for seed in [1, 41, 0x74cc_5871_0cfc_2ac4] {
+            let world = World::new(seed);
+            for (n, bank) in [0.0, 0.03, -0.065, 0.14, 0.19, -0.30, 0.56, -0.46]
+                .into_iter()
+                .enumerate()
+            {
+                let x = n as f32 * 88.7 - 155.0;
+                let z = 86.0 - n as f32 * 42.3;
+                let camera = Camera {
+                    x,
+                    z,
+                    altitude: world.elevation(x, z)
+                        + [14.0, 22.0, 61.0, 25.0, 390.0, 33.0, 55.0, 20.0][n],
+                    heading: 0.52 + n as f32 * 0.71,
+                    pitch: [-0.11, 0.2, 0.4, 0.05, 0.12, 0.13, -0.08, 0.16][n],
+                    bank,
+                };
+                let sky = Sky::from_time_at_position(
+                    seed,
+                    n as u64 * 261,
+                    [0.42, 0.18, 0.63, 0.48][n % 4],
+                    [x, camera.altitude, z],
+                );
+                check_frame::<SIDE>(seed, camera, &sky, &regions, true);
+
+                if n == 6 {
+                    // Depth without a spare plane retains the serial path.
+                    check_frame::<SIDE>(seed, camera, &sky, &regions[..3], false);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn packed_native_matches_serial_in_full_and_clipped_views() {
+        const SIDE: usize = 466;
+        let regions = [
+            Some(ScreenRect::full((SIDE, SIDE))),
+            Some(ScreenRect {
+                left: 47, right: 421, top: 67, bottom: 368,
+            }),
+        ];
+        for bank in [0.048, -0.71] {
+            let camera = Camera {
+                x: 154.3, z: 372.4, altitude: 38.8, heading: 3.01, pitch: 0.27, bank,
+            };
+            let sky = Sky::from_time_at_position(41, 3_480, 0.23, [camera.x, camera.altitude, camera.z]);
+            check_frame::<SIDE>(41, camera, &sky, &regions, true);
+        }
     }
 }

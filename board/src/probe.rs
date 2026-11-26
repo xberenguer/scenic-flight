@@ -6,6 +6,48 @@ use scenic_flight::{controls::Buttons, flight::{Aircraft, Flight, Game}};
 use scenic_flight::flight::TICKS_PER_SECOND;
 use scenic_flight::render::Camera;
 
+#[cfg(feature = "packed-60-terrain")]
+#[derive(Default)]
+pub struct TerrainComparison {
+    worker: u32,
+    reclaimed: u32,
+    worker_queue_us: u64,
+    worker_join_us: u64,
+}
+
+#[cfg(feature = "packed-60-terrain")]
+impl TerrainComparison {
+    /// Match the 60-frame report windows and counterbalance time spent in
+    /// each mode as the same scene's trains, light, and weather move.
+    pub fn use_worker(previous_frames: u32) -> bool {
+        matches!((previous_frames / 120) % 4, 1 | 2)
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    pub fn record(&mut self, background: bool, queue_us: u32, join_us: u32) {
+        if background {
+            self.worker += 1;
+            self.worker_queue_us += u64::from(queue_us);
+            self.worker_join_us += u64::from(join_us);
+        } else {
+            self.reclaimed += 1;
+        }
+    }
+
+    pub fn report(&mut self, frame: u32) {
+        let divisor = u64::from(self.worker.max(1));
+        esp_println::println!(
+            "terrain-ab frame={} mode={} workers={} reclaimed={} queue_us={} join_us={}",
+            frame, if Self::use_worker(frame - 1) { "packed" } else { "serial" },
+            self.worker, self.reclaimed, self.worker_queue_us / divisor, self.worker_join_us / divisor,
+        );
+        self.reset();
+    }
+}
+
 #[cfg(feature = "coastal-fixture")]
 const COASTAL_WORLD_SEED: u64 = 4_329;
 #[cfg(feature = "coastal-fixture")]

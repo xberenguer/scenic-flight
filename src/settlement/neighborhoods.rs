@@ -340,18 +340,31 @@ impl Neighborhoods {
             let offset = (key >> 12 & 7) as f32 * 0.19 - 0.665;
             let footprint = frontage.lot(area.x, area.z, offset, -2.50, 6.20, 4.10);
             let apron = frontage.lot(area.x, area.z, 0.0, 4.25, 6.55, 2.80);
-            let hall = Building::new(footprint, base, 5.0 + (key >> 18 & 7) as f32 * 0.28, Form::Hall);
-            return Parcel::with_yard(hall, apron);
+            let height = 5.9 + (key >> 18 & 7) as f32 * 0.28;
+            let shed = Building::new(footprint, base, height, Form::Workshop(frontage));
+            return Parcel::with_yard(shed, apron);
         }
         if matches!(style_group, 1 | 2) && style >= 7 && distance < 132.0 {
             let frontage = choose_frontage(self.block_frontages(index), district);
-            let buildings = [-1.0, 1.0].map(|side| {
+            let court = match frontage {
+                Frontage::Near | Frontage::Far => [Frontage::Right, Frontage::Left],
+                Frontage::Left | Frontage::Right => [Frontage::Far, Frontage::Near],
+            };
+            let buildings = core::array::from_fn(|i| {
+                let side = i as f32 * 2.0 - 1.0;
                 let area = frontage.lot(area.x, area.z, side * 4.30, 0.15, 2.02, 5.65);
-                let shift = if side < 0.0 { 18 } else { 22 };
-                let height = 7.0 + (key >> shift & 7) as f32 * 0.64;
-                Building::new(area, base, height, Form::Hall)
+                let height = 9.7 + (key >> (18 + i * 4) & 7) as f32 * 0.67;
+                Building::new(area, base, height, Form::CourtWing(court[i]))
             });
             return Parcel::with_courtyard(buildings);
+        }
+        if matches!(style_group, 3 | 4) && style >= 4 && distance > 44.0 {
+            let frontage = choose_frontage(self.block_frontages(index), district);
+            let footprint = frontage.lot(area.x, area.z, 0.0, 2.05, 6.48, 3.55);
+            let front_walk = frontage.lot(area.x, area.z, 0.0, 6.03, 6.10, 1.02);
+            let height = 6.1 + (key >> 18 & 7) as f32 * 0.31;
+            let row = Building::new(footprint, base, height, Form::Terrace(frontage));
+            return Parcel::with_yard(row, front_walk);
         }
         let mut parcel = Parcel::EMPTY;
         if style >= 5 && distance < 122.0 || district & 3 == 0 && style >= 9 {
@@ -471,6 +484,7 @@ mod tests {
     fn large_districts_have_dry_blocks_on_connected_streets() {
         let mut largest = 0;
         let [mut courtyards, mut yards] = [0, 0];
+        let mut new_roofs = [0; 3];
         for (seed, rx, rz) in [
             (1, -1, 0),
             (1, -1, -3),
@@ -544,6 +558,21 @@ mod tests {
                         assert!(roof > world.elevation(x, z) + 3.0);
                         assert!(!highway_overlaps(&road, town.local, area));
                         assert!(town.obstruction(x, z) >= roof);
+                        let Some((kind, frontage)) = roof_kind(building.form) else {
+                            buildings += 1;
+                            continue;
+                        };
+                        let lot = district.lot(index);
+                        assert!(lot.contains(area.x - area.half_width, area.z - area.half_depth));
+                        assert!(lot.contains(area.x + area.half_width, area.z + area.half_depth));
+                        assert_eq!(foundation(&world, town.local, lot, 2.6).map(|base| (base * 4.0 + 1.999) as u8),
+                                   Some(district.foundations[index]));
+                        if new_roofs[kind] == 0 {
+                            std::eprintln!("new roof {kind} seed={seed} region={rx},{rz} {end:?} x={x:.3} z={z:.3} height={roof:.3} heading=({:.3},{:.3}) {frontage:?}",
+                                           town.local.fx, town.local.fz);
+                        }
+                        check_profile(*building, frontage, kind);
+                        new_roofs[kind] += 1;
                         buildings += 1;
                     }
                 }
@@ -554,5 +583,47 @@ mod tests {
         }
         assert!(largest >= 90, "only {largest} buildings beyond the core");
         assert!(courtyards > 0 && yards > 0, "{courtyards} courtyards, {yards} yards");
+        assert!(new_roofs.into_iter().all(|count| count > 0), "new roof counts: {new_roofs:?}");
+    }
+
+    fn roof_kind(form: Form) -> Option<(usize, Frontage)> {
+        match form {
+            Form::Terrace(frontage) => Some((0, frontage)),
+            Form::CourtWing(frontage) => Some((1, frontage)),
+            Form::Workshop(frontage) => Some((2, frontage)),
+            _ => None,
+        }
+    }
+
+    fn check_profile(building: Building, frontage: Frontage, kind: usize) {
+        let area = building.area;
+        let (width, depth) = match frontage {
+            Frontage::Near | Frontage::Far => (area.half_width, area.half_depth),
+            Frontage::Left | Frontage::Right => (area.half_depth, area.half_width),
+        };
+        let height = |face: f32, side: f32| {
+            let point = frontage.lot(area.x, area.z, side * width, face * depth, 0.0, 0.0);
+            building.sample(point.x, point.z).and_then(|roof| roof.elevation)
+        };
+        let higher = |a: Option<f32>, b: Option<f32>| {
+            assert!(a.unwrap() > b.unwrap() + 0.4, "unexpected roof heights {a:?}, {b:?}");
+        };
+        match kind {
+            0 => {
+                higher(height(0.0, -2.0 / 3.0), height(0.0, -0.35));
+                higher(height(0.0, 0.0), height(0.0, 0.35));
+                higher(height(0.0, 2.0 / 3.0), height(0.0, 0.35));
+                assert!(height(0.90, 0.0).is_some() && height(0.90, 0.69).is_none());
+            }
+            1 => {
+                higher(height(-0.35, 0.0), height(0.39, 0.0));
+                higher(height(0.39, 0.0), height(0.84, 0.0));
+            }
+            _ => {
+                higher(height(-0.42, 0.0), height(-0.30, 0.0));
+                higher(height(0.26, 0.0), height(0.36, 0.0));
+                higher(height(0.88, 0.0), height(0.96, 0.0));
+            }
+        }
     }
 }

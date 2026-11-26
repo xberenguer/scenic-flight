@@ -13,18 +13,24 @@ mod freight_geography;
 mod locomotives;
 mod wagons;
 pub(crate) use freight_catalog::FreightRoute;
-pub(crate) use freight_geography::freight_route;
+pub(crate) use freight_geography::{contextual_freight_route, freight_route};
+use freight_geography::LoadingEnd;
 use locomotives::Locomotive;
 use wagons::tint;
 
 pub const TRAIN_REACH: f32 = 224.0;
+/// Distance budget for the inexpensive distant rendering path only.
+pub const TRAIN_RENDER_REACH: f32 = 620.0;
+const DISTANT_OPAQUE_REACH: f32 = 470.0;
 const OPAQUE_REACH: f32 = 174.0;
 const CAR_LENGTH: f32 = 13.6;
 const CAR_PITCH: f32 = 15.1;
+const FREIGHT_GAP: f32 = 1.12;
+const LONGEST_WAGON: f32 = 16.8;
 const HALF_WIDTH: f32 = 1.43;
 const BODY_TOP: f32 = 3.87;
 const BODY_BASE: f32 = 0.62;
-const MAX_CARS: usize = 5;
+const MAX_CARS: usize = 8;
 const REGIONAL_MIN_LENGTH: f32 = 500.0;
 const EXPRESS_MIN_LENGTH: f32 = 850.0;
 
@@ -50,7 +56,7 @@ enum Vehicle {
     Passenger { cab: bool },
     RegionalPassenger { cab: bool, express: bool },
     Engine(Locomotive),
-    Wagon { color: [u8; 3], variant: u8 },
+    Wagon { color: [u8; 3], variant: u8, loaded: bool },
 }
 
 fn express_alignment(line: &RailCorridor) -> bool {
@@ -78,10 +84,44 @@ fn livery(key: u64, cargo: bool) -> [u8; 3] {
 struct Car {
     a: RailPoint,
     b: RailPoint,
+    length: f32,
     opacity: f32,
+    distant_opacity: f32,
     detail: bool,
     vehicle: Vehicle,
     lamp: Option<bool>,
+}
+
+#[derive(Clone, Copy)]
+struct FreightCar {
+    length: f32,
+    wagon: Option<(u64, u8)>,
+}
+
+struct FreightFormation {
+    cars: [FreightCar; MAX_CARS],
+    half_span: f32,
+}
+
+impl FreightFormation {
+    fn new(count: usize, route: FreightRoute, key: u64, grain_elevator: bool) -> Self {
+        let mut cars = [FreightCar { length: CAR_LENGTH, wagon: None }; MAX_CARS];
+        for index in 1..count - 1 {
+            let cargo = mix(key ^ (index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+            let variant = if grain_elevator {
+                freight_catalog::grain_elevator_variant(cargo)
+            } else {
+                freight_catalog::choose_variant(route, key, index - 1, cargo)
+            };
+            cars[index] = FreightCar {
+                length: freight_catalog::design(variant).body_length(),
+                wagon: Some((cargo, variant)),
+            };
+        }
+        let span = cars[..count].iter().map(|car| car.length).sum::<f32>()
+            + (count - 1) as f32 * FREIGHT_GAP;
+        Self { cars, half_span: span * 0.5 }
+    }
 }
 
 /// Build the image for one published train once per frame. It can use the
@@ -112,7 +152,8 @@ impl Train {
     ) -> Option<Self> {
         let (trip, key) = Self::line_timetable(line, seed)?;
         Self::on_route(
-            trip, key, ticks, camera, dimensions, line.freight_route,
+            trip, key, ticks, camera, dimensions, line.freight_route, line.grain_terminal().is_some(),
+            freight_geography::local_loading_end(line),
             |distance| line.point_at(distance),
         )
     }
@@ -126,7 +167,7 @@ impl Train {
     fn line_timetable(line: &RailLine, seed: u64) -> Option<(Timetable, u64)> {
         let ends = line.stations().map(|station| [station.anchor.x, station.anchor.z]);
         let key = route_key(seed, ends);
-        Some((Timetable::new(line.length(), line.service.into(), key)?, key))
+        Some((Timetable::new(line.length(), line.service.into(), line.freight_route, key)?, key))
     }
 
     pub fn on_corridor(
@@ -138,7 +179,8 @@ impl Train {
     ) -> Option<Self> {
         let (trip, key) = Self::corridor_timetable(line, seed)?;
         Self::on_route(
-            trip, key, ticks, camera, dimensions, line.freight_route,
+            trip, key, ticks, camera, dimensions, line.freight_route, false,
+            freight_geography::regional_loading_end(line),
             |distance| line.position_at(distance),
         )
     }
@@ -165,7 +207,7 @@ impl Train {
         } else {
             line.service.into()
         };
-        Some((Timetable::new(line.length(), service, key)?, key))
+        Some((Timetable::new(line.length(), service, line.freight_route, key)?, key))
     }
 
     fn on_route(
@@ -175,18 +217,31 @@ impl Train {
         camera: Camera,
         dimensions: (usize, usize),
         freight_route: FreightRoute,
+        grain_elevator: bool,
+        loading_end: Option<LoadingEnd>,
         point_at: impl Fn(f32) -> RailPoint,
     ) -> Option<Self> {
         let projection = ScreenProjection::new(camera, dimensions)?;
         let [center, direction] = trip.position(ticks);
         let engine = Locomotive::for_route(freight_route, trip.high - trip.low, key);
+        let freight = (trip.service == TrainService::Freight)
+            .then(|| FreightFormation::new(trip.cars, freight_route, key, grain_elevator));
+        let cargo_stage = trip.cargo_stage(ticks, loading_end, trip.cars - 2);
+        let mut freight_front = center - freight.as_ref().map_or(0.0, |train| train.half_span);
         let mut region = None;
         let mut cars = [None; MAX_CARS];
         for (index, slot) in cars.iter_mut().enumerate().take(trip.cars) {
-            let offset = index as f32 - (trip.cars - 1) as f32 * 0.5;
-            let middle = center + offset * CAR_PITCH;
-            let a = point_at(middle - CAR_LENGTH * 0.5);
-            let b = point_at(middle + CAR_LENGTH * 0.5);
+            let (a, b, length, wagon) = if let Some(train) = &freight {
+                let car = train.cars[index];
+                let a = freight_front;
+                let b = a + car.length;
+                freight_front = b + FREIGHT_GAP;
+                (point_at(a), point_at(b), car.length, car.wagon)
+            } else {
+                let offset = index as f32 - (trip.cars - 1) as f32 * 0.5;
+                let middle = center + offset * CAR_PITCH;
+                (point_at(middle - CAR_LENGTH * 0.5), point_at(middle + CAR_LENGTH * 0.5), CAR_LENGTH, None)
+            };
             let d = [
                 a.x + (b.x - a.x) * 0.5 - camera.x,
                 a.elevation + (b.elevation - a.elevation) * 0.5 - camera.altitude,
@@ -197,9 +252,11 @@ impl Train {
                 (TRAIN_REACH * TRAIN_REACH - range)
                     / (TRAIN_REACH * TRAIN_REACH - OPAQUE_REACH * OPAQUE_REACH),
             );
-            if opacity <= 0.018 {
-                continue;
-            }
+            let distant_opacity = (1.0 - opacity) * smoothstep(
+                (TRAIN_RENDER_REACH * TRAIN_RENDER_REACH - range)
+                    / (TRAIN_RENDER_REACH * TRAIN_RENDER_REACH - DISTANT_OPAQUE_REACH * DISTANT_OPAQUE_REACH),
+            );
+            if opacity <= 0.018 && distant_opacity <= 0.018 { continue; }
             let margin = HALF_WIDTH + 0.18;
             let bounds = [
                 [
@@ -213,9 +270,6 @@ impl Train {
                     a.z.max(b.z) + margin,
                 ],
             ];
-            let Some(cover) = projection.bounds(bounds) else {
-                continue;
-            };
             let first = index == 0;
             let last = index + 1 == trip.cars;
             let end = first || last;
@@ -227,21 +281,28 @@ impl Train {
                 },
                 TrainService::Freight if end => Vehicle::Engine(engine),
                 TrainService::Freight => {
-                    let cargo = mix(key ^ (index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+                    let (cargo, variant) = wagon?;
                     Vehicle::Wagon {
                         color: livery(cargo, true),
-                        variant: freight_catalog::choose_variant(freight_route, key, cargo),
+                        variant,
+                        loaded: cargo_stage.present(index - 1),
                     }
                 }
             };
-            *slot = Some(Car {
+            let car = Car {
                 a,
                 b,
-                opacity,
+                length,
+                opacity: if opacity > 0.018 { opacity } else { 0.0 },
+                distant_opacity,
                 detail: range < 112.0 * 112.0,
                 vehicle,
                 lamp: end.then_some(leading),
-            });
+            };
+            let cover = if car.opacity > 0.0 { projection.bounds(bounds) }
+                else { car.distant_region(&projection, dimensions) };
+            let Some(cover) = cover else { continue; };
+            *slot = Some(car);
             region = Some(region.map_or(cover, |rect: ScreenRect| rect.union(cover)));
         }
         let stripe = livery(key.rotate_left(5), false);
@@ -256,10 +317,37 @@ impl Train {
         self.region
     }
 
+    /// Keep close trains ahead of silhouettes when only a few trains fit the frame budget.
+    pub fn is_near(&self) -> bool {
+        self.cars.iter().flatten().any(|car| car.opacity > 0.0)
+    }
+
+    pub fn visible_pair(candidates: impl IntoIterator<Item = Self>) -> [Option<Self>; 2] {
+        let mut near = [None, None];
+        let mut distant = [None, None];
+        for train in candidates {
+            let slots = if train.is_near() { &mut near } else { &mut distant };
+            if let Some(slot) = slots.iter_mut().find(|slot| slot.is_none()) {
+                *slot = Some(train);
+            }
+            if near[1].is_some() { return near; }
+        }
+        let mut distant = distant.into_iter().flatten();
+        near.map(|slot| slot.or_else(|| distant.next()))
+    }
+
     pub fn draw(&self, mesh: &mut WorldMesh<'_>, daylight: f32) {
+        for car in self.cars.iter().flatten().filter(|car| car.distant_opacity > 0.018) {
+            mesh.faded_segment(car.distant_span(0.27), 2.76, [112, 102, 89], car.distant_opacity * 0.70);
+            let (height, paint) = car.distant_profile(self.stripe);
+            mesh.faded_segment(car.distant_span(height), 2.35, paint, car.distant_opacity);
+        }
         let dusk = smoothstep((0.44 - daylight) / 0.38);
         for (index, car) in self.cars.iter().enumerate() {
-            if let Some(car) = car {
+            if let Some(car) = car.filter(|car| car.opacity > 0.0) {
+                if let Some(next) = self.cars.get(index + 1).copied().flatten().filter(|next| next.opacity > 0.0) {
+                    car.draw_connection(next, mesh);
+                }
                 car.draw(mesh, self.stripe, dusk, index == 0);
             }
         }
@@ -282,6 +370,32 @@ struct Timetable {
     offset: u64,
     cars: usize,
     service: TrainService,
+}
+
+#[derive(Clone, Copy)]
+enum CargoStage {
+    InTransit(bool),
+    AtTerminal {
+        loading: bool,
+        processed: usize,
+        wagons: usize,
+        end: LoadingEnd,
+    },
+}
+
+impl CargoStage {
+    fn present(self, wagon: usize) -> bool {
+        match self {
+            Self::InTransit(loaded) => loaded,
+            Self::AtTerminal { loading, processed, wagons, end } => {
+                let served = match end {
+                    LoadingEnd::First => wagon < processed,
+                    LoadingEnd::Second => wagon >= wagons - processed,
+                };
+                served == loading
+            }
+        }
+    }
 }
 
 impl Timetable {
@@ -307,14 +421,21 @@ impl Timetable {
             passenger: self.service != TrainService::Freight })
     }
 
-    fn new(length: f32, service: TrainService, key: u64) -> Option<Self> {
+    fn new(length: f32, service: TrainService, freight: FreightRoute, key: u64) -> Option<Self> {
         let (cars, speed, layover) = match service {
             TrainService::Commuter => (3, 7.8 + (key % 6) as f32 * 0.32, 43),
             TrainService::RegionalPassenger => (4, 15.8, 58),
             TrainService::Express => (5, 24.0, 74),
-            TrainService::Freight => (5, 6.8, 88),
+            TrainService::Freight => freight_timing(freight, length),
         };
-        let low = (cars - 1) as f32 * CAR_PITCH * 0.5 + CAR_LENGTH * 0.5 + 2.3;
+        let low = if service == TrainService::Freight {
+            // Leave room at both terminals for the longest eligible freight equipment.
+            let span = 2.0 * CAR_LENGTH + (cars - 2) as f32 * LONGEST_WAGON
+                + (cars - 1) as f32 * FREIGHT_GAP;
+            span * 0.5 + 2.3
+        } else {
+            (cars - 1) as f32 * CAR_PITCH * 0.5 + CAR_LENGTH * 0.5 + 2.3
+        };
         let high = length - low;
         let distance = high - low;
         if distance < 40.0 {
@@ -337,8 +458,7 @@ impl Timetable {
     }
 
     fn position(&self, ticks: u64) -> [f32; 2] {
-        let period = 2 * self.trip + self.layover_a + self.layover_b;
-        let phase = (ticks % period + self.offset) % period;
+        let phase = self.phase(ticks);
         if phase < self.layover_a {
             return [self.low, 1.0];
         }
@@ -354,6 +474,38 @@ impl Timetable {
             self.high - (self.high - self.low) * self.progress(back - self.layover_b),
             -1.0,
         ]
+    }
+
+    fn phase(&self, ticks: u64) -> u64 {
+        let period = 2 * self.trip + self.layover_a + self.layover_b;
+        (ticks % period + self.offset) % period
+    }
+
+    fn cargo_stage(&self, ticks: u64, source: Option<LoadingEnd>, wagons: usize) -> CargoStage {
+        let Some(source) = source else { return CargoStage::InTransit(true) };
+        let phase = self.phase(ticks);
+        if phase < self.layover_a {
+            return self.service_cargo(source, LoadingEnd::First, phase, self.layover_a, wagons);
+        }
+        let away = phase - self.layover_a;
+        if away < self.trip {
+            return CargoStage::InTransit(source == LoadingEnd::First);
+        }
+        let back = away - self.trip;
+        if back < self.layover_b {
+            return self.service_cargo(source, LoadingEnd::Second, back, self.layover_b, wagons);
+        }
+        CargoStage::InTransit(source == LoadingEnd::Second)
+    }
+
+    fn service_cargo(&self, source: LoadingEnd, end: LoadingEnd, elapsed: u64, dwell: u64, wagons: usize) -> CargoStage {
+        // Settle at the terminal before servicing cars. Leave the last quarter
+        // of the dwell for departure preparation instead of changing in motion.
+        let settling = dwell / 4;
+        let service = (dwell / 2).max(1);
+        let work = elapsed.saturating_sub(settling).min(service);
+        let processed = (work * wagons as u64 / service) as usize;
+        CargoStage::AtTerminal { loading: source == end, processed, wagons, end }
     }
 
     fn progress(&self, ticks: u64) -> f32 {
@@ -372,16 +524,85 @@ impl Timetable {
     }
 }
 
+fn freight_timing(route: FreightRoute, length: f32) -> (usize, f32, u64) {
+    use FreightRoute::*;
+
+    let long = length >= 720.0;
+    let (cars, speed, dwell) = match route {
+        Intermodal | Perishable => (7, 9.4, 108),
+        Automotive => (6, 8.4, 122),
+        Agriculture => (8, 6.4, 126),
+        Quarry | Aggregate => (8, 5.6, 102),
+        Mill | Liquid => (6, 6.0, 136),
+        Forest => (6, 6.4, 112),
+        Mixed => (7, 6.8, 88),
+    };
+    (if long { cars } else { 5 }, speed, dwell)
+}
+
 impl Car {
     fn point(self, t: f32, s: f32, h: f32) -> [f32; 3] {
         let dx = self.b.x - self.a.x;
         let dz = self.b.z - self.a.z;
-        let cross = s / CAR_LENGTH;
+        let cross = s / self.length;
         [
             self.a.x + dx * t - dz * cross,
             self.a.elevation + (self.b.elevation - self.a.elevation) * t + h,
             self.a.z + dz * t + dx * cross,
         ]
+    }
+
+    fn distant_profile(self, stripe: [u8; 3]) -> (f32, [u8; 3]) {
+        use freight_catalog::Family;
+        match self.vehicle {
+            Vehicle::Passenger { .. } => (2.88, [203, 203, 182]),
+            Vehicle::RegionalPassenger { express: true, .. } => (2.94, [219, 224, 216]),
+            Vehicle::RegionalPassenger { .. } => (2.85, [148, 189, 196]),
+            Vehicle::Engine(_) => (2.58, stripe),
+            Vehicle::Wagon { color, variant, loaded } => {
+                let height = match freight_catalog::design(variant).family {
+                    Family::Well | Family::Deck if !loaded => 1.27,
+                    Family::Well | Family::Deck | Family::OpenBulk | Family::Coil => 1.91,
+                    Family::CoveredHopper | Family::Tank | Family::Centerbeam => 2.63,
+                    Family::Boxcar | Family::Autorack | Family::Reefer => 2.95,
+                };
+                (height, color)
+            }
+        }
+    }
+
+    fn distant_span(self, height: f32) -> [[f32; 3]; 2] {
+        [self.point(0.0, 0.0, height), self.point(1.0, 0.0, height)]
+    }
+
+    fn distant_region(self, projection: &ScreenProjection, (width, height): (usize, usize)) -> Option<ScreenRect> {
+        let (roof, _) = self.distant_profile([0; 3]);
+        let mut limits = [f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY];
+        for point in self.distant_span(roof).into_iter().chain(self.distant_span(0.27)) {
+            let [x, y, _] = projection.backdrop_point(point)?;
+            limits = [limits[0].min(x), limits[1].min(y), limits[2].max(x), limits[3].max(y)];
+        }
+        let [left, top, right, bottom] = limits;
+        let rect = ScreenRect {
+            left: ((left - 2.0) as usize).min(width),
+            top: ((top - 2.0) as usize).min(height),
+            right: ((right + 3.0) as usize).min(width),
+            bottom: ((bottom + 3.0) as usize).min(height),
+        };
+        (rect.left < rect.right && rect.top < rect.bottom).then_some(rect)
+    }
+
+    fn draw_connection(self, next: Self, mesh: &mut WorldMesh<'_>) {
+        if !matches!(self.vehicle, Vehicle::Engine(_) | Vehicle::Wagon { .. }) {
+            return;
+        }
+        // Span from the actual endpoints so the coupler stays connected on curves.
+        let h = 0.74;
+        let [a, b, c, d] = [
+            self.point(0.98, -0.17, h), self.point(0.98, 0.17, h),
+            next.point(0.02, 0.17, h), next.point(0.02, -0.17, h),
+        ];
+        quad_triangles(mesh, [a, b, c, d], [59, 63, 61], self.opacity.min(next.opacity), 0.0);
     }
 
     fn draw(self, mesh: &mut WorldMesh<'_>, stripe: [u8; 3], dusk: f32, first: bool) {
@@ -402,11 +623,11 @@ impl Car {
                     locomotive, self.detail, self.lamp.unwrap_or(false), dusk,
                 );
             }
-            Vehicle::Wagon { color, variant } => {
+            Vehicle::Wagon { color, variant, loaded } => {
                 return wagons::draw(
                     |t, side, height| self.point(t, side, height),
                     |corners, color| quad_triangles(mesh, corners, color, self.opacity, 0.0),
-                    color, variant, self.detail,
+                    color, variant, self.detail, loaded,
                 );
             }
         };
@@ -569,17 +790,17 @@ impl Car {
 
 fn quad_triangles(
     mesh: &mut WorldMesh<'_>,
-    [a, b, c, d]: [[f32; 3]; 4],
+    points: [[f32; 3]; 4],
     color: [u8; 3],
     opacity: f32,
     emission: f32,
 ) {
-    for triangle in [[a, b, c], [a, c, d]] {
-        if opacity >= 0.985 && emission > 0.0 {
-            mesh.luminous_triangle(triangle, color, emission);
-        } else {
-            mesh.faded_triangle(triangle, color, opacity);
-        }
+    if opacity >= 0.985 && emission > 0.0 {
+        let [a, b, c, d] = points;
+        mesh.luminous_triangle([a, b, c], color, emission);
+        mesh.luminous_triangle([a, c, d], color, emission);
+    } else {
+        mesh.faded_quad(points, color, opacity);
     }
 }
 
@@ -588,10 +809,74 @@ mod tests {
     use super::*;
 
     #[test]
+    fn distant_freight_stays_inside_its_banked_depth_region() {
+        let trip = Timetable::new(640.0, TrainService::Freight, FreightRoute::Mixed, 71).unwrap();
+        let ticks = 11_400;
+        let center = trip.position(ticks)[0];
+        let point = |x| RailPoint { x, z: 0.0, elevation: 12.0 };
+        for side in [48, 60] {
+            let dimensions = (side, side);
+            let camera = Camera { x: center, z: -442.0, altitude: 108.0,
+                heading: 0.0, pitch: 0.215, bank: -0.49 };
+            let trip = Timetable::new(640.0, TrainService::Freight, FreightRoute::Mixed, 71).unwrap();
+            let train = Train::on_route(trip, 71, ticks, camera, dimensions, FreightRoute::Mixed, false, None, point).unwrap();
+            assert!(!train.is_near());
+            let sky = crate::sky::Sky::from_time(165, ticks, 0.45);
+            let region = train.depth_region();
+            let count = side * side;
+            let mut pixels = std::vec![0x86b7; count];
+            let mut depth = std::vec![u16::MAX; count];
+            let render = |pixels: &mut [u16], depth: &mut [u16]| {
+                train.draw(&mut WorldMesh::new(pixels, depth, dimensions, camera, &sky).unwrap(), sky.daylight);
+            };
+            render(&mut pixels, &mut depth);
+            let mut count = 0;
+            for (index, &distance) in depth.iter().enumerate() {
+                if distance != u16::MAX {
+                    assert!((region.left..region.right).contains(&(index % side)));
+                    assert!((region.top..region.bottom).contains(&(index / side)));
+                    count += 1;
+                }
+            }
+            assert!(count >= 4);
+            pixels.fill(0x86b7);
+            depth.fill(0);
+            render(&mut pixels, &mut depth);
+            assert!(pixels.iter().all(|&pixel| pixel == 0x86b7));
+            assert!(depth.iter().all(|&distance| distance == 0));
+        }
+    }
+
+    #[test]
+    fn visible_pair_prioritizes_near_trains_without_reordering_them() {
+        let trip = Timetable::new(640.0, TrainService::Freight, FreightRoute::Mixed, 71).unwrap();
+        let ticks = 11_400;
+        let center = trip.position(ticks)[0];
+        let point = |x| RailPoint { x, z: 0.0, elevation: 12.0 };
+        let train_at = |distance: f32, key: u64| {
+            let trip = Timetable::new(640.0, TrainService::Freight, FreightRoute::Mixed, 71).unwrap();
+            let camera = Camera { x: center, z: -distance, altitude: 38.0,
+                heading: 0.0, pitch: 0.19, bank: 0.0 };
+            Train::on_route(trip, key, ticks, camera, (60, 60), FreightRoute::Mixed, false, None, point).unwrap()
+        };
+        let far = train_at(401.0, 1);
+        let close = train_at(116.0, 2);
+        assert!(!far.is_near() && close.is_near());
+        let near_stripe = close.stripe;
+        let farther_stripe = far.stripe;
+        let [first, second] = Train::visible_pair([far, close]);
+        assert_eq!(first.unwrap().stripe, near_stripe);
+        assert_eq!(second.unwrap().stripe, farther_stripe);
+        let [first, second] = Train::visible_pair([train_at(401.0, 3), train_at(112.0, 4), train_at(124.0, 5)]);
+        assert_eq!(first.unwrap().stripe, train_at(112.0, 4).stripe);
+        assert_eq!(second.unwrap().stripe, train_at(124.0, 5).stripe);
+    }
+
+    #[test]
     fn express_cruises_faster_and_both_livery_banks_have_25_colors() {
         let length = 1100.0;
-        let express = Timetable::new(length, TrainService::Express, 21).unwrap();
-        let regional = Timetable::new(length, TrainService::RegionalPassenger, 21).unwrap();
+        let express = Timetable::new(length, TrainService::Express, FreightRoute::Mixed, 21).unwrap();
+        let regional = Timetable::new(length, TrainService::RegionalPassenger, FreightRoute::Mixed, 21).unwrap();
         assert!(express.trip < regional.trip);
         let period = 2 * express.trip + express.layover_a + express.layover_b;
         let tick = (period - express.offset) % period + express.layover_a + express.trip / 2;
@@ -612,7 +897,7 @@ mod tests {
     #[test]
     fn trains_stop_and_reverse_without_jumping_between_endpoints() {
         for service in [RailService::Commuter, RailService::Freight] {
-            let trip = Timetable::new(480.0, service.into(), 719_391).unwrap();
+            let trip = Timetable::new(480.0, service.into(), FreightRoute::Mixed, 719_391).unwrap();
             let period = 2 * trip.trip + trip.layover_a + trip.layover_b;
             let mut previous = trip.position(0)[0];
             let mut stopped = 0;
@@ -635,8 +920,8 @@ mod tests {
     #[test]
     fn regional_train_has_faster_cruise_and_two_stationary_dwells() {
         let key = 729_123;
-        let train = Timetable::new(533.0, TrainService::RegionalPassenger, key).unwrap();
-        let local = Timetable::new(533.0, TrainService::Commuter, key).unwrap();
+        let train = Timetable::new(533.0, TrainService::RegionalPassenger, FreightRoute::Mixed, key).unwrap();
+        let local = Timetable::new(533.0, TrainService::Commuter, FreightRoute::Mixed, key).unwrap();
         let period = 2 * train.trip + train.layover_a + train.layover_b;
         let phase_zero = (period - train.offset) % period;
         let depart_a = phase_zero + train.layover_a;
@@ -668,7 +953,7 @@ mod tests {
 
     #[test]
     fn motion_matches_the_train_and_excludes_stationary_dwells() {
-        let timetable = Timetable::new(480.0, RailService::Freight.into(), 719_391).unwrap();
+        let timetable = Timetable::new(480.0, RailService::Freight.into(), FreightRoute::Mixed, 719_391).unwrap();
         let period = 2 * timetable.trip + timetable.layover_a + timetable.layover_b;
         let start = (period - timetable.offset) % period;
         let station = |z| RailPoint { x: 2.0, z, elevation: 12.0 };
@@ -680,6 +965,70 @@ mod tests {
         assert_eq!(motion.direction, [0.0, 1.0]);
         let arrival = start + timetable.layover_a + timetable.trip;
         assert!(timetable.motion(11, arrival, station).is_none());
+    }
+
+    #[test]
+    fn fast_intermodal_and_long_heavy_freight_have_distinct_timetables() {
+        let timetable = |length, route| Timetable::new(length, TrainService::Freight, route, 7907).unwrap();
+        let containers = timetable(800.0, FreightRoute::Intermodal);
+        let rock = timetable(800.0, FreightRoute::Aggregate);
+        let branch = timetable(180.0, FreightRoute::Aggregate);
+        assert!(containers.trip < rock.trip);
+        assert_eq!((containers.cars, rock.cars, branch.cars), (7, MAX_CARS, 5));
+        assert!(rock.low > containers.low && rock.high < containers.high);
+        assert!(branch.high > branch.low);
+    }
+
+    #[test]
+    fn dedicated_bulk_cars_change_cargo_during_terminal_dwell() {
+        let trip = Timetable::new(800.0, TrainService::Freight, FreightRoute::Aggregate, 7907)
+            .unwrap();
+        let period = 2 * trip.trip + trip.layover_a + trip.layover_b;
+        let second_arrival = trip.layover_a + trip.trip;
+        let second_departure = second_arrival + trip.layover_b;
+        let cargo = |source, phase| {
+            let ticks = (phase + period - trip.offset) % period;
+            let stage = trip.cargo_stage(ticks, source, 6);
+            core::array::from_fn::<_, 6, _>(|wagon| stage.present(wagon))
+        };
+
+        for source in [LoadingEnd::First, LoadingEnd::Second] {
+            let loaded_outbound = source == LoadingEnd::First;
+            let initial = [!loaded_outbound; 6];
+            let outbound = [loaded_outbound; 6];
+            let servicing = [loaded_outbound, loaded_outbound, loaded_outbound,
+                             !loaded_outbound, !loaded_outbound, !loaded_outbound];
+            let cargo = |phase| cargo(Some(source), phase);
+            assert_eq!(cargo(0), initial);
+            assert_eq!(cargo(trip.layover_a / 2), servicing);
+            assert_eq!(cargo(trip.layover_a - 1), outbound);
+            assert_eq!(cargo(trip.layover_a + trip.trip / 2), outbound);
+            assert_eq!(cargo(second_arrival), outbound);
+            assert_eq!(cargo(second_arrival + trip.layover_b / 2), servicing);
+            assert_eq!(cargo(second_departure - 1), initial);
+            assert_eq!(cargo(second_departure + trip.trip / 2), initial);
+            assert_eq!(cargo(period), initial);
+        }
+
+        for phase in [0, trip.layover_a / 2, second_arrival, second_departure, period] {
+            assert_eq!(cargo(None, phase), [true; 6]);
+        }
+    }
+
+    #[test]
+    fn freight_clearance_covers_short_and_long_equipment() {
+        use FreightRoute::*;
+
+        for route in [Mixed, Intermodal, Agriculture, Liquid, Mill, Forest, Automotive, Perishable, Quarry, Aggregate] {
+            for key in 0..128 {
+                let timetable = Timetable::new(900.0, TrainService::Freight, route, key).unwrap();
+                let formation = FreightFormation::new(timetable.cars, route, key, false);
+                assert!(formation.half_span + 2.29 <= timetable.low);
+            }
+        }
+        for variant in 0..freight_catalog::DESIGN_COUNT {
+            assert!((10.6..=LONGEST_WAGON).contains(&freight_catalog::design(variant).body_length()));
+        }
     }
 
     #[test]
@@ -711,11 +1060,19 @@ mod tests {
             })
             .unwrap();
         let train = Train::at(&line, 1, ticks, camera, dimensions).unwrap();
-        let center = Train::line_position(&line, 1, ticks).unwrap().0;
         for (index, car) in train.cars.iter().enumerate().filter_map(|(index, car)| Some((index, car.as_ref()?))) {
-            let middle = center + (index as f32 - 2.0) * CAR_PITCH;
-            assert_eq!(car.a, line.point_at(middle - CAR_LENGTH * 0.5));
-            assert_eq!(car.b, line.point_at(middle + CAR_LENGTH * 0.5));
+            let expected_length = match car.vehicle {
+                Vehicle::Wagon { variant, .. } => freight_catalog::design(variant).body_length(),
+                _ => CAR_LENGTH,
+            };
+            assert_eq!(car.length, expected_length);
+            if let Some(next) = train.cars.get(index + 1).copied().flatten() {
+                let gap_x = car.b.x - next.a.x;
+                let gap_y = car.b.elevation - next.a.elevation;
+                let gap_z = car.b.z - next.a.z;
+                let gap_squared = gap_x * gap_x + gap_y * gap_y + gap_z * gap_z;
+                assert!(((FREIGHT_GAP - 0.05).powi(2)..=(FREIGHT_GAP + 0.05).powi(2)).contains(&gap_squared));
+            }
             for point in [car.a, car.b] {
                 let track = line.sample(point.x, point.z).unwrap();
                 assert!((track.elevation.unwrap() - point.elevation).abs() < 0.01);

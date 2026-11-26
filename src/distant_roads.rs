@@ -12,6 +12,8 @@ const STROKES: usize = 112;
 const OUTER_STROKES: usize = 24;
 const PATHS: usize = 24;
 const REVEAL_TICKS: u64 = 36;
+const OUTER_JOIN_DISTANCE: f32 = 2_000.0;
+const OUTER_SEGMENT_LENGTH: f32 = 144.0;
 
 #[derive(Clone, Copy)]
 struct Stroke {
@@ -131,11 +133,12 @@ impl DistantRoads {
         if reveal == 0.0 {
             return;
         }
-        for pair in points.windows(2) {
-            if self.count == STROKES {
-                break;
-            }
-            let Some(stroke) = view.stroke(pair[0], pair[1], reveal, horizon_ground) else { continue; };
+        let mut first = 0;
+        while first + 1 < points.len() && self.count < STROKES {
+            let start = points[first];
+            let end = view.outer_segment_end(points, first);
+            first = end;
+            let Some(stroke) = view.stroke(start, points[end], reveal, horizon_ground) else { continue; };
             if stroke.outer && self.outer_count == OUTER_STROKES {
                 continue;
             }
@@ -236,6 +239,47 @@ struct RoadView {
 }
 
 impl RoadView {
+    fn outer_segment_end(&self, points: &[RoadPoint], first: usize) -> usize {
+        let start = points[first];
+        let near = |point: RoadPoint| {
+            let dx = point.x - self.camera.x;
+            let dz = point.z - self.camera.z;
+            dx * dx + dz * dz < OUTER_JOIN_DISTANCE * OUTER_JOIN_DISTANCE
+        };
+        let mut end = first + 1;
+        if near(start) || near(points[end]) {
+            return end;
+        }
+        // At this distance short route edges project to fractions of a pixel.
+        // Join almost straight edges before projection so they form a stroke.
+        while end + 1 < points.len() && end - first < 6 {
+            let next = points[end + 1];
+            let dx = next.x - start.x;
+            let dz = next.z - start.z;
+            let length_squared = dx * dx + dz * dz;
+            if !(1.0..=OUTER_SEGMENT_LENGTH * OUTER_SEGMENT_LENGTH).contains(&length_squared)
+                || near(next)
+            {
+                break;
+            }
+            let rise = next.elevation - start.elevation;
+            let follows_chord = points[first + 1..=end].iter().all(|point| {
+                let x = point.x - start.x;
+                let z = point.z - start.z;
+                let along = x * dx + z * dz;
+                let across = x * dz - z * dx;
+                (0.0..=length_squared).contains(&along)
+                    && across * across <= 16.0 * length_squared
+                    && (point.elevation - start.elevation - rise * along / length_squared).abs() <= 2.0
+            });
+            if !follows_chord {
+                break;
+            }
+            end += 1;
+        }
+        end
+    }
+
     fn new(camera: Camera, dimensions: (usize, usize)) -> Option<Self> {
         let (width, height) = dimensions;
         if width > 512 || height > 512 { return None; }
@@ -340,8 +384,51 @@ mod tests {
             assert!(view.stroke(a, b, 1.0, &mut |_, _| -4.0).is_none());
             assert!(view.stroke(RoadPoint { z: 2240.0, ..a }, RoadPoint { z: 2240.0, ..b },
                 1.0, &mut |_, _| 20.0).unwrap().outer);
-            assert!(view.stroke(RoadPoint { z: 2890.0, ..a }, RoadPoint { z: 2890.0, ..b },
+            assert!(view.stroke(RoadPoint { z: 3200.0, ..a }, RoadPoint { z: 3200.0, ..b },
+                1.0, &mut |_, _| 20.0).unwrap().outer);
+            let beyond = CITY_HORIZON + 10.0;
+            assert!(view.stroke(RoadPoint { z: beyond, ..a }, RoadPoint { z: beyond, ..b },
                 1.0, &mut |_, _| 20.0).is_none());
+        }
+    }
+
+    #[test]
+    fn short_edges_connect_into_a_visible_road_at_four_thousand_units() {
+        const SIZE: (usize, usize) = (60, 60);
+        const AREA: usize = SIZE.0 * SIZE.1;
+        let view = RoadView::new(Camera {
+            x: 0.0, z: 0.0, altitude: 68.0, heading: 0.0, pitch: 0.15, bank: 0.0,
+        }, SIZE).unwrap();
+        let far = core::array::from_fn::<_, 7, _>(|i| RoadPoint {
+            x: (i as f32 - 3.0) * 8.0,
+            z: 4_200.0,
+            elevation: 20.0,
+        });
+        let ground = &mut |_, _| 20.0;
+        assert!(far.windows(2).all(|pair| view.stroke(pair[0], pair[1], 1.0, ground).is_none()));
+        assert_eq!(view.outer_segment_end(&far, 0), far.len() - 1);
+        let mut bend = far;
+        bend[2].z += 14.0;
+        assert!(view.outer_segment_end(&bend, 0) < bend.len() - 1);
+        let nearer = far.map(|point| RoadPoint { z: 1_900.0, ..point });
+        assert_eq!(view.outer_segment_end(&nearer, 0), 1);
+
+        let mut roads = DistantRoads::new();
+        roads.add(&far, &view, ground);
+        roads.tick = REVEAL_TICKS;
+        roads.add(&far, &view, ground);
+        assert_eq!(roads.len(), 1);
+        let stroke = roads.strokes[0];
+        let depth = [encoded_depth(stroke.from[2]); AREA];
+        let terrain = [0x7bef; AREA];
+        let mut pixels = terrain;
+        let mut work = [0; AREA];
+        roads.draw(&mut pixels, &depth, &mut work, SIZE);
+        assert_ne!(pixels, terrain);
+        for depth in [encoded_depth(1_800.0), u16::MAX] {
+            pixels = terrain;
+            roads.draw(&mut pixels, &[depth; AREA], &mut work, SIZE);
+            assert_eq!(pixels, terrain);
         }
     }
 

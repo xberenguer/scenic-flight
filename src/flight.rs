@@ -11,6 +11,7 @@ use crate::world::{SEA_LEVEL, Surface, World};
 
 pub const TICKS_PER_SECOND: u32 = 30;
 const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
+const THERMAL_ORBIT_TICKS: u16 = 590;
 const BLACKBIRD_PITCH: f32 = 0.53;
 const BLACKBIRD_TANKER_SPEED_RATIO: f32 = 0.64;
 const BLACKBIRD_REHEAT_SPEED_GAIN: f32 = 0.06;
@@ -737,6 +738,10 @@ impl Flight {
         self.climb_rate
     }
 
+    pub(crate) fn thermal_turn_elapsed(&self) -> Option<u16> {
+        self.thermal_orbit.map(|orbit| THERMAL_ORBIT_TICKS - orbit.remaining)
+    }
+
     pub(crate) fn seed(&self) -> u64 {
         self.seed
     }
@@ -1162,7 +1167,7 @@ impl Flight {
                 } else {
                     -1.0
                 };
-                self.thermal_orbit = Some(ThermalOrbit { center, direction, remaining: 590, weak_ticks: 0 });
+                self.thermal_orbit = Some(ThermalOrbit { center, direction, remaining: THERMAL_ORBIT_TICKS, weak_ticks: 0 });
             }
         }
         let orbit = self.thermal_orbit.as_mut()?;

@@ -11,29 +11,52 @@ const CROWN_BLEND_END: f32 = 122.0 * 122.0;
 const FARM_DISTRICT_TILES: i32 = 5;
 
 #[derive(Clone, Copy)]
+#[repr(u8)]
+enum FieldLayout {
+    Blocks,
+    ContourAcrossX,
+    ContourAcrossZ,
+}
+
+#[derive(Clone, Copy)]
 struct GroundTile {
     x: i32,
     z: i32,
     fields: bool,
     pattern: u32,
     alignment: i8,
+    layout: FieldLayout,
+    bend: i8,
 }
 
 impl GroundTile {
     const EMPTY: Self = Self {
         x: i32::MIN, z: i32::MIN, fields: false, pattern: 0, alignment: 0,
+        layout: FieldLayout::Blocks, bend: 0,
     };
 
     fn prepare(world: &World, seed: u64, x: i32, z: i32) -> Self {
         let state = key(seed, x, z);
         let [district_x, district_z] = [x, z].map(|tile| tile.div_euclid(FARM_DISTRICT_TILES));
         let layout = key(seed ^ 0x17da_e34d_8f0b_2671, district_x, district_z);
+        let district_alignment = ((layout >> 42) & 31) as i8 - 16;
+        let survey = if farm_density(seed, x, z) > 0.32 && state & 15 != 0 {
+            survey_farm(world, x, z)
+        } else {
+            None
+        };
+        let (layout, alignment, bend) = survey
+            .map_or((FieldLayout::Blocks, district_alignment, 0), |profile| {
+                fit_field_rows(profile, district_alignment)
+            });
         Self {
             x,
             z,
-            fields: farm_density(seed, x, z) > 0.32 && state & 15 != 0 && cultivable(world, x, z),
+            fields: survey.is_some(),
             pattern: (state >> 24) as u32,
-            alignment: ((layout >> 42) & 31) as i8 - 16,
+            alignment,
+            layout,
+            bend,
         }
     }
 
@@ -45,6 +68,9 @@ impl GroundTile {
             return Surface::Grass;
         }
         let shape = self.pattern;
+        if !matches!(self.layout, FieldLayout::Blocks) {
+            return self.contour_surface(u, v);
+        }
         let grade = self.alignment as f32 * 0.022;
         let a = u + (v - TILE * 0.5) * grade;
         let b = v - (u - TILE * 0.5) * grade;
@@ -66,6 +92,35 @@ impl GroundTile {
             0 => Surface::FieldSoil,
             1 | 5 => Surface::FieldGold,
             2 => Surface::Grass,
+            _ => Surface::FieldGreen,
+        }
+    }
+
+    fn contour_surface(self, u: f32, v: f32) -> Surface {
+        let (along, across) = if matches!(self.layout, FieldLayout::ContourAcrossX) {
+            (v, u)
+        } else {
+            (u, v)
+        };
+        let offset = along - TILE * 0.5;
+        let normalized = offset * (1.0 / 28.0);
+        let contour = across + offset * (f32::from(self.alignment) * (1.0 / 64.0))
+            + normalized * normalized * (f32::from(self.bend) * 0.125);
+        let headland = 5.0 + (self.pattern & 3) as f32;
+        if !(headland..TILE - headland).contains(&along) || !(6.0..58.0).contains(&contour) {
+            return Surface::Grass;
+        }
+
+        // Retain permanent grass bands between the cropped strips.
+        let lower = 20.0 + ((self.pattern >> 6) & 3) as f32;
+        let upper = 40.0 + ((self.pattern >> 8) & 3) as f32;
+        if (contour - lower).abs() < 1.85 || (contour - upper).abs() < 1.85 {
+            return Surface::Grass;
+        }
+        let strip = u32::from(contour > lower) + u32::from(contour > upper);
+        match (self.pattern >> (11 + strip * 3)) & 7 {
+            0 | 1 => Surface::FieldSoil,
+            2..=4 => Surface::FieldGold,
             _ => Surface::FieldGreen,
         }
     }
@@ -396,26 +451,49 @@ impl Default for GroundDetails {
     }
 }
 
-fn cultivable(world: &World, tx: i32, tz: i32) -> bool {
+fn survey_farm(world: &World, tx: i32, tz: i32) -> Option<[f32; 5]> {
     let origin = [tx as f32 * TILE, tz as f32 * TILE];
     let mut low = f32::INFINITY;
     let mut high = f32::NEG_INFINITY;
-    for z in [4.0, 18.0, 32.0, 46.0, 60.0] {
-        for x in [4.0, 18.0, 32.0, 46.0, 60.0] {
+    let mut heights = [[0.0; 5]; 5];
+    let offsets = [4.0, 18.0, 32.0, 46.0, 60.0];
+    for (row, z) in offsets.into_iter().enumerate() {
+        for (column, x) in offsets.into_iter().enumerate() {
             let sample = world.sample(origin[0] + x, origin[1] + z);
             if !matches!(sample.surface, Surface::Grass)
                 || !(SEA_LEVEL + 4.0..=SEA_LEVEL + 50.0).contains(&sample.elevation)
             {
-                return false;
+                return None;
             }
+            heights[row][column] = sample.elevation;
             low = low.min(sample.elevation);
             high = high.max(sample.elevation);
             if high - low > 5.2 {
-                return false;
+                return None;
             }
         }
     }
-    true
+    Some([heights[0][2], heights[2][0], heights[2][2], heights[2][4], heights[4][2]])
+}
+
+fn fit_field_rows(
+    [north, west, center, east, south]: [f32; 5],
+    district_alignment: i8,
+) -> (FieldLayout, i8, i8) {
+    let dx = east - west;
+    let dz = south - north;
+    let (layout, across, along, curve) = if dx.abs() > dz.abs() {
+        (FieldLayout::ContourAcrossX, dx, dz, (north + south) * 0.5 - center)
+    } else {
+        (FieldLayout::ContourAcrossZ, dz, dx, (west + east) * 0.5 - center)
+    };
+    if across.abs() < 1.45 {
+        return (FieldLayout::Blocks, district_alignment, 0);
+    }
+    let reciprocal = 1.0 / across;
+    let alignment = ((along * reciprocal).clamp(-0.75, 0.75) * 64.0) as i8;
+    let bend = ((curve * reciprocal * 56.0).clamp(-7.0, 7.0) * 8.0) as i8;
+    (layout, alignment, bend)
 }
 
 fn key(seed: u64, x: i32, z: i32) -> u64 {
@@ -599,7 +677,7 @@ mod tests {
                     if matches!(enriched.surface, Surface::FieldGreen | Surface::FieldGold | Surface::FieldSoil) {
                         fields += 1;
                         assert_eq!(natural.surface, Surface::Grass);
-                        assert!(cultivable(&world, grid_index(x, 1.0 / TILE), grid_index(z, 1.0 / TILE)));
+                        assert!(survey_farm(&world, grid_index(x, 1.0 / TILE), grid_index(z, 1.0 / TILE)).is_some());
                     }
                     details.follow(&world, x + 64.0, z - 64.0);
                     assert_eq!(enriched, details.sample(x, z, natural));
@@ -607,5 +685,23 @@ mod tests {
             }
         }
         assert!(fields > 5 && trees > 5, "{fields} {trees}");
+    }
+
+    #[test]
+    fn contour_buffers_follow_the_survey_and_leave_dry_headlands() {
+        let (layout, alignment, bend) = fit_field_rows([21.0, 19.0, 21.0, 25.0, 23.0], 0);
+        assert!(matches!(layout, FieldLayout::ContourAcrossX));
+        assert!(alignment > 0 && bend > 0);
+        let field = GroundTile { fields: true, x: 0, z: 0, layout, alignment, bend, ..GroundTile::EMPTY };
+        for v in [12.0_f32, 24.0, 32.0, 42.0, 52.0] {
+            let along = v - TILE * 0.5;
+            let t = along * (1.0 / 28.0);
+            let across = 20.0 - along * (f32::from(alignment) / 64.0)
+                - t * t * f32::from(bend) / 8.0;
+            assert_eq!(field.surface(across, v), Surface::Grass);
+            assert_eq!(field.surface(across + 5.0, v), Surface::FieldSoil);
+        }
+        assert_eq!(field.surface(26.0, 3.0), Surface::Grass);
+        assert!(matches!(fit_field_rows([21.0; 5], 0).0, FieldLayout::Blocks));
     }
 }

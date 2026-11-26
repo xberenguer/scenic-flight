@@ -867,16 +867,23 @@ impl NaturalStream {
         self.dry_sites().filter_map(Site::plan)
     }
 
+    /// Screen coverage of the retained natural meshes. Uses the existing
+    /// waterfall depth pass so a static cliff does not require another pass.
     pub fn waterfall_region(&self, camera: Camera, dimensions: (usize, usize)) -> Option<ScreenRect> {
         self.lakes()
             .filter_map(AlpineLake::waterfall)
             .filter_map(|fall| fall.screen_region(camera, dimensions))
+            .chain(self.scree_fan().and_then(ScreeFan::headwall)
+                .and_then(|wall| wall.screen_region(camera, dimensions)))
             .reduce(ScreenRect::union)
     }
 
     pub fn draw_waterfalls(&self, camera: Camera, ticks: u64, mesh: &mut WorldMesh<'_>) {
         for fall in self.lakes().filter_map(AlpineLake::waterfall) {
             fall.draw(camera, ticks, mesh);
+        }
+        if let Some(wall) = self.scree_fan().and_then(ScreeFan::headwall) {
+            wall.draw(camera, mesh);
         }
     }
 
@@ -1015,10 +1022,12 @@ impl NaturalStream {
         }
         let raw = self.world.sample(x, z);
         let elevation = self.overlay(x, z, raw).elevation;
+        let crest = self.scree_fan().and_then(ScreeFan::headwall)
+            .map_or(0.0, |wall| wall.obstruction(x, z));
         if elevation > raw.elevation {
-            elevation
+            elevation.max(crest)
         } else {
-            0.0
+            crest
         }
     }
 }
@@ -1159,6 +1168,67 @@ mod tests {
         assert!(stream.commit(request.prepare(|| {}), away, |_| NaturalReservation::Reserved));
         assert!(stream.scree_fan().is_none());
         assert!(!stream.reserves(expected.bounds()));
+    }
+
+    #[test]
+    fn surveyed_columnar_headwall_reserves_native_rock_and_draws_at_sixty_pixels() {
+        use crate::render::render_terrain_layer_region;
+        use crate::sky::Sky;
+
+        let seed = 11;
+        let world = World::new(seed);
+        let expected = ScreeFan::generate(&world, seed, 12, -3).unwrap();
+        let wall = expected.headwall().unwrap();
+        let camera = Camera {
+            x: 4771.6357, z: -1009.48, altitude: 136.31148,
+            heading: -core::f32::consts::FRAC_PI_2, pitch: 0.22, bank: 0.0,
+        };
+        let preparation = Camera { x: 4800.0, z: -960.0, ..camera };
+        let budget = NaturalBudget { alpine_tiles: 9, dry_tiles: 0 };
+        let mut blocked = NaturalStream::new(world, seed);
+        blocked.preflight(preparation, budget, |bounds| {
+            if bounds == expected.bounds() { NaturalReservation::Reserved } else { NaturalReservation::Clear }
+        });
+        assert_ne!(blocked.scree_fan().and_then(ScreeFan::headwall), Some(wall));
+
+        let mut nature = NaturalStream::new(world, seed);
+        nature.preflight(preparation, budget, CLEAR);
+        assert_eq!(nature.scree_fan().and_then(ScreeFan::headwall), Some(wall));
+        assert!(nature.reserves(wall.bounds()));
+        let [left, near, right, far] = wall.bounds();
+        let mut grounded = 0;
+        for row in 0..=20 {
+            let z = near + (far - near) * row as f32 / 20.0;
+            for column in 0..=20 {
+                let x = left + (right - left) * column as f32 / 20.0;
+                let native = world.sample(x, z);
+                let obstruction = nature.obstruction(x, z);
+                if obstruction > native.elevation + 3.0 {
+                    assert_eq!(native.surface, Surface::Rock);
+                    grounded += 1;
+                }
+            }
+        }
+        assert!(grounded > 45);
+
+        const SIDE: usize = 60;
+        let size = (SIDE, SIDE);
+        let sampler = nature.sampler();
+        let sample = |x, z| sampler.overlay(x, z, world.sample(x, z));
+        let sky = Sky::from_time_at_position(seed, 0, 0.42, [camera.x, camera.altitude, camera.z]);
+        let coverage = nature.waterfall_region(camera, size).unwrap();
+        let mut pixels = [0; SIDE * SIDE];
+        let mut scratch = pixels;
+        let mut depth = [u16::MAX; SIDE * SIDE];
+        render_terrain_layer_region(
+            (&sample, |_, _, terrain| terrain.surface), camera, &sky, &mut pixels,
+            &mut scratch, Some((&mut depth, coverage)), size, |_| {},
+        ).unwrap();
+        let terrain = pixels;
+        let mut mesh = WorldMesh::new(&mut pixels, &mut depth, size, camera, &sky).unwrap();
+        nature.draw_waterfalls(camera, 0, &mut mesh);
+        let changed = pixels.into_iter().zip(terrain).filter(|(old, new)| old != new).count();
+        assert!(changed >= 150, "only {changed} visible headwall pixels");
     }
 
     #[test]

@@ -1,5 +1,6 @@
 //! Original low-polygon aircraft geometry and a small painter for the chase view.
 
+use crate::air::Lift;
 use crate::encounters::{Refuel, blackbird_refuel, blackbird_reheat, fighter_reheat, formation};
 use crate::flight::{Aircraft, Flight};
 use crate::math::{sin_cos, smoothstep};
@@ -55,7 +56,7 @@ pub fn draw_aircraft(flight: &Flight, pixels: &mut [u16], w: usize, h: usize) {
         return;
     }
     let mut canvas = SliceCanvas { pixels, width: w };
-    paint_chase_aircraft(flight, chase_projection(flight, w, h), 1.0, &mut canvas, w, h);
+    paint_chase_aircraft(flight, chase_projection(flight, w, h), 1.0, &mut canvas, w, h, None);
 }
 
 /// Draw the player and any scheduled wingmates into the chase view.
@@ -124,7 +125,7 @@ pub fn draw_flight_scene_on(
             paint_position_lights(projection, WINGMATE_WINGTIP, None, sky.daylight, canvas, (w, h));
         }
     }
-    paint_chase_aircraft(flight, player, sky.daylight, canvas, w, h);
+    paint_chase_aircraft(flight, player, sky.daylight, canvas, w, h, Some(sky));
 }
 
 fn paint_chase_aircraft(
@@ -134,7 +135,12 @@ fn paint_chase_aircraft(
     canvas: &mut impl AircraftCanvas,
     w: usize,
     h: usize,
+    sky: Option<&Sky>,
 ) {
+    if let Some(reflection) = sky.and_then(|sky| glider_sun_reflection(flight, sky)) {
+        paint_model(projection, canvas, w, h, |p| glider(p, Some(reflection)));
+        return;
+    }
     let plume = match flight.aircraft {
         Aircraft::Blackbird => Some((BLACKBIRD_EXHAUST, blackbird_reheat(flight.seed(), flight.ticks))),
         Aircraft::Fighter => Some((FIGHTER_EXHAUST, fighter_reheat(flight.seed(), flight.ticks))),
@@ -155,6 +161,36 @@ fn paint_chase_aircraft(
         Aircraft::Trike | Aircraft::Glider | Aircraft::BaldEagle => return,
     };
     paint_position_lights(projection, tip, tail, daylight, canvas, (w, h));
+}
+
+#[derive(Clone, Copy)]
+struct GliderReflection {
+    side: f32,
+    strength: f32,
+}
+
+fn glider_sun_reflection(flight: &Flight, sky: &Sky) -> Option<GliderReflection> {
+    if flight.aircraft != Aircraft::Glider || flight.air.lift != Lift::Thermal || flight.air.upward < 0.85 {
+        return None;
+    }
+    let [sx, above, sz] = sky.sun_direction;
+    let turn = f32::from(flight.thermal_turn_elapsed()?);
+    let timing = smoothstep((turn - 45.0) / 24.0) * (1.0 - smoothstep((turn - 267.0) / 26.0));
+    if timing == 0.0 || above < 0.28 || sky.daylight < 0.70 || flight.bank.abs() < 0.14 {
+        return None;
+    }
+    let (sine, cosine) = sin_cos(flight.heading);
+    let lateral = sx * cosine - sz * sine;
+    let forward = sx * sine + sz * cosine;
+    // A brief view of the sun across the banked, rear-facing quarter of the wing.
+    // Narrowing this to one side prevents a second flash on the far half of the turn.
+    if flight.bank * lateral <= 0.0 {
+        return None;
+    }
+    let angle = smoothstep((0.24 - (forward + 0.39).abs()) / 0.19);
+    let sky_clear = 1.0 - smoothstep((sky.cloud_cover - 0.44) * 3.1);
+    let strength = timing * angle * sky_clear * smoothstep((flight.air.upward - 0.85) / 0.95);
+    (strength > 0.02).then_some(GliderReflection { side: lateral.signum(), strength })
 }
 
 const PORT_LIGHT: u16 = rgb565(252, 56, 60);
@@ -667,6 +703,56 @@ mod tests {
     }
 
     #[test]
+    fn glider_reflection_follows_real_lift_and_stays_within_the_drawn_airframe() {
+        const SIDE: usize = 156;
+        let mut best: Option<(f32, u64, Flight, Sky)> = None;
+        for seed in [41, 33, 5, 6, 11, 15, 29, 45] {
+            let world = World::new(seed);
+            let mut flight = Flight::start(&world, seed, Aircraft::Glider);
+            let mut visible_flash = false;
+            let mut flashes = 0;
+            for _ in 0..260 * crate::flight::TICKS_PER_SECOND {
+                flight.update(&world);
+                if flight.thermal_turn_elapsed().is_none() {
+                    assert!(flashes <= 1, "repeat reflection in the same turn, seed {seed}");
+                    visible_flash = false;
+                    flashes = 0;
+                    continue;
+                }
+                let sky = Sky::at_position(seed, flight.ticks, [flight.x, flight.altitude, flight.z]);
+                let strength = glider_sun_reflection(&flight, &sky).map_or(0.0, |light| light.strength);
+                if strength > 0.45 && !visible_flash {
+                    flashes += 1;
+                    visible_flash = true;
+                }
+                visible_flash &= strength >= 0.16;
+                if strength > 0.38 && best.as_ref().is_none_or(|(score, ..)| strength > *score) {
+                    best = Some((strength, seed, flight.clone(), sky));
+                }
+            }
+        }
+        let (strength, seed, flight, sky) = best.expect("natural sunny thermal reflection");
+        let mut bare = [0; SIDE * SIDE];
+        let mut bright = bare;
+        draw_aircraft(&flight, &mut bare, SIDE, SIDE);
+        draw_flight_scene(&flight, seed, &sky, &mut bright, SIDE, SIDE);
+        let mut highlighted = 0;
+        for (&a, &b) in bare.iter().zip(&bright) {
+            if a != b {
+                assert!(a != 0 && b != 0, "reflection escaped the aircraft silhouette");
+                highlighted += 1;
+            }
+        }
+        assert!(highlighted >= 6);
+        let mut overcast = [0; SIDE * SIDE];
+        let mut clouded = sky;
+        clouded.cloud_cover = 1.0;
+        draw_flight_scene(&flight, seed, &clouded, &mut overcast, SIDE, SIDE);
+        assert_eq!(overcast, bare);
+        std::eprintln!("glider reflection seed {seed}, tick {}, strength {strength:.3}, {highlighted} overlay pixels", flight.ticks);
+    }
+
+    #[test]
     fn blackbird_plumes_are_steady_during_reheat_and_absent_in_cruise() {
         const SIDE: usize = 112;
         let seed = 439;
@@ -718,7 +804,7 @@ mod tests {
             assert!(sheath.into_iter().all(|count| count >= 2), "violet edge {sheath:?}; bank {bank}");
 
             let mut dusk = [0; SIDE * SIDE];
-            paint_chase_aircraft(&flight, pose, 0.25, &mut SliceCanvas { pixels: &mut dusk, width: SIDE }, SIDE, SIDE);
+            paint_chase_aircraft(&flight, pose, 0.25, &mut SliceCanvas { pixels: &mut dusk, width: SIDE }, SIDE, SIDE, None);
             let intensity = |frame: &[u16]| frame.iter().zip(&body)
                 .filter(|(pixel, base)| pixel != base)
                 .map(|(&pixel, _)| u32::from((pixel >> 11) + ((pixel >> 5) & 63) + (pixel & 31)))
@@ -855,7 +941,7 @@ fn paint_aircraft(
         Aircraft::Racer => racer(painter),
         Aircraft::SportJet => sport_jet(painter),
         Aircraft::Trike => ultralight(painter),
-        Aircraft::Glider => glider(painter),
+        Aircraft::Glider => glider(painter, None),
         Aircraft::Fighter => fighter(painter),
         Aircraft::Blackbird => blackbird(painter),
         Aircraft::BaldEagle => bald_eagle(painter, ticks),
@@ -1028,24 +1114,21 @@ fn shell(p: &mut Painter, sections: &[[f32; 4]], x: f32, y: f32, paint: Paint) {
 
 fn wing(p: &mut Painter, root: [Point; 2], tip: [Point; 2], paint: Paint, trim: Paint) {
     for hand in [-1.0, 1.0] {
-        let mirror = |[x, y, z]: Point| [hand * x, y, z];
-        let a = mirror(root[0]);
-        let b = mirror(root[1]);
-        let c = mirror(tip[0]);
-        let d = mirror(tip[1]);
-        let blend = |point: Point, edge: Point| {
-            let t = 0.82;
-            [
-                point[0] + (edge[0] - point[0]) * t,
-                point[1] + (edge[1] - point[1]) * t,
-                point[2] + (edge[2] - point[2]) * t,
-            ]
-        };
-        let e = blend(a, c);
-        let f = blend(b, d);
-        p.quad(a, e, f, b, paint);
-        p.quad(e, c, d, f, trim);
+        wing_half(p, hand, root, tip, paint, trim);
     }
+}
+
+fn wing_half(p: &mut Painter, hand: f32, root: [Point; 2], tip: [Point; 2], paint: Paint, trim: Paint) {
+    let mirror = |[x, y, z]: Point| [hand * x, y, z];
+    let [a, b] = root.map(mirror);
+    let [c, d] = tip.map(mirror);
+    let blend = |point: Point, edge: Point| {
+        core::array::from_fn(|axis| point[axis] + (edge[axis] - point[axis]) * 0.82)
+    };
+    let e = blend(a, c);
+    let f = blend(b, d);
+    p.quad(a, e, f, b, paint);
+    p.quad(e, c, d, f, trim);
 }
 
 fn fin(p: &mut Painter, x: f32, top_x: f32, y: f32, top: f32, lead: f32, trail: f32, paint: Paint) {
@@ -1076,19 +1159,23 @@ fn strut(p: &mut Painter, a: Point, b: Point, width: f32, paint: Paint) {
 }
 
 fn window(p: &mut Painter, y: f32, front: f32, rear: f32, width: f32) {
+    canopy(p, y, front, rear, width, GLASS);
+}
+
+fn canopy(p: &mut Painter, y: f32, front: f32, rear: f32, width: f32, glass: Paint) {
     p.quad(
         [-width, y - 0.17, front],
         [width, y - 0.17, front],
         [width * 0.80, y, rear],
         [-width * 0.80, y, rear],
-        GLASS,
+        glass,
     );
     for side in [-1.0, 1.0] {
         p.triangle(
             [side * width, y - 0.17, front],
             [side * width * 0.8, y, rear],
             [side * width, y - 0.17, rear - 0.17],
-            GLASS,
+            glass,
         );
     }
 }
@@ -1290,7 +1377,7 @@ fn ultralight(p: &mut Painter) {
     strut(p, [-0.42, 0.04, -0.73], [0.42, 0.10, -0.73], 0.052, RUBBER);
 }
 
-fn glider(p: &mut Painter) {
+fn glider(p: &mut Painter, reflection: Option<GliderReflection>) {
     let white = [229, 231, 222];
     let stripe = [198, 78, 62];
     shell(
@@ -1305,13 +1392,13 @@ fn glider(p: &mut Painter) {
         0.0,
         white,
     );
-    wing(
-        p,
-        [[0.1, 0.14, 0.65], [0.1, 0.10, -0.74]],
-        [[5.03, 0.49, -0.22], [5.09, 0.51, -0.57]],
-        white,
-        stripe,
-    );
+    for side in [-1.0, 1.0] {
+        let glare = reflection.filter(|light| light.side == side).map_or(0.0, |light| light.strength);
+        wing_half(p, side, [[0.1, 0.14, 0.65], [0.1, 0.10, -0.74]],
+                  [[5.03, 0.49, -0.22], [5.09, 0.51, -0.57]],
+                  reflect(white, [253, 245, 219], glare * 0.76),
+                  reflect(stripe, [252, 185, 118], glare * 0.73));
+    }
     fin(p, 0.0, 0.0, 0.15, 1.25, -1.91, -3.10, white);
     wing(
         p,
@@ -1320,7 +1407,15 @@ fn glider(p: &mut Painter) {
         white,
         stripe,
     );
-    window(p, 0.46, 1.49, 0.45, 0.32);
+    let glass = reflect(GLASS, [200, 225, 227], reflection.map_or(0.0, |light| light.strength * 0.78));
+    canopy(p, 0.46, 1.49, 0.45, 0.32, glass);
+}
+
+fn reflect(base: Paint, sheen: Paint, strength: f32) -> Paint {
+    core::array::from_fn(|i| {
+        let start = f32::from(base[i]);
+        (start + (f32::from(sheen[i]) - start) * strength + 0.5) as u8
+    })
 }
 
 fn fighter(p: &mut Painter) {

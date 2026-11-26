@@ -5,9 +5,10 @@ use crate::ports::{Port, PortSample, PortSurface};
 use crate::quayside::Quayside;
 use crate::rail::{RailAnchorKind, RailLine, RailMaterial, RailSample, RailService};
 use crate::roads::{RoadNetwork, RoadPoint};
+use crate::scenic_turnout::ScenicTurnout;
 use crate::settlement::{Settlement, SettlementSurface, Terminus};
 use crate::solar_sites::SolarSite;
-use crate::train_art::FreightRoute;
+use crate::train_art::{contextual_freight_route, FreightRoute};
 use crate::water_tower::WaterTower;
 use crate::working_quarry::Quarry;
 use crate::world::{Sample, Surface, World};
@@ -63,6 +64,7 @@ pub enum FacilitySample {
     Solar(Sample),
     Quayside(Sample),
     WaterTower,
+    ScenicTurnout(Sample),
 }
 
 #[derive(Clone, Copy)]
@@ -71,6 +73,7 @@ pub(crate) enum RoadsideSite {
     Solar(SolarSite),
     Quayside(Quayside),
     WaterTower(WaterTower),
+    ScenicTurnout(ScenicTurnout),
 }
 
 impl RoadsideSite {
@@ -80,6 +83,7 @@ impl RoadsideSite {
             Self::Solar(site) => site.bounds(),
             Self::Quayside(site) => site.bounds(),
             Self::WaterTower(site) => site.bounds(),
+            Self::ScenicTurnout(site) => site.bounds(),
         }
     }
 }
@@ -170,6 +174,13 @@ impl RegionalFacilities {
         }
     }
 
+    pub fn scenic_turnout(&self) -> Option<&ScenicTurnout> {
+        match self.roadside.as_ref()? {
+            RoadsideSite::ScenicTurnout(turnout) => Some(turnout),
+            _ => None,
+        }
+    }
+
     pub(crate) fn roadside(&self) -> Option<&RoadsideSite> {
         self.roadside.as_ref()
     }
@@ -186,7 +197,7 @@ impl RegionalFacilities {
     pub(crate) fn roadside_quarry(&self, site: Quarry, road: &RoadNetwork) -> RoadsideSite {
         let points = road.polyline();
         let local_transfer = self.rail.as_ref()
-            .filter(|rail| rail.service == RailService::Freight)
+            .filter(|rail| rail.service == RailService::Freight && rail.grain_terminal().is_none())
             .and_then(|rail| rail.stations().iter().find(|station| !station.anchor.kind.is_port()))
             .is_some_and(|station| {
                 [Terminus::Start, Terminus::End].into_iter().zip([points.first(), points.last()])
@@ -249,6 +260,7 @@ impl RegionalFacilities {
                 RoadsideSite::Solar(site) => site.sample(x, z, raw).map(FacilitySample::Solar),
                 RoadsideSite::Quayside(site) => site.sample(x, z, raw).map(FacilitySample::Quayside),
                 RoadsideSite::WaterTower(site) => site.reserves(x, z).then_some(FacilitySample::WaterTower),
+                RoadsideSite::ScenicTurnout(site) => site.sample(x, z, raw).map(FacilitySample::ScenicTurnout),
             })
     }
 }
@@ -371,6 +383,25 @@ impl RegionalFacilityPlanner {
                             )
                         },
                     );
+                if let Some(line) = self.facilities.rail.as_mut().filter(|line| line.service == RailService::Commuter) {
+                    line.survey_grain_terminal(&self.world, self.seed, road, |x, z| {
+                        districts.iter().flatten().any(|district| district.town.sample(x, z).is_some())
+                            || self.facilities.airfield.as_ref().is_some_and(|site| site.sample(x, z).is_some())
+                            || ports.iter().flatten().any(|port| port.sample(x, z, self.world.sample(x, z)).is_some())
+                    }, &mut *pulse);
+                }
+                if let Some(line) = self.facilities.rail.as_mut().filter(|line| line.service == RailService::Freight
+                    && line.grain_terminal().is_none())
+                {
+                    let ends = line.stations().map(|station| station.anchor);
+                    line.freight_route = contextual_freight_route(&self.world, self.seed, ends, line.freight_route, |x, z| {
+                        road.proximity(x, z).is_some()
+                            || line.sample(x, z).is_some()
+                            || districts.iter().flatten().any(|district| district.town.sample(x, z).is_some())
+                            || self.facilities.airfield.as_ref().is_some_and(|site| site.sample(x, z).is_some())
+                            || ports.iter().flatten().any(|port| port.sample(x, z, self.world.sample(x, z)).is_some())
+                    });
+                }
                 Ready
             }
             Ready => Ready,

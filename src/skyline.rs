@@ -13,6 +13,8 @@ const VISIBLE_ROOFS: usize = 6;
 const VISIBLE_NEIGHBORHOODS: usize = 18;
 const GLYPHS: usize = VISIBLE + VISIBLE_ROOFS + VISIBLE_NEIGHBORHOODS;
 const FADE_TICKS: u8 = 36;
+const CIVIC_ROOF_REACH: f32 = 2240.0;
+const CITY_FADE_WIDTH: f32 = 700.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SkylineTower {
@@ -321,7 +323,7 @@ impl SkylineFrame {
         let radius_sq = (width.min(height) * width.min(height)) as i32;
         for glyph in self.glyphs[..self.len].iter().rev().flatten() {
             let rect = glyph.screen_rect();
-            let opacity = if glyph.form == Form::Tower {
+            let opacity = if glyph.form == Form::Tower && !glyph.backdrop {
                 glyph.alpha
             } else {
                 glyph.alpha * footing(glyph, self.roll, width, depth)
@@ -392,6 +394,7 @@ struct Glyph {
     alpha: f32,
     z: u16,
     support_depth: u16,
+    backdrop: bool,
     color: u16,
     rect: [u16; 4],
 }
@@ -511,7 +514,7 @@ impl Projection {
     fn roof_potential(&self, center: [f32; 2]) -> bool {
         let [side, forward] = self.relative(center);
         forward > self.near * 0.58
-            && forward < self.far + 80.0
+            && forward < CIVIC_ROOF_REACH + 80.0
             && side.abs() < forward * 0.82 + 32.0
     }
 
@@ -539,13 +542,13 @@ impl Projection {
         } else {
             smoothstep((along - self.near * 0.65) / (self.near * 0.24))
         };
-        let reach = if matches!(form, Form::Tower | Form::Neighborhood) {
-            CITY_HORIZON
+        let (reach, fade_width) = if matches!(form, Form::Tower | Form::Neighborhood) {
+            (CITY_HORIZON, CITY_FADE_WIDTH)
         } else {
-            self.far
+            (CIVIC_ROOF_REACH, CIVIC_ROOF_REACH * 0.20)
         };
         let fade = appearance * near_fade
-            * (1.0 - smoothstep((along - reach * 0.72) / (reach * 0.28)));
+            * (1.0 - smoothstep((along - (reach - fade_width)) / fade_width));
         if fade < 0.015 || side.abs() > along * 0.82 + 12.0 {
             return None;
         }
@@ -655,6 +658,7 @@ impl Projection {
             alpha,
             z: encoded_depth(depth),
             support_depth: encoded_depth(depth + 32.0),
+            backdrop: along > self.far,
             color,
             rect: [
                 rect.left as u16,
@@ -1023,6 +1027,101 @@ mod tests {
             frame.draw(&mut pixels, &[encoded_depth(1_800.0); AREA]);
             assert_eq!(pixels, baseline);
         }
+    }
+
+    #[test]
+    fn high_cruise_keeps_the_extended_city_attached_to_rendered_terrain() {
+        assert_city_blends_with_terrain_at(
+            (1, (-1, 0)),
+            camera(-2625.7314, -1814.3259, 328.28, 0.79, 0.53),
+            0.39,
+            3_000.0..3_500.0,
+            Some(4),
+        );
+    }
+
+    #[test]
+    fn real_skyline_paints_beyond_four_thousand_units() {
+        assert_city_blends_with_terrain_at(
+            (46, (-5, -3)),
+            Camera { bank: 0.0, ..camera(-1430.4126, 305.29858, 328.28, 3.93, 0.53) },
+            0.44,
+            4_050.0..4_300.0,
+            None,
+        );
+    }
+
+    fn assert_city_blends_with_terrain_at(
+        (seed, owner): (u64, (i32, i32)),
+        view: Camera,
+        phase: f32,
+        tower_range: core::ops::Range<f32>,
+        minimum_towers: Option<usize>,
+    ) {
+        use crate::land_stream::LandBudget;
+        use crate::render::render_terrain_layer_region_with_horizon;
+        use crate::terrain_cache::TerrainCache;
+
+        const RASTER: (usize, usize) = (60, 60);
+        const AREA: usize = 60 * 60;
+        let world = World::new(seed);
+        let sky = Sky::from_time_at_position(seed, 0, phase, [view.x, view.altitude, view.z]);
+        let projection = Projection::new(view, RASTER);
+        let mut land = std::boxed::Box::new(LandStream::<8>::new());
+        land.reset(world);
+        land.preflight(view, false);
+        for frame in 0..1600 {
+            land.service(view, LandBudget {
+                expansions: 8,
+                terrain_samples: 32,
+                settlement_jobs: u8::from(frame % 16 == 2),
+            });
+            if land.district_published(owner) {
+                break;
+            }
+        }
+        assert!(land.district_published(owner));
+
+        let mut horizon = HorizonCache::new();
+        horizon.reset(world, view.x, view.z);
+        let far = |x, z| horizon.backdrop(x, z);
+        let mut skyline = Skyline::new();
+        for tick in 0..36 {
+            skyline.prepare(&land, view, tick, &sky, RASTER, far);
+        }
+        let mut frame = skyline.prepare(&land, view, 36, &sky, RASTER, far);
+        for entry in &mut frame.glyphs {
+            if entry.is_some_and(|glyph| {
+                let [x, z] = glyph.center;
+                let tile = (
+                    crate::scenery::region_axis(x, crate::roads::ROAD_REGION_SIZE),
+                    crate::scenery::region_axis(z, crate::roads::ROAD_REGION_SIZE),
+                );
+                !tower_range.contains(&projection.relative(glyph.center)[1])
+                    || tile != owner
+                    || (minimum_towers.is_some() && glyph.form != Form::Tower)
+            }) {
+                *entry = None;
+            }
+        }
+        assert!(frame.len() >= minimum_towers.unwrap_or(1));
+
+        let mut terrain = TerrainCache::new();
+        terrain.reset_for_altitude(world, view.x, view.z, view.altitude);
+        let mut pixels = [0; AREA];
+        let mut scratch = [0; AREA * 2];
+        let mut depth = [u16::MAX; AREA];
+        render_terrain_layer_region_with_horizon(
+            (|x, z| land.overlay(x, z, terrain.sample(x, z)), |_, _, p| p.surface),
+            far, view, &sky, &mut pixels, &mut scratch,
+            Some((&mut depth, ScreenRect::full(RASTER))), RASTER, |_| {}, |_| None,
+        ).unwrap();
+        let terrain_only = pixels;
+        frame.draw(&mut pixels, &depth);
+        assert!(pixels != terrain_only, "no skyline pixels cleared the foreground at {view:?}");
+        pixels = terrain_only;
+        frame.draw(&mut pixels, &[u16::MAX; AREA]);
+        assert_eq!(pixels, terrain_only);
     }
 
     #[test]

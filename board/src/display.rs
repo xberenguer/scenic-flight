@@ -321,8 +321,9 @@ mod background {
         #[cfg(feature = "cooperative-sky")]
         pub fn prepare_sky(
             &mut self, camera: scenic_flight::render::Camera, sky: scenic_flight::sky::Sky,
+            dimensions: (usize, usize),
         ) -> crate::sky_worker::PreparedSky {
-            crate::sky_worker::request(camera, sky)
+            crate::sky_worker::request(camera, sky, dimensions)
         }
 
         #[cfg(feature = "native-flight-overlay")]

@@ -1,12 +1,155 @@
 //! Small permanent objects inside the already surveyed station boundary.
 
 use crate::math::smoothstep;
-use crate::rail::{RailAnchorKind, RailMaterial, RailService};
+use crate::rail::{GrainTerminal, RailAnchorKind, RailMaterial, RailService};
 use crate::render::{Camera, ScreenProjection, ScreenRect};
+use crate::train_art::FreightRoute;
 use crate::world_mesh::WorldMesh;
 
 type Point = [f32; 3];
 type Color = [u8; 3];
+
+/// Model coordinates share the surveyed pad axes, with positive `across`
+/// toward truck receiving and negative `across` toward the railway.
+pub(crate) struct GrainElevatorArt {
+    origin: Point,
+    along: [f32; 2],
+    outward: [f32; 2],
+    track: Point,
+}
+
+impl GrainElevatorArt {
+    pub(crate) fn new(terminal: &GrainTerminal) -> Self {
+        Self { origin: terminal.origin, along: terminal.along, outward: terminal.outward, track: terminal.track }
+    }
+
+    pub(crate) fn visible(&self, camera: Camera, dimensions: (usize, usize)) -> Option<(ScreenRect, f32)> {
+        let reach = dimensions.0.min(dimensions.1) as f32 * 1.17 + 19.0;
+        let dx = self.origin[0] - camera.x;
+        let dy = self.origin[1] - camera.altitude;
+        let dz = self.origin[2] - camera.z;
+        let distance = dx * dx + dy * dy + dz * dz;
+        if distance >= reach * reach {
+            return None;
+        }
+        let opacity = smoothstep((1.0 - distance / (reach * reach)) * 2.5);
+        let bounds = ScreenProjection::new(camera, dimensions)?.bounds(self.bounds())?;
+        Some((bounds, opacity))
+    }
+
+    fn bounds(&self) -> [Point; 2] {
+        let [x, y, z] = self.origin;
+        let dx = self.along[0].abs() * GrainTerminal::HALF_LENGTH
+            + self.outward[0].abs() * GrainTerminal::HALF_WIDTH;
+        let dz = self.along[1].abs() * GrainTerminal::HALF_LENGTH
+            + self.outward[1].abs() * GrainTerminal::HALF_WIDTH;
+        let [tx, ty, tz] = self.track;
+        [
+            [(x - dx).min(tx - 0.78), (y - 0.40).min(ty + 4.65), (z - dz).min(tz - 0.78)],
+            [(x + dx).max(tx + 0.78), (y + GrainTerminal::MAX_HEIGHT).max(ty + 6.62), (z + dz).max(tz + 0.78)],
+        ]
+    }
+
+    fn point(&self, [along, height, across]: Point) -> Point {
+        let [x, y, z] = self.origin;
+        [x + self.along[0] * along + self.outward[0] * across, y + height,
+         z + self.along[1] * along + self.outward[1] * across]
+    }
+
+    pub(crate) fn draw(&self, mesh: &mut WorldMesh<'_>, opacity: f32) {
+        self.faces(|triangle, color| mesh.faded_triangle(triangle, color, opacity));
+    }
+
+    fn faces(&self, mut emit: impl FnMut([Point; 3], Color)) {
+        let placement = u64::from(self.origin[0].to_bits()) << 32 | u64::from(self.origin[2].to_bits());
+        let variant = crate::math::mix(placement) % 3;
+        let bins: &[[f32; 3]] = match variant {
+            0 => &[[-7.35, 2.65, 7.05], [-0.15, 2.72, 7.80]],
+            1 => &[[-8.30, 2.45, 6.10], [-1.70, 2.65, 7.65], [4.95, 2.48, 6.95]],
+            _ => &[[-8.95, 2.05, 6.60], [-4.14, 2.12, 6.92], [0.65, 2.08, 7.13], [5.45, 2.16, 6.52]],
+        };
+        let mut model = GrainMesh { emit: &mut emit, site: self };
+        model.quad([[-11.20, 0.07, 3.92], [11.20, 0.07, 3.92], [11.20, 0.07, 5.94], [-11.20, 0.07, 5.94]], [143, 128, 102]);
+        for &[along, radius, height] in bins {
+            model.bin(along, radius, height);
+        }
+        // The truck pull-through and low receiving house sit outside the bin row.
+        model.block([9.68, -0.36, 2.25], [3.40, 3.36, 3.78], [151, 137, 114]);
+        model.block([9.68, 2.78, 2.25], [3.66, 0.63, 4.02], [99, 109, 106]);
+        model.quad([[8.68, 0.09, 4.154], [10.72, 0.09, 4.154], [10.72, 2.32, 4.154], [8.68, 2.32, 4.154]], [60, 69, 68]);
+        // The headhouse is higher than its bins and feeds the covered gallery.
+        model.block([0.0, -0.36, -3.48], [3.36, 10.16, 2.96], [168, 156, 130]);
+        model.block([0.0, 9.50, -3.48], [3.63, 0.44, 3.21], [216, 205, 173]);
+        model.block([0.0, 9.87, -3.48], [2.74, 1.26, 2.60], [185, 126, 77]);
+        model.load_track();
+    }
+}
+
+struct GrainMesh<'a, F> {
+    emit: &'a mut F,
+    site: &'a GrainElevatorArt,
+}
+
+impl<F: FnMut([Point; 3], Color)> GrainMesh<'_, F> {
+    fn triangle(&mut self, triangle: [Point; 3], color: Color) {
+        (self.emit)(triangle.map(|point| self.site.point(point)), color);
+    }
+
+    fn quad(&mut self, [a, b, c, d]: [Point; 4], color: Color) {
+        self.triangle([a, b, c], color);
+        self.triangle([a, c, d], color);
+    }
+
+    fn block(&mut self, [x, y, z]: Point, [width, height, depth]: Point, color: Color) {
+        let [w, d] = [width * 0.5, depth * 0.5];
+        let corners = |level| [
+            [x - w, level, z - d], [x + w, level, z - d],
+            [x + w, level, z + d], [x - w, level, z + d],
+        ];
+        let lower = corners(y);
+        let upper = corners(y + height);
+        for (i, light) in [1.0, 0.82, 0.95, 0.76].into_iter().enumerate() {
+            let next = (i + 1) % lower.len();
+            let color = color.map(|component| (f32::from(component) * light) as u8);
+            self.quad([lower[i], lower[next], upper[next], upper[i]], color);
+        }
+        self.quad(upper, color);
+    }
+
+    fn bin(&mut self, along: f32, radius: f32, height: f32) {
+        const D: f32 = core::f32::consts::FRAC_1_SQRT_2;
+        const RING: [[f32; 2]; 8] = [[1.0, 0.0], [D, D], [0.0, 1.0], [-D, D],
+                                    [-1.0, 0.0], [-D, -D], [0.0, -1.0], [D, -D]];
+        const FACETS: [Color; 8] = [[151, 158, 159], [181, 186, 178], [200, 201, 186], [185, 189, 179],
+                                   [154, 164, 163], [127, 142, 146], [119, 134, 143], [136, 149, 150]];
+        let side = 1.12;
+        let floor = RING.map(|[u, v]| [along + radius * u, -0.37, side + radius * v]);
+        let edge = RING.map(|[u, v]| [along + radius * u, height, side + radius * v]);
+        let peak = [along, height + radius * 0.56, side];
+        for (i, color) in FACETS.into_iter().enumerate() {
+            let next = (i + 1) % FACETS.len();
+            self.quad([floor[i], floor[next], edge[next], edge[i]], color);
+            self.triangle([edge[i], edge[next], peak], color.map(|shade| shade.saturating_add(28)));
+        }
+    }
+
+    fn load_track(&mut self) {
+        let dx = self.site.track[0] - self.site.origin[0];
+        let dz = self.site.track[2] - self.site.origin[2];
+        let rail_along = dx * self.site.along[0] + dz * self.site.along[1];
+        let rail_across = dx * self.site.outward[0] + dz * self.site.outward[1];
+        let rail_grade = self.site.track[1] - self.site.origin[1];
+        let end = rail_grade + 6.22;
+        let [left, right] = [rail_along - 0.51, rail_along + 0.51];
+        let [sl, sr] = [-0.48, 0.48];
+        let [sh, sz] = [8.81, -4.92];
+        self.quad([[sl, sh, sz], [sr, sh, sz], [right, end, rail_across], [left, end, rail_across]], [202, 177, 111]);
+        self.quad([[sl, sh - 0.74, sz], [sl, sh, sz], [left, end, rail_across], [left, end - 0.72, rail_across]], [132, 119, 87]);
+        self.quad([[sr, sh, sz], [sr, sh - 0.74, sz], [right, end - 0.72, rail_across], [right, end, rail_across]], [115, 106, 84]);
+        self.block([rail_along, rail_grade + 4.65, rail_across], [0.77, 1.58, 0.78], [130, 113, 81]);
+        self.block([rail_along, end - 0.25, rail_across], [1.39, 0.55, 1.34], [205, 172, 103]);
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum StationLayout {
@@ -189,6 +332,7 @@ impl StationFixtures {
         camera: Camera,
         projection: &ScreenProjection,
         range_squared: f32,
+        cargo: FreightRoute,
     ) {
         for (i, opacity, _) in self.visible(camera, projection, range_squared) {
             let mut art = Builder {
@@ -198,8 +342,10 @@ impl StationFixtures {
                 i,
             };
             match (self.layout, i) {
+                (StationLayout::FreightApron { .. }, 0)
+                    if matches!(cargo, FreightRoute::Aggregate | FreightRoute::Quarry) => art.bulk_feeder(),
                 (StationLayout::FreightApron { .. }, 0) => art.loading_gantry(),
-                (StationLayout::FreightApron { .. }, _) => art.storage_lane(),
+                (StationLayout::FreightApron { .. }, _) => art.storage_lane(cargo),
                 (StationLayout::FreightShed, 0) => art.pallets([81, 114, 102]),
                 (StationLayout::FreightShed, _) => art.pallets([170, 119, 67]),
                 (StationLayout::RegionalStation, 1) => art.ticket_machine(),
@@ -267,7 +413,21 @@ impl Builder<'_, '_> {
         self.block([0.32, 1.60, -0.02], [0.74, 0.21, 0.48], [194, 150, 57]);
     }
 
-    fn storage_lane(&mut self) {
+    fn bulk_feeder(&mut self) {
+        const STEEL: Color = [82, 95, 97];
+        let [half_width, _] = self.fixtures.footprint(self.i);
+        for x in [-half_width * 0.73, half_width * 0.73] {
+            self.block([x, -1.35, 0.0], [0.53, 1.67, 0.70], [92, 94, 91]);
+            self.block([x, 0.32, 0.0], [0.34, 2.82, 0.54], STEEL);
+        }
+        // The upper bin tapers into a sloped chute on the track-facing side.
+        self.block([0.0, 2.87, 0.0], [half_width * 1.84, 0.21, 0.67], STEEL);
+        self.tapered_load([0.0, 2.20, 0.0], [half_width * 0.39, 0.12],
+                         [0.0, 3.61, 0.0], [half_width * 0.88, 0.36], [102, 115, 114]);
+        self.block([0.0, 1.87, -0.15], [0.64, 0.35, 0.39], [151, 126, 80]);
+    }
+
+    fn storage_lane(&mut self, cargo: FreightRoute) {
         let [half_width, _] = self.fixtures.footprint(self.i);
         const POSTS: Color = [93, 106, 116];
         for x in [-half_width + 0.17, 0.0, half_width - 0.17] {
@@ -277,24 +437,39 @@ impl Builder<'_, '_> {
         self.block([0.0, 0.52, 0.28], [2.0 * half_width, 0.14, 0.17], POSTS);
         let left = -half_width * 0.45;
         let right = half_width * 0.43;
-        self.block([left, -1.35, -0.06], [half_width * 0.76, 2.36, 0.58], [111, 143, 142]);
-        self.block([left, 0.94, -0.06], [half_width * 0.71, 0.18, 0.52], [155, 172, 156]);
-        self.block([right, -1.35, -0.06], [half_width * 0.71, 1.95, 0.55], [168, 115, 68]);
+        match cargo {
+            FreightRoute::Aggregate | FreightRoute::Quarry => {
+                self.tapered_load([left, -1.35, -0.07], [half_width * 0.41, 0.28],
+                                  [left + 0.08, 1.08, -0.08], [half_width * 0.17, 0.08], [171, 153, 116]);
+                self.tapered_load([right, -1.35, -0.05], [half_width * 0.43, 0.28],
+                                  [right - 0.09, 0.69, -0.11], [half_width * 0.19, 0.10], [139, 145, 133]);
+            }
+            FreightRoute::Intermodal => {
+                self.block([left, -1.35, -0.06], [half_width * 0.84, 2.70, 0.63], [151, 76, 58]);
+                self.block([left, 1.27, -0.06], [half_width * 0.75, 0.16, 0.52], [181, 108, 80]);
+                self.block([right, -1.35, -0.05], [half_width * 0.74, 2.44, 0.57], [62, 127, 146]);
+                self.block([right, 1.03, -0.05], [half_width * 0.65, 0.12, 0.50], [110, 160, 164]);
+            }
+            _ => {
+                self.block([left, -1.35, -0.06], [half_width * 0.76, 2.36, 0.58], [111, 143, 142]);
+                self.block([left, 0.94, -0.06], [half_width * 0.71, 0.18, 0.52], [155, 172, 156]);
+                self.block([right, -1.35, -0.06], [half_width * 0.71, 1.95, 0.55], [168, 115, 68]);
+            }
+        }
     }
 
-    fn block(&mut self, [x, y, z]: Point, [width, height, depth]: Point, color: Color) {
-        let corners = |grade| {
-            let [w, d] = [width * 0.5, depth * 0.5];
+    fn tapered_load(&mut self, foot: Point, lower_size: [f32; 2], cap: Point, upper_size: [f32; 2], color: Color) {
+        let corners = |[x, height, z]: Point, [w, d]: [f32; 2]| {
             [
-                [x - w, grade, z - d],
-                [x + w, grade, z - d],
-                [x + w, grade, z + d],
-                [x - w, grade, z + d],
+                [x - w, height, z - d],
+                [x + w, height, z - d],
+                [x + w, height, z + d],
+                [x - w, height, z + d],
             ]
             .map(|point| self.fixtures.place(self.i, point))
         };
-        let lower = corners(y);
-        let upper = corners(y + height);
+        let lower = corners(foot, lower_size);
+        let upper = corners(cap, upper_size);
         for side in 0..4 {
             let next = (side + 1) % 4;
             let shade = [0.79, 0.85, 1.0, 0.92][side];
@@ -302,6 +477,11 @@ impl Builder<'_, '_> {
             self.quad([lower[side], lower[next], upper[next], upper[side]], tint);
         }
         self.quad(upper, color);
+    }
+
+    fn block(&mut self, [x, y, z]: Point, [width, height, depth]: Point, color: Color) {
+        let size = [width * 0.5, depth * 0.5];
+        self.tapered_load([x, y, z], size, [x, y + height, z], size, color);
     }
 
     fn quad(&mut self, [a, b, c, d]: [Point; 4], color: Color) {
@@ -315,9 +495,92 @@ mod tests {
     use super::*;
     use crate::facilities::{FacilitySample, RegionalFacilities};
     use crate::roads::RoadNetwork;
+    use crate::render::render_terrain_layer_region;
     use crate::scenery::DistrictRegion;
     use crate::settlement::Terminus;
+    use crate::sky::Sky;
     use crate::world::World;
+
+    #[test]
+    fn grain_elevator_geometry_stays_in_the_pad_or_clear_loading_corridor() {
+        let along = [0.6, 0.8];
+        let outward = [-0.8, 0.6];
+        for position in 0..12 {
+            let origin = [512.0 + position as f32 * 24.0, 9.5, -300.0];
+            let track = [origin[0] - 13.0 * outward[0], origin[1] + 1.3, origin[2] - 13.0 * outward[1]];
+            let scene = GrainElevatorArt { origin, along, outward, track };
+            let [low, high] = scene.bounds();
+            let mut count = 0;
+            scene.faces(|triangle, _| {
+                count += 1;
+                for point in triangle {
+                    assert!((0..3).all(|axis| (low[axis] - 0.001..=high[axis] + 0.001).contains(&point[axis])));
+                    let dx = point[0] - origin[0];
+                    let dz = point[2] - origin[2];
+                    let along = dx * along[0] + dz * along[1];
+                    let across = dx * outward[0] + dz * outward[1];
+                    if across >= -6.001 {
+                        assert!(along.abs() <= 13.001 && across <= 6.001);
+                        assert!((origin[1] - 0.401..=origin[1] + 11.501).contains(&point[1]));
+                    } else {
+                        assert!(along.abs() < 2.0 && across >= -14.0);
+                        assert!(point[1] >= track[1] + 4.649);
+                    }
+                }
+            });
+            assert!((115..=195).contains(&count), "grain elevator produced {count} triangles");
+        }
+    }
+
+    #[test]
+    fn grain_elevator_depth_region_covers_the_complete_draw_at_sixty_pixels() {
+        use crate::world::{Sample, Surface};
+
+        const SIDE: usize = 60;
+        let dimensions = (SIDE, SIDE);
+        let scene = GrainElevatorArt {
+            origin: [0.0, 10.0, 31.0], along: [1.0, 0.0], outward: [0.0, 1.0],
+            track: [0.0, 9.5, 18.0],
+        };
+        let sky = Sky::from_time(1, 0, 0.46);
+        for (x, roll) in [(14.0_f32, 0.21), (-13.0, -0.37)] {
+            let camera = Camera { x, z: -2.0, altitude: 25.0,
+                                  heading: (-x).atan2(33.0), pitch: 0.24, bank: roll };
+            let (visible, opacity) = scene.visible(camera, dimensions).unwrap();
+            let draw = |region, scenery: bool| {
+                let mut frame = [0_u16; SIDE * SIDE];
+                let mut work = frame;
+                let mut depth = [u16::MAX; SIDE * SIDE];
+                // The raised slope hides the foot of the loader from one side.
+                let sample = |x: f32, z: f32| Sample {
+                    elevation: if x > 2.0 && z > 11.0 && z < 19.0 { 14.8 } else { 10.0 },
+                    surface: Surface::Grass,
+                };
+                render_terrain_layer_region(
+                    (sample, |_, _, g: Sample| g.surface), camera, &sky, &mut frame,
+                    &mut work, Some((&mut depth, region)), dimensions, |_| {},
+                ).unwrap();
+                if scenery {
+                    let mut mesh = WorldMesh::new(&mut frame, &mut depth, dimensions, camera, &sky).unwrap();
+                    scene.draw(&mut mesh, opacity);
+                }
+                frame
+            };
+            let expected = draw(ScreenRect::full(dimensions), true);
+            assert_eq!(draw(visible, true), expected);
+            let ground = draw(visible, false);
+            let mut visible_pixels = 0;
+            for (index, (&a, &b)) in expected.iter().zip(&ground).enumerate() {
+                if a != b {
+                    let (x, y) = (index % SIDE, index / SIDE);
+                    assert!((visible.left..visible.right).contains(&x));
+                    assert!((visible.top..visible.bottom).contains(&y));
+                    visible_pixels += 1;
+                }
+            }
+            assert!(visible_pixels > 30, "model too small at the game raster");
+        }
+    }
 
     #[test]
     fn station_roles_select_distinct_roof_profiles_within_the_same_pad() {

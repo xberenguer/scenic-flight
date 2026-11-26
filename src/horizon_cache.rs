@@ -7,8 +7,8 @@ use crate::world::World;
 const SCALE: f32 = 64.0;
 const BACKDROP_BLEND_START: f32 = 2000.0 * 2000.0;
 const BACKDROP_BLEND_END: f32 = 2450.0 * 2450.0;
-const OUTER_BLEND_START: f32 = 3200.0 * 3200.0;
-const OUTER_BLEND_END: f32 = 3650.0 * 3650.0;
+const OUTER_BLEND_START: f32 = 3500.0 * 3500.0;
+const OUTER_BLEND_END: f32 = 3950.0 * 3950.0;
 
 struct Strip {
     axis: usize,
@@ -329,7 +329,7 @@ mod tests {
                         score.1 += (truth - sample).abs();
                     }
                 }
-                for range in [2_000.0, 2_450.0, 3_200.0, 3_650.0] {
+                for range in [2_000.0, 2_450.0, 3_500.0, 3_950.0] {
                     let sample = |r: f32| cache.backdrop(x + sin * r, z + cos * r);
                     assert!((sample(range - 0.01) - sample(range + 0.01)).abs() < 0.08);
                 }
