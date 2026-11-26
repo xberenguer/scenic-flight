@@ -34,7 +34,25 @@ pub struct Scan<const LOGICAL: usize> {
     bands: [Band; BANDS],
     source: [u16; SIDE],
     native_inset: [u16; SIDE],
-    source_extent: [[u16; 2]; LOGICAL],
+    run_start: [u16; LOGICAL],
+    logical_inset: [u16; LOGICAL],
+}
+
+/// Keep the unmasked rotated row across scan windows. The physical aperture
+/// and the native overlay are applied after copying each row into DMA memory.
+pub struct Scanline {
+    source_x: usize,
+    pixels: [[u8; 2]; SIDE],
+}
+
+impl Scanline {
+    pub const fn new() -> Self {
+        Self { source_x: usize::MAX, pixels: [[0; 2]; SIDE] }
+    }
+
+    pub fn begin_frame(&mut self) {
+        self.source_x = usize::MAX;
+    }
 }
 
 fn inside(side: usize, x: usize, y: usize) -> bool {
@@ -68,13 +86,10 @@ impl<const LOGICAL: usize> Scan<LOGICAL> {
             }),
             source,
             native_inset,
-            source_extent: core::array::from_fn(|row| {
-                let inset = circle_inset(LOGICAL, row);
-                [
-                    source.partition_point(|&column| usize::from(column) < inset) as u16,
-                    source.partition_point(|&column| usize::from(column) < LOGICAL - inset) as u16,
-                ]
+            run_start: core::array::from_fn(|column| {
+                source.partition_point(|&mapped| usize::from(mapped) < column) as u16
             }),
+            logical_inset: core::array::from_fn(|row| circle_inset(LOGICAL, row) as u16),
         }
     }
 
@@ -82,46 +97,49 @@ impl<const LOGICAL: usize> Scan<LOGICAL> {
         self.bands[index]
     }
 
-    pub fn pack(&self, image: &[u16], target: &mut [u8], band: Band) {
-        let row_bytes = band.width * 2;
-        let mut last_source_x = usize::MAX;
-        for row in 0..band.height {
-            let source_x = usize::from(self.source[band.y + row]);
-            let begin = row * row_bytes;
-            if source_x == last_source_x {
-                target.copy_within(begin - row_bytes..begin, begin);
-                continue;
+    pub fn pack(&self, image: &[u16], target: &mut [u8], band: Band, line: &mut Scanline) {
+        let (target, remaining) = target.as_chunks_mut::<2>();
+        debug_assert!(remaining.is_empty());
+        for (y, output) in (band.y..band.y + band.height).zip(target.chunks_exact_mut(band.width)) {
+            let edge = usize::from(self.native_inset[y]);
+            let inset = edge - band.x;
+            output[..inset].fill([0; 2]);
+            output[band.width - inset..].fill([0; 2]);
+            let visible = &mut output[inset..band.width - inset];
+            if LOGICAL == SIDE {
+                let first = (SIDE - 1 - edge) * SIDE + y;
+                let source = image[..=first].iter().rev().step_by(SIDE);
+                for (pixel, &color) in visible.iter_mut().zip(source) {
+                    *pixel = color.to_be_bytes();
+                }
+            } else {
+                let source_x = usize::from(self.source[y]);
+                if source_x != line.source_x {
+                    self.expand_row(image, source_x, &mut line.pixels);
+                    line.source_x = source_x;
+                }
+                visible.copy_from_slice(&line.pixels[edge..SIDE - edge]);
             }
-            let columns = &self.source[band.x..band.x + band.width];
-            let output = &mut target[begin..begin + row_bytes];
-            for (&column, pixel) in columns.iter().zip(output.chunks_exact_mut(2)) {
-                let source_y = LOGICAL - 1 - usize::from(column);
-                pixel.copy_from_slice(&image[source_y * LOGICAL + source_x].to_be_bytes());
-            }
-            // Continue the nearest valid scenery color where upscaling would
-            // sample the black area beyond the low-resolution circle.
-            let [first, last] = self.source_extent[source_x].map(usize::from);
-            let first = first.saturating_sub(band.x).min(band.width - 1) * 2;
-            let last = last.saturating_sub(band.x).clamp(1, band.width) * 2;
-            let left = [output[first], output[first + 1]];
-            let right = [output[last - 2], output[last - 1]];
-            for pixel in output[..first].chunks_exact_mut(2) {
-                pixel.copy_from_slice(&left);
-            }
-            for pixel in output[last..].chunks_exact_mut(2) {
-                pixel.copy_from_slice(&right);
-            }
-            last_source_x = source_x;
-        }
-        // Repeated logical rows share colors, but the physical circle has
-        // a different edge on each native row. Clip after the row copies.
-        for row in 0..band.height {
-            let inset = usize::from(self.native_inset[band.y + row]) - band.x;
-            let output = &mut target[row * row_bytes..(row + 1) * row_bytes];
-            output[..inset * 2].fill(0);
-            output[row_bytes - inset * 2..].fill(0);
         }
     }
+
+    fn expand_row(&self, image: &[u16], source_x: usize, output: &mut [[u8; 2]; SIDE]) {
+        let edge = usize::from(self.logical_inset[source_x]);
+        let columns = &self.run_start;
+        let color = |column: usize| image[(LOGICAL - 1 - column) * LOGICAL + source_x].to_be_bytes();
+        // The midpoint mapping is monotone. Assign each source pixel once,
+        // then extend the nearest valid color to the edge of the circle.
+        let first = usize::from(columns[edge]);
+        output[..first].fill(color(edge));
+        let mut start = first;
+        for column in edge..LOGICAL - edge {
+            let end = columns.get(column + 1).copied().map_or(SIDE, usize::from);
+            output[start..end].fill(color(column));
+            start = end;
+        }
+        output[start..].fill(color(LOGICAL - 1 - edge));
+    }
+
 }
 
 #[cfg(feature = "native-flight-overlay")]
@@ -210,16 +228,31 @@ mod tests {
         check_packed_pixels::<466>();
     }
 
+    #[test]
+    fn restarting_a_frame_invalidates_the_cached_source_row() {
+        let scan = Scan::<60>::new();
+        let mut line = Scanline::new();
+        let mut packed = [0; BUFFER_BYTES];
+        let band = scan.band(BANDS / 2);
+        for color in [0x17b4_u16, 0xab03] {
+            line.begin_frame();
+            scan.pack(&[color; 60 * 60], &mut packed[..band.bytes()], band, &mut line);
+            let at = band.width;
+            assert_eq!(packed[at..at + 2], color.to_be_bytes());
+        }
+    }
+
     fn check_packed_pixels<const SIZE: usize>() {
         let scan = Scan::<SIZE>::new();
         let image: Vec<u16> = (0..SIZE * SIZE)
             .map(|index| 0x9a24_u16.wrapping_add((index as u16).wrapping_mul(3)))
             .collect();
         let mut packed = [0xac; BUFFER_BYTES];
+        let mut line = Scanline::new();
         for index in 0..BANDS {
             let band = scan.band(index);
             packed.fill(0xac);
-            scan.pack(&image, &mut packed[..band.bytes()], band);
+            scan.pack(&image, &mut packed[..band.bytes()], band, &mut line);
             for row in 0..band.height {
                 for column in 0..band.width {
                     let y = band.y + row;

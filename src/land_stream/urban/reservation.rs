@@ -147,6 +147,12 @@ impl UrbanReservations {
             .iter().any(|bank| bank & mask != 0)
     }
 
+    pub(super) fn waterway_cell(&self, x: f32, z: f32) -> bool {
+        let [x, z] = [x - self.origin[0], z - self.origin[1]];
+        (0.0..REGION).contains(&x) && (0.0..REGION).contains(&z)
+            && self.waterways[(z / CELL) as usize] & (1 << (x / CELL) as usize) != 0
+    }
+
     pub(super) fn overlaps(&self, [left, near, right, far]: [f32; 4]) -> bool {
         let [x, z] = self.origin;
         if self.next != SIDE * SIDE || left < x || near < z || right >= x + REGION || far >= z + REGION {
@@ -184,14 +190,16 @@ impl UrbanAuthorities<'_> {
         }
         let mut mask = UrbanReservations::new([x, z], revision);
         for river in self.rivers.scenery_plans() {
-            for bounds in river.scenery_rectangles() {
-                mask.reserve_intersection(bounds);
-            }
             for (a, b) in river.bank_chords() {
                 mask.scan_intersections(0, 0, SIDE, &mut |area| river.bank_intersects(a, b, area));
             }
         }
         mask.waterways = mask.blocked;
+        for river in self.rivers.scenery_plans() {
+            for bounds in river.scenery_rectangles() {
+                mask.reserve_intersection(bounds);
+            }
+        }
         self.facilities.urban_footprints(|bounds| mask.reserve_area(bounds));
         self.routes.urban_footprints(|bounds| mask.reserve_area(bounds));
         Some(mask)

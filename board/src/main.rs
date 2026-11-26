@@ -108,7 +108,8 @@ static HORIZON: ConstStaticCell<scenic_flight::horizon_cache::HorizonCache> =
 #[cfg(feature = "scenery")]
 static DETAILS: ConstStaticCell<details::DetailLayers> = ConstStaticCell::new(details::DetailLayers::new());
 #[cfg(feature = "streamed-land")]
-static LAND: StaticCell<scenic_flight::land_stream::LandStream> = StaticCell::new();
+static LAND: ConstStaticCell<scenic_flight::land_stream::LandStream> =
+    ConstStaticCell::new(scenic_flight::land_stream::LandStream::new());
 #[cfg(feature = "coastal-mesh")]
 static COASTAL_MESH: StaticCell<scenic_flight::coastal_landforms::CoastalLandmarks> = StaticCell::new();
 #[cfg(all(feature = "coastal-mesh", not(feature = "river-stream")))]
@@ -303,7 +304,7 @@ fn reserve_natural(
 #[cfg(feature = "streamed-land")]
 #[inline(never)]
 fn land_stream() -> &'static mut scenic_flight::land_stream::LandStream {
-    LAND.init_with(scenic_flight::land_stream::LandStream::new)
+    LAND.take()
 }
 
 #[cfg(feature = "transport-stream")]
@@ -1600,7 +1601,7 @@ fn main() -> ! {
             let result = serial_terrain!();
             #[cfg(feature = "parallel-terrain")]
             let packed_60 = cfg!(feature = "packed-60-terrain")
-                && matches!(scene_side, scene_raster::REDUCED_SIDE | scene_raster::FULL_SIDE);
+                && matches!(scene_side, scene_raster::REDUCED_SIDE | scene_raster::BALANCED_SIDE | scene_raster::FULL_SIDE);
             #[cfg(feature = "urban-background")]
             let packed_60 = {
                 // DMA and terrain both preempt surveys on the worker. Give a
@@ -1658,10 +1659,10 @@ fn main() -> ! {
                         )
                     };
                 }
-                if ADAPTIVE_SCENERY && scene_side == scene_raster::REDUCED_SIDE {
-                    packed_terrain!(scene_raster::REDUCED_SIDE)
-                } else {
-                    packed_terrain!(LOGICAL_SIDE)
+                match scene_side {
+                    scene_raster::REDUCED_SIDE if ADAPTIVE_SCENERY => packed_terrain!(scene_raster::REDUCED_SIDE),
+                    scene_raster::BALANCED_SIDE if ADAPTIVE_SCENERY => packed_terrain!(scene_raster::BALANCED_SIDE),
+                    _ => packed_terrain!(LOGICAL_SIDE),
                 }
             } else {
                 serial_terrain!()
@@ -1840,7 +1841,7 @@ fn main() -> ! {
         }
         let scenery_rendered = if ADAPTIVE_SCENERY { micros() } else { 0 };
         if scene_side != LOGICAL_SIDE {
-            scene_raster::expand_reduced(image);
+            scene_raster::expand_reduced(image, scene_side);
         }
         let flight_info = game.flight_info_visible();
         #[cfg(feature = "native-flight-overlay")]

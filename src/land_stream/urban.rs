@@ -67,6 +67,7 @@ impl UrbanExpansionJob {
                 |x, z| reservations.blocks(x, z),
                 |bounds| reservations.overlaps(bounds),
                 |x, z| reservations.near_waterway(x, z),
+                |x, z| reservations.waterway_cell(x, z),
                 pulse,
             ),
             reservations: Some(reservations.clone()),
@@ -641,6 +642,7 @@ mod tests {
                 |x, z| mask.blocks(x, z),
                 |_| true,
                 |x, z| mask.near_waterway(x, z),
+                |x, z| mask.waterway_cell(x, z),
                 || {},
             );
             let result = job.prepare_reserved(&mask, || {}).unwrap();
@@ -653,7 +655,8 @@ mod tests {
                 for x in (left as i32..right as i32).step_by(4) {
                     let (x, z) = (x as f32, z as f32);
                     let expected = addition.town_sample(Terminus::Start, x, z)
-                        .or_else(|| addition.town_sample(Terminus::End, x, z));
+                        .or_else(|| addition.town_sample(Terminus::End, x, z))
+                        .or_else(|| addition.waterfront_sample(x, z));
                     assert_eq!(addition.sample(x, z), expected);
                     assert_eq!(addition.sample(x, z), reference.sample(x, z));
                     if expected.is_some() {
@@ -663,6 +666,91 @@ mod tests {
                 }
             }
             assert!(occupied > 100, "seed {seed} did not retain enough new development");
+        }
+    }
+
+    #[test]
+    fn riverside_parks_connect_to_streets_and_keep_river_reservations_clear() {
+        use crate::facility_stream::FacilityStream;
+        use crate::highway_stream::HighwayStream;
+        use crate::local_routes::{route_reservation, LocalRouteStream};
+        use crate::natural_stream::NaturalStream;
+        use crate::rail_stream::RailStream;
+        use crate::river_stream::RiverStream;
+        use crate::settlement::SettlementSurface;
+        use crate::watershed::WatershedWork;
+
+        for (seed, x, z) in [(49, 0, 1), (0, 0, 2)] {
+            let world = World::new(seed);
+            let mut land = LandStream::<8>::new();
+            land.reset(world);
+            let road = RoadNetwork::generate(&world, x, z).unwrap();
+            let towns = [Terminus::Start, Terminus::End].map(|end| Settlement::generate(&world, &road, end));
+            land.write_resident(0, Key { x, z }, road, towns, true);
+            let district = land.planned((x, z)).flatten().unwrap();
+            let view = look_at(district.bounds());
+            let mut facilities = FacilityStream::new(world, seed);
+            facilities.preflight(&land);
+            let mut rivers = RiverStream::<3>::new(world, seed);
+            rivers.preflight(&land, &facilities, view, &mut WatershedWork::new());
+            let river = rivers.planned((x, z)).flatten().unwrap();
+            let mut routes = LocalRouteStream::new(world, seed);
+            routes.preflight(&land, view, |key, route| route_reservation(&world, &facilities, &rivers, key, route));
+            let highways = HighwayStream::new(world, seed);
+            let rail = std::boxed::Box::new(RailStream::new(world, seed));
+            let natural = NaturalStream::new(world, seed);
+            let authorities = UrbanAuthorities {
+                facilities: &facilities, rivers: &rivers, routes: &routes, highways: &highways,
+                rail: &rail, natural: &natural, summits: None,
+            };
+            let mut mask = authorities.start([x, z], REVISION).unwrap();
+            authorities.complete(&mut mask);
+            let mut urban = UrbanStream::new();
+            let job = urban.claim(&land, [x, z], REVISION).unwrap();
+            let result = job.prepare_reserved(&mask, || {}).unwrap();
+            assert_eq!(urban.commit_reserved(&land, result, &mask, None), UrbanPublication::Published);
+            let addition = urban.approved(&land, [x, z]).unwrap();
+            let [left, near, right, far] = addition.bounds().unwrap();
+            let mut walk = 0;
+            let mut trees = 0;
+            let mut access = false;
+            let mut village_roofs = 0;
+            let mut village_join = false;
+            for z in (near as i32..far as i32).step_by(2) {
+                for x in (left as i32..right as i32).step_by(2) {
+                    let (x, z) = (x as f32, z as f32);
+                    let Some(sample) = addition.sample(x, z) else { continue; };
+                    if let Some(village) = addition.waterfront_sample(x, z) {
+                        assert_eq!(sample, village);
+                        assert!(!mask.blocks(x, z));
+                        assert!(world.elevation(x, z) > 0.0);
+                        assert!(!river.watershed().sample(x, z).is_some_and(|point| point.is_channel()));
+                        village_roofs += usize::from(village.elevation.is_some());
+                        village_join |= village.surface == SettlementSurface::Street
+                            && district.road().unwrap().proximity(x, z).is_some_and(|road| {
+                                road.distance_squared <= crate::roads::ROAD_HALF_WIDTH.powi(2)
+                            });
+                    }
+                    if sample.surface == SettlementSurface::ParkCanopy {
+                        trees += 1;
+                        assert!(sample.elevation.unwrap() > world.elevation(x, z));
+                    }
+                    if sample.surface != SettlementSurface::RiverWalk { continue; }
+                    walk += 1;
+                    assert!(!mask.blocks(x, z));
+                    assert!(mask.near_waterway(x, z));
+                    assert!(!river.watershed().sample(x, z).is_some_and(|point| point.is_channel()));
+                    for (dx, dz) in [(2.0, 0.0), (-2.0, 0.0), (0.0, 2.0), (0.0, -2.0)] {
+                        if addition.sample(x + dx, z + dz).is_some_and(|spot| spot.surface == SettlementSurface::Street) {
+                            access = true;
+                        }
+                    }
+                }
+            }
+            assert!(walk > 4 && trees > 0 && access, "expected a connected riverside park in seed {seed}");
+            if seed == 0 {
+                assert!(village_roofs > 85 && village_join, "expected the dry waterfront neighborhood to grow from its highway junction");
+            }
         }
     }
 

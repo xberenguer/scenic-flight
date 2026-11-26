@@ -99,6 +99,85 @@ enum Use {
     Works,
     Shops,
     Park,
+    RiverNear,
+    RiverFar,
+    RiverLeft,
+    RiverRight,
+}
+
+impl Use {
+    const RIVER_PARKS: [Self; 4] = [Self::RiverNear, Self::RiverFar, Self::RiverLeft, Self::RiverRight];
+
+    fn river_frontage(self) -> Option<Frontage> {
+        match self {
+            Self::RiverNear => Some(Frontage::Near),
+            Self::RiverFar => Some(Frontage::Far),
+            Self::RiverLeft => Some(Frontage::Left),
+            Self::RiverRight => Some(Frontage::Right),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RiverPark {
+    frontage: Frontage,
+    center: [f32; 2],
+    half_span: f32,
+}
+
+impl RiverPark {
+    fn feature(self, along: f32, setback: f32, half_width: f32, half_depth: f32) -> Area {
+        self.frontage.lot(self.center[0], self.center[1], along,
+            self.half_span - setback, half_width, half_depth)
+    }
+
+    fn footprint(self) -> Area {
+        self.feature(0.0, 7.2, self.half_span * 0.73, 5.2)
+    }
+
+    fn by_bank(self, near_river: impl Fn(f32, f32) -> bool) -> bool {
+        [2.0, 12.4].into_iter().all(|setback| {
+            [-0.70, 0.0, 0.70].into_iter().all(|along| {
+                let probe = self.feature(along * self.half_span, setback, 0.0, 0.0);
+                near_river(probe.x, probe.z)
+            })
+        })
+    }
+
+    fn sample(self, x: f32, z: f32, base: f32, key: u32) -> Option<SettlementSample> {
+        if !self.footprint().contains(x, z) {
+            return None;
+        }
+        let width = self.half_span * 0.73;
+        let walk = self.feature(0.0, 10.8, width, 1.55);
+        let access = [-0.66, 0.66].into_iter().any(|side| {
+            self.feature(side * width, 6.6, 1.2, 4.65).contains(x, z)
+        });
+        if walk.contains(x, z) || access {
+            return Some(open(SettlementSurface::RiverWalk));
+        }
+
+        let middle = self.feature(0.0, 6.2, 3.15, 2.65);
+        if middle.contains(x, z) {
+            return Some(open(SettlementSurface::WaterfrontPlaza));
+        }
+        for (i, side) in [-1.0, 1.0].into_iter().enumerate() {
+            let spread = ((key >> (i * 3 + 6)) & 7) as f32;
+            let size = 1.65 + spread * 0.11;
+            let crown = self.feature(side * width * (0.34 + spread * 0.025), 6.5, size, size);
+            let dx = (x - crown.x) / crown.half_width;
+            let dz = (z - crown.z) / crown.half_depth;
+            let radius = dx * dx + dz * dz;
+            if radius < 1.0 {
+                return Some(SettlementSample {
+                    surface: SettlementSurface::ParkCanopy,
+                    elevation: Some(base + 2.5 + (1.0 - radius) * (1.1 + spread * 0.15)),
+                });
+            }
+        }
+        Some(open(SettlementSurface::Park))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -260,6 +339,10 @@ impl Boroughs {
                 && claim.permits(wx, wz)
                 && (DRY_HEIGHT..=SEA_LEVEL + 49.0).contains(&dry)
         };
+        let river_near = |x, z| {
+            let (wx, wz) = local.world(x, z);
+            near_waterway(wx, wz)
+        };
         let waterfront = |x, z| {
             let (wx, wz) = local.world(x, z);
             near_waterway(wx, wz) || (0.0..0.12).contains(&world.coast_signal(wx, wz))
@@ -275,10 +358,30 @@ impl Boroughs {
         let steps = usize::from(stride) * 6;
         let mut queue = [0u16; NODES];
         let mut state = [0u8; NODES];
+        // Two seeded growth directions make a long, uneven fringe. Waterfront
+        // sites can continue past it, but still need dry, connected streets.
+        let angle = (key >> 16 & 7) as usize;
+        let [axis_x, axis_z] = [
+            [1.0, 0.0], [0.924, 0.383], [0.707, 0.707], [0.383, 0.924],
+            [0.0, 1.0], [-0.383, 0.924], [-0.707, 0.707], [-0.924, 0.383],
+        ][angle];
         let valid = core::array::from_fn::<_, NODES, _>(|node| {
             pulse();
             let [x, z] = area.node_point(node);
-            owns(x, z) && !reservation.blocks(x, z, true)
+            if !owns(x, z) || reservation.blocks(x, z, true) {
+                return false;
+            }
+            let [east, north] = [x - 54.0, z - 54.0];
+            if east.abs().max(north.abs()) <= 170.0 {
+                return true;
+            }
+            let along = east * axis_x + north * axis_z;
+            let across = north * axis_x - east * axis_z;
+            let reach = if along < 0.0 { 335.0 } else { 425.0 };
+            let (wx, wz) = local.world(x, z);
+            let edge = world.noise(wx, wz, 0.011, key ^ 0xb832_278f) * 54.0;
+            let water = if waterfront(x, z) { 92.0 } else { 0.0 };
+            along.abs() + across.abs() * 0.81 < reach + edge + water
         });
         let mut tail = 0;
         let mut nearby_highway = [(f32::INFINITY, None); NODES];
@@ -420,6 +523,7 @@ impl Boroughs {
         }
 
         let mut diagonals = 0;
+        let mut river_parks = 0;
         for index in 0..BLOCKS {
             pulse();
             let node = block_node(index);
@@ -471,6 +575,29 @@ impl Boroughs {
                     })
                     && !overlaps_existing(town, shape)
             };
+            if river_parks < 4 && river_near(lot.x, lot.z) && profile & 3 != 0 {
+                let frontages = area.frontages(node);
+                let park = Use::RIVER_PARKS.into_iter().enumerate().find_map(|(side, plan)| {
+                    if frontages & (1 << side) == 0 {
+                        return None;
+                    }
+                    let frontage = plan.river_frontage()?;
+                    let park = area.river_park(index, frontage);
+                    let strip = park.footprint();
+                    if !park.by_bank(river_near) || !clear(strip) {
+                        return None;
+                    }
+                    foundation(world, local, strip, 3.7).map(|base| (base, plan))
+                });
+                if let Some((base, plan)) = park {
+                    area.pads[index] = (base + 1.999) as u8 | (FRONT_STRIP << 6);
+                    area.pad_uses[index] = plan;
+                    area.include(node);
+                    area.include(node + SIDE + 1);
+                    river_parks += 1;
+                    continue;
+                }
+            }
             let saved = if !ribbon && clear(lot) {
                 broad_pad(world, local, lot).map(|base| {
                     let streets_fit = matches!(use_kind, Use::Homes | Use::Terrace | Use::Shops)
@@ -590,6 +717,12 @@ impl Boroughs {
             | (u8::from(self.directions(node + 1) & FORWARD != 0) << 3)
     }
 
+    fn river_park(&self, index: usize, frontage: Frontage) -> RiverPark {
+        let [x, z] = self.node_point(block_node(index));
+        let half_span = self.span() * 0.5;
+        RiverPark { frontage, center: [x + half_span, z + half_span], half_span }
+    }
+
     fn front_strip(&self, index: usize, mode: u8) -> Area {
         let node = block_node(index);
         let mask = self.frontages(node);
@@ -643,8 +776,14 @@ impl Boroughs {
         let span = self.span();
         for (index, &pad) in self.pads.iter().enumerate() {
             if pad != 0 {
-                let [x, z] = self.node_point(block_node(index));
-                emit([x, z, x + span, z + span]);
+                if let Some(frontage) = self.pad_uses[index].river_frontage() {
+                    let strip = self.river_park(index, frontage).footprint();
+                    emit([strip.x - strip.half_width, strip.z - strip.half_depth,
+                          strip.x + strip.half_width, strip.z + strip.half_depth]);
+                } else {
+                    let [x, z] = self.node_point(block_node(index));
+                    emit([x, z, x + span, z + span]);
+                }
             }
         }
         let w = STREET_HALF_WIDTH;
@@ -761,6 +900,10 @@ impl Boroughs {
             return (0..2).filter_map(|side| diagonal.building(self, side))
                 .find_map(|building| building.sample(x, z));
         }
+        let plan = self.pad_uses[index];
+        if let Some(frontage) = plan.river_frontage() {
+            return self.river_park(index, frontage).sample(x, z, pad_base(pad), block_key(self.key, index));
+        }
         let [ax, az] = self.node_point(block_node(index));
         let [u, v] = [x - ax, z - az];
         let cell_x = (u * (1.0 / SPACING)) as usize;
@@ -776,7 +919,6 @@ impl Boroughs {
         {
             return Some(open(SettlementSurface::Street));
         }
-        let plan = self.pad_uses[index];
         let use_kind = if mode >= FRONT_STRIP && matches!(plan, Use::Warehouse | Use::Works) {
             Use::Shops
         } else {
@@ -953,7 +1095,7 @@ impl Boroughs {
                 first + SIDE_BLOCKS + 1,
             ]
             .into_iter()
-            .filter(|&i| self.pads[i] != 0 && self.pad_uses[i] != Use::Park)
+            .filter(|&i| self.pads[i] != 0 && self.pad_uses[i] != Use::Park && self.pad_uses[i].river_frontage().is_none())
             .min_by_key(|&i| self.pads[i] >> 6)?;
             let pad = self.pads[index];
             let mode = pad >> 6;

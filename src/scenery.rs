@@ -119,6 +119,8 @@ pub(crate) fn cover_settlement(detail: crate::settlement::SettlementSample, grou
         SettlementSurface::Street => Surface::Pavement,
         SettlementSurface::Park => Surface::Park,
         SettlementSurface::WaterfrontPlaza => Surface::Gravel,
+        SettlementSurface::RiverWalk => Surface::Boardwalk,
+        SettlementSurface::ParkCanopy => Surface::TreeCanopy,
         SettlementSurface::PitchedRoof => Surface::PitchedRoof,
         SettlementSurface::FlatRoof => Surface::FlatRoof,
         SettlementSurface::TowerRoof => Surface::TowerRoof,

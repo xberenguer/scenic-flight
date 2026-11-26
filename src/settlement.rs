@@ -8,7 +8,7 @@ use crate::world_mesh::{bounds_in_view, WorldMesh};
 mod neighborhoods;
 mod building_forms;
 mod expansion;
-pub(crate) use expansion::{BoroughPaintCache, TownExpansion};
+pub(crate) use expansion::{BoroughPaintCache, TownExpansion, WaterfrontVillage};
 
 use neighborhoods::Neighborhoods;
 
@@ -46,6 +46,8 @@ pub enum SettlementSurface {
     Street,
     Park,
     WaterfrontPlaza,
+    RiverWalk,
+    ParkCanopy,
     PitchedRoof,
     FlatRoof,
     TowerRoof,

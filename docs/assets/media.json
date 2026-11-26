@@ -586,5 +586,25 @@
     "format": "Still",
     "poster": "assets/current/ferry-quayside.png",
     "src": "assets/current/ferry-quayside.png"
+  },
+  {
+    "id": "river-boardwalk",
+    "title": "River boardwalk and lookout",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "Rivers & Wetlands",
+    "format": "Screenshot",
+    "poster": "assets/current/river-boardwalk.png",
+    "src": "assets/current/river-boardwalk.png"
+  },
+  {
+    "id": "coastal-boardwalk",
+    "title": "Coastal boardwalk village",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "Coast & Ocean",
+    "format": "Screenshot",
+    "poster": "assets/current/coastal-boardwalk.png",
+    "src": "assets/current/coastal-boardwalk.png"
   }
 ]

@@ -41,7 +41,65 @@ impl RiverDistrict {
         let first = district.road()?.polyline().first()?;
         let mut water = Watershed::new();
         water.rebuild(world, seed, region(first.x), region(first.z), work);
-        Self::from_prepared(world, district, water, blocked)
+        Self::from_survey_with_detour(world, Some(district), &mut water, work, blocked, &mut || {})
+    }
+
+    /// Preserve the established design if any surveyed channel is usable.
+    /// In developed regions a failed design gets one terrain-guided detour.
+    #[inline(never)]
+    pub(crate) fn from_survey_with_detour(
+        world: &World,
+        district: Option<&DistrictRegion>,
+        water: &mut Watershed,
+        work: &mut WatershedWork,
+        mut blocked: impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<Self> {
+        let (crossings, bounds) = if let Some(certified) = Self::certify_channels(world, district, water, &mut blocked, pulse) {
+            certified
+        } else {
+            // Reuse the failed survey's storage. The worker also needs room
+            // for certification scratch and a result containing the channels.
+            let district = district.filter(|_| !water.streams().is_empty())?;
+            Self::reroute(world, district, water, work, &mut blocked, pulse)?;
+            Self::certify_channels(world, Some(district), water, &mut blocked, pulse)?
+        };
+        Some(Self::finish(world, district, water, crossings, bounds, &mut blocked, pulse))
+    }
+
+    #[inline(never)]
+    fn reroute(
+        world: &World,
+        district: &DistrictRegion,
+        water: &mut Watershed,
+        work: &mut WatershedWork,
+        blocked: &mut impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<()> {
+        let road = district.road()?;
+        let first = road.polyline().first()?;
+        let road_bounds = road.bounds();
+        let towns = [Terminus::Start, Terminus::End].map(|end| {
+            district.town(end).map(|town| (town, town.bounds()))
+        });
+        water.rebuild_routed(world, water.seed(), (region(first.x), region(first.z)), work, |a, b| {
+            let Some(axis) = Axis::between(a, b) else { return false; };
+            for distance in [0.0, 0.25, 0.5, 0.75, 1.0] {
+                for side in [0.0, -5.0, 5.0] {
+                    let [x, z] = axis.point(axis.length * distance, side);
+                    if (contains(road_bounds, x, z) && road.proximity(x, z).is_some())
+                        || towns.iter().flatten().any(|(town, area)| {
+                            contains(*area, x, z) && town.sample(x, z).is_some()
+                        })
+                        || blocked(x, z)
+                    {
+                        return false;
+                    }
+                }
+            }
+            true
+        }, pulse);
+        Some(())
     }
 
     /// Check a retained water plan against the actual highway and towns.
@@ -66,40 +124,60 @@ impl RiverDistrict {
     pub fn from_prepared_land_cooperatively(
         world: &World,
         district: Option<&DistrictRegion>,
-        water: Watershed,
-        blocked: impl FnMut(f32, f32) -> bool,
+        mut water: Watershed,
+        mut blocked: impl FnMut(f32, f32) -> bool,
         pulse: &mut impl FnMut(),
     ) -> Option<Self> {
-        let stream_count = water.streams().len();
-        if stream_count == 0 {
+        let (crossings, bounds) = Self::certify_channels(world, district, &mut water, &mut blocked, pulse)?;
+        Some(Self::finish(world, district, &water, crossings, bounds, &mut blocked, pulse))
+    }
+
+    #[inline(never)]
+    fn certify_channels(
+        world: &World,
+        district: Option<&DistrictRegion>,
+        water: &mut Watershed,
+        blocked: &mut impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<(Crossings, [f32; 4])> {
+        if water.streams().is_empty() {
             return None;
         }
-        let mut blocked = blocked;
-        let (water, crossings, bounds) = match Self::certify(world, district, &water, &mut blocked, pulse) {
-            Some((crossings, bounds)) => (water, crossings, bounds),
-            None => {
-                let (mask, crossings, bounds) =
-                    Self::certify_subset(world, district, &water, &mut blocked, pulse)?;
-                (water.with_streams(mask), crossings, bounds)
-            }
-        };
+        if let Some(certified) = Self::certify(world, district, water, blocked, pulse) {
+            return Some(certified);
+        }
+        let (mask, crossings, bounds) = Self::certify_subset(world, district, water, blocked, pulse)?;
+        *water = water.with_streams(mask);
+        Some((crossings, bounds))
+    }
+
+    #[inline(never)]
+    fn finish(
+        world: &World,
+        district: Option<&DistrictRegion>,
+        water: &Watershed,
+        crossings: Crossings,
+        bounds: [f32; 4],
+        blocked: &mut impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Self {
         let road = district.and_then(DistrictRegion::road);
         let mut proof = Proof {
             world,
             road,
-            water: &water,
+            water,
             crossings: &crossings,
             towns: [Terminus::Start, Terminus::End].map(|end| {
                 let town = district?.town(end)?;
                 Some((town, town.bounds()))
             }),
-            blocked: &mut blocked,
+            blocked,
         };
-        let floodplain = Floodplain::prepare(world, &water, |x, z| {
+        let floodplain = Floodplain::prepare(world, water, |x, z| {
             proof.floodplain_reserved(x, z)
         }, pulse);
         let bounds = floodplain.bounds().map_or(bounds, |area| union(bounds, area));
-        Some(Self { water, crossings, floodplain, bounds })
+        Self { water: *water, crossings, floodplain, bounds }
     }
 
     fn certify_subset(
@@ -557,6 +635,34 @@ mod tests {
         for stream in complete.streams().iter().filter(|stream| !kept.streams().contains(stream)) {
             let [x, z] = stream.source;
             assert!(kept.sample(x, z).is_none());
+        }
+    }
+
+    #[test]
+    fn a_conflicted_river_can_find_a_downhill_route_around_town() {
+        let seed = 49;
+        let world = World::new(seed);
+        let district = DistrictRegion::build(&world, 0, 1);
+        let mut work = WatershedWork::new();
+        let mut original = Watershed::new();
+        original.rebuild(&world, seed, 0, 1, &mut work);
+        assert!(!original.streams().is_empty());
+        assert!(RiverDistrict::from_prepared(&world, &district, original, |_, _| false).is_none());
+
+        let plan = RiverDistrict::prepare(&world, seed, &district, &mut work, |_, _| false).unwrap();
+        let water = plan.watershed();
+        assert!(!water.streams().is_empty());
+        for outlet in water.streams().iter().map(|stream| stream.outlet) {
+            assert!(world.elevation(outlet[0], outlet[1]) <= SEA_LEVEL);
+        }
+        for reach in water.reaches() {
+            assert!(reach.end_level <= reach.start_level);
+            for step in 0..=16 {
+                let [x, z] = reach.position(step as f32 / 16.0);
+                let ground = world.sample(x, z);
+                assert_eq!(district.overlay(x, z, ground), ground);
+                assert!(water.sample(x, z).is_some_and(RiverSample::is_channel));
+            }
         }
     }
 

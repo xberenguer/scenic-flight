@@ -616,7 +616,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             if let Some((request, survey)) = river_survey.take() {
                 let key = request.key();
                 if let Some(land) = district.planned(key) {
-                    let result = survey.certify_land(land, facilities.planned(key));
+                    let result = survey.certify_with_detour(land, facilities.planned(key), &mut river_work);
                     rivers.commit_avoiding(result, &district, view, |river| {
                         facilities.reserves_roadside_river(river)
                             || regional_rail.conflicts_with(|bounds| river.intersects_scenery(bounds))

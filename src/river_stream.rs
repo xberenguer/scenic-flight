@@ -52,6 +52,7 @@ impl RiverRequest {
         self.survey_cooperatively(work, &mut || {})
     }
 
+    #[inline(never)]
     pub fn prepare(
         self,
         work: &mut WatershedWork,
@@ -59,8 +60,9 @@ impl RiverRequest {
         facilities: Option<&RegionalFacilities>,
         mut pulse: impl FnMut(),
     ) -> RiverResult {
-        self.survey_cooperatively(work, &mut pulse)
-            .certify_cooperatively(district, facilities, |_, _| false, &mut pulse)
+        let mut water = Watershed::new();
+        water.rebuild_cooperatively(&self.world, self.seed, self.key.0, self.key.1, work, &mut pulse);
+        self.certify_cooperatively(&mut water, district, facilities, Some(work), |_, _| false, &mut pulse)
     }
 
     fn survey_cooperatively(self, work: &mut WatershedWork, pulse: &mut impl FnMut()) -> RiverSurvey {
@@ -69,6 +71,47 @@ impl RiverRequest {
         RiverSurvey {
             request: self,
             water,
+        }
+    }
+
+    fn certify_cooperatively(
+        self, water: &mut Watershed, district: Option<&DistrictRegion>, facilities: Option<&RegionalFacilities>,
+        work: Option<&mut WatershedWork>,
+        mut additionally_reserved: impl FnMut(f32, f32) -> bool, pulse: &mut impl FnMut(),
+    ) -> RiverResult {
+        let request = self;
+        let current_district = district
+            .and_then(DistrictRegion::road)
+            .and_then(|road| road.polyline().first())
+            .map(|p| region_at(p.x, p.z));
+        let matched = match request.owner {
+            RiverOwner::District => current_district == Some(request.key) && facilities.is_some(),
+            RiverOwner::Wilderness => district.is_none() && facilities.is_none(),
+        };
+        let plan = if matched {
+            let facility = facilities.and_then(|sites| Some((sites.bounds()?, sites)));
+            let blocked = |x, z| {
+                additionally_reserved(x, z)
+                    || facility.is_some_and(|(area, facilities)| {
+                        contains(area, x, z)
+                            && (facilities.sample(x, z, DRY_FOOTPRINT).is_some()
+                                || facilities
+                                    .ports()
+                                    .any(|port| port.sample(x, z, SEA_FOOTPRINT).is_some()))
+                    })
+            };
+            if let Some(work) = work {
+                RiverDistrict::from_survey_with_detour(&request.world, district, water, work, blocked, pulse)
+            } else {
+                RiverDistrict::from_prepared_land_cooperatively(&request.world, district, *water, blocked, pulse)
+            }
+        } else {
+            None
+        };
+        RiverResult {
+            request,
+            matched,
+            plan,
         }
     }
 }
@@ -94,55 +137,29 @@ impl RiverSurvey {
     }
 
     pub fn certify_with(
-        self,
+        mut self,
         district: &DistrictRegion,
         facilities: &RegionalFacilities,
         additionally_reserved: impl FnMut(f32, f32) -> bool,
     ) -> RiverResult {
-        self.certify_cooperatively(Some(district), Some(facilities), additionally_reserved, &mut || {})
+        self.request.certify_cooperatively(&mut self.water, Some(district), Some(facilities), None, additionally_reserved, &mut || {})
     }
 
     pub fn certify_land(
-        self,
+        mut self,
         district: Option<&DistrictRegion>,
         facilities: Option<&RegionalFacilities>,
     ) -> RiverResult {
-        self.certify_cooperatively(district, facilities, |_, _| false, &mut || {})
+        self.request.certify_cooperatively(&mut self.water, district, facilities, None, |_, _| false, &mut || {})
     }
 
-    fn certify_cooperatively(
-        self, district: Option<&DistrictRegion>, facilities: Option<&RegionalFacilities>,
-        mut additionally_reserved: impl FnMut(f32, f32) -> bool, pulse: &mut impl FnMut(),
+    pub fn certify_with_detour(
+        mut self,
+        district: Option<&DistrictRegion>,
+        facilities: Option<&RegionalFacilities>,
+        work: &mut WatershedWork,
     ) -> RiverResult {
-        let request = self.request;
-        let current_district = district
-            .and_then(DistrictRegion::road)
-            .and_then(|road| road.polyline().first())
-            .map(|p| region_at(p.x, p.z));
-        let matched = match request.owner {
-            RiverOwner::District => current_district == Some(request.key) && facilities.is_some(),
-            RiverOwner::Wilderness => district.is_none() && facilities.is_none(),
-        };
-        let plan = if matched {
-            let facility = facilities.and_then(|sites| Some((sites.bounds()?, sites)));
-            RiverDistrict::from_prepared_land_cooperatively(&request.world, district, self.water, |x, z| {
-                additionally_reserved(x, z)
-                    || facility.is_some_and(|(area, facilities)| {
-                        contains(area, x, z)
-                            && (facilities.sample(x, z, DRY_FOOTPRINT).is_some()
-                                || facilities
-                                    .ports()
-                                    .any(|port| port.sample(x, z, SEA_FOOTPRINT).is_some()))
-                    })
-            }, pulse)
-        } else {
-            None
-        };
-        RiverResult {
-            request,
-            matched,
-            plan,
-        }
+        self.request.certify_cooperatively(&mut self.water, district, facilities, Some(work), |_, _| false, &mut || {})
     }
 }
 
@@ -265,7 +282,7 @@ impl<const ACTIVE: usize> RiverStream<ACTIVE> {
             if request.owner == RiverOwner::Wilderness {
                 wilderness_budget = false;
             }
-            let result = request.survey(work).certify_land(district, reservation);
+            let result = request.prepare(work, district, reservation, || {});
             if matches!(
                 self.insert(result, land, camera, true),
                 RiverCommit::Capacity | RiverCommit::Stale

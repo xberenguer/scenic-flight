@@ -11,7 +11,7 @@ use esp_hal::{
     },
 };
 
-use crate::bands::{BANDS, BUFFER_BYTES, Band, Scan};
+use crate::bands::{BANDS, BUFFER_BYTES, Band, Scan, Scanline};
 #[cfg(feature = "native-flight-overlay")]
 use crate::native_flight::NativeFlight;
 #[cfg(feature = "native-airframe-probe")]
@@ -21,6 +21,7 @@ pub struct Panel<const LOGICAL: usize> {
     spi: Option<SpiDma<'static, Blocking>>,
     buffers: [Option<DmaTxBuf>; 2],
     scan: Scan<LOGICAL>,
+    line: Scanline,
     visible: bool,
 }
 
@@ -34,6 +35,7 @@ impl<const LOGICAL: usize> Panel<LOGICAL> {
             spi: Some(spi),
             buffers: buffers.map(Some),
             scan: Scan::new(),
+            line: Scanline::new(),
             visible: false,
         };
         let delay = Delay::new();
@@ -86,7 +88,7 @@ impl<const LOGICAL: usize> Panel<LOGICAL> {
     ) {
         let buffer = self.buffers[slot].as_mut().unwrap();
         buffer.set_length(band.bytes());
-        self.scan.pack(image, buffer.as_mut_slice(), band);
+        self.scan.pack(image, buffer.as_mut_slice(), band, &mut self.line);
         #[cfg(feature = "native-flight-overlay")]
         native.pack(&self.scan, buffer.as_mut_slice(), band);
         #[cfg(feature = "native-airframe-probe")]
@@ -103,6 +105,7 @@ impl<const LOGICAL: usize> Panel<LOGICAL> {
     ) -> Result<u32, Error> {
         assert_eq!(image.len(), LOGICAL * LOGICAL);
         let mut bytes = 0;
+        self.line.begin_frame();
         self.pack(
             image, 0, self.scan.band(0),
             #[cfg(feature = "native-flight-overlay")] native,

@@ -1022,6 +1022,8 @@ fn distant_stride_growth(diameter: usize) -> f32 {
     if cfg!(feature = "small-raster-ray-budget") && diameter <= 112 {
         if diameter == 48 {
             1.05
+        } else if diameter == 54 {
+            0.875
         } else {
             0.70 + ((diameter as f32 - 64.0) / 24.0).clamp(0.0, 0.35)
         }

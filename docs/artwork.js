@@ -10,6 +10,12 @@ const lighthouseTypes = [
   ['Keeper tower', 'Square shaft and compact lantern room'],
   ['Steel lattice', 'Open bracing with a compact grounded footprint'],
 ];
+const waterfrontLandmarks = [
+  ['Boat shed', 'Gabled shed and timber landing'],
+  ['Picnic pavilion', 'Clipped-corner shelter beside the boardwalk'],
+  ['Waterfront lookout', 'Raised viewing tower above a low deck'],
+  ['Waterside market', 'Gabled hall with striped awnings'],
+];
 const locomotives = [
   ['Wide cab', 'Container, vehicle, and refrigerated trains'],
   ['Heavy haul', 'Aggregate, mineral, and agricultural trains'],
@@ -67,6 +73,9 @@ const categories = [
     family: index => wetlandForms[index >> 6], traits: ['Width', 'Height', 'Spread'] },
   { title: 'Lighthouses', label: 'Lighthouse', atlas: 'lighthouses.png', columns: 3, rows: 1,
     family: index => lighthouseTypes[index][0], detail: index => lighthouseTypes[index][1] },
+  { title: 'Waterfront landmarks', label: 'Landmark', atlas: 'waterfront-landmarks.png', columns: 4, rows: 1,
+    name: index => waterfrontLandmarks[index][0], family: index => waterfrontLandmarks[index][0],
+    detail: index => waterfrontLandmarks[index][1] },
   { title: 'Locomotives', label: 'Locomotive', atlas: 'locomotives.png', columns: 3, rows: 2,
     family: index => locomotives[index][0], detail: index => locomotives[index][1] },
 ];

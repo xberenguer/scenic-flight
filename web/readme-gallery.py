@@ -17,7 +17,7 @@ AIRCRAFT = ("Bush Plane", "Racer", "Sport Jet", "Ultralight", "Glider",
 ARTWORK = (("City towers", "towers", 250), ("Trees", "trees", 256), ("Rocks", "rocks", 256), ("Bushes", "bushes", 256),
            ("Cacti", "cacti", 256), ("Freight wagons", "wagons", 250), ("Vessels", "vessels", 250),
            ("Wetland plants", "wetlands", 256), ("Lighthouse forms", "lighthouses", 3),
-           ("Locomotives", "locomotives", 6))
+           ("Locomotives", "locomotives", 6), ("Waterfront landmarks", "waterfront-landmarks", 4))
 
 
 def make_preview(entry):

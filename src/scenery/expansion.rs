@@ -1,7 +1,7 @@
 //! A detached survey of additional town scenery. The district remains the planning authority.
 
 use super::{cover_settlement, region_axis, DistrictRegion, ROAD_REGION_SIZE};
-use crate::settlement::{BoroughPaintCache, SettlementSample, Terminus, TownExpansion};
+use crate::settlement::{BoroughPaintCache, SettlementSample, Terminus, TownExpansion, WaterfrontVillage};
 use crate::skyline::SkylineTower;
 use crate::world::{Sample, Surface, World};
 
@@ -17,6 +17,7 @@ pub struct DistrictExpansion {
     region: [i32; 2],
     revision: u32,
     towns: [Option<TownExpansion>; 2],
+    waterfront: Option<WaterfrontVillage>,
     bounds: Option<[f32; 4]>,
     occupied: [u32; 32],
 }
@@ -87,7 +88,7 @@ impl DistrictExpansionRequest {
         reserved: impl Fn(f32, f32) -> bool,
         pulse: impl FnMut(),
     ) -> DistrictExpansion {
-        self.prepare_with_bounds(reserved, |_| true, |_, _| false, pulse)
+        self.prepare_with_bounds(reserved, |_| true, |_, _| false, |_, _| false, pulse)
     }
 
     /// The broad test may overestimate reservations, but must never miss one.
@@ -96,8 +97,31 @@ impl DistrictExpansionRequest {
         reserved: impl Fn(f32, f32) -> bool,
         may_reserve: impl Fn([f32; 4]) -> bool,
         near_waterway: impl Fn(f32, f32) -> bool,
+        waterway_cell: impl Fn(f32, f32) -> bool,
         mut pulse: impl FnMut(),
     ) -> DistrictExpansion {
+        let waterfront = self.district.road().and_then(|road| WaterfrontVillage::survey(
+            &self.world, road, [Terminus::Start, Terminus::End].map(|end| self.district.town(end)),
+            &reserved, &may_reserve, &near_waterway, &waterway_cell, &mut pulse,
+        ));
+        let waterfront_bounds = waterfront.as_ref().map(WaterfrontVillage::bounds);
+        let reserved = |x, z| reserved(x, z)
+            || waterfront.as_ref().is_some_and(|village| village.reserves(x, z));
+        let overlaps = |[a, b, c, d]: [f32; 4], [x, z, u, v]: [f32; 4]| {
+            a <= u && b <= v && c >= x && d >= z
+        };
+        let may_reserve = |bounds| {
+            may_reserve(bounds) || waterfront_bounds.is_some_and(|envelope| {
+                if !overlaps(bounds, envelope) {
+                    return false;
+                }
+                let mut touches = false;
+                if let Some(village) = &waterfront {
+                    village.footprints(|footprint| touches |= overlaps(bounds, footprint));
+                }
+                touches
+            })
+        };
         let towns = [Terminus::Start, Terminus::End].map(|end| {
             let town = self.district.town(end)?;
             let other_end = match end {
@@ -120,6 +144,7 @@ impl DistrictExpansionRequest {
             .iter()
             .flatten()
             .filter_map(TownExpansion::bounds)
+            .chain(waterfront_bounds)
             .reduce(|a, b| {
                 [
                     a[0].min(b[0]),
@@ -131,20 +156,25 @@ impl DistrictExpansionRequest {
         let [left, near, _, _] = self.region_bounds();
         let mut occupied = [0_u32; 32];
         let cell = |offset: f32| ((offset * (32.0 / ROAD_REGION_SIZE as f32)) as usize).min(31);
+        let mut occupy = |[x, z, far_x, far_z]: [f32; 4]| {
+            let start = cell(x - left - 0.02);
+            let end = cell(far_x - left + 0.02);
+            let mask = (u32::MAX << start) & (u32::MAX >> (31 - end));
+            for row in &mut occupied[cell(z - near - 0.02)..=cell(far_z - near + 0.02)] {
+                *row |= mask;
+            }
+        };
         for town in towns.iter().flatten() {
-            town.footprints(|[x, z, far_x, far_z]| {
-                let start = cell(x - left - 0.02);
-                let end = cell(far_x - left + 0.02);
-                let mask = (u32::MAX << start) & (u32::MAX >> (31 - end));
-                for row in &mut occupied[cell(z - near - 0.02)..=cell(far_z - near + 0.02)] {
-                    *row |= mask;
-                }
-            });
+            town.footprints(&mut occupy);
+        }
+        if let Some(village) = &waterfront {
+            village.footprints(&mut occupy);
         }
         DistrictExpansion {
             region: self.region(),
             revision: self.revision,
             towns,
+            waterfront,
             bounds,
             occupied,
         }
@@ -191,6 +221,11 @@ impl DistrictExpansion {
             return None;
         }
         self.towns.iter().flatten().find_map(|town| town.sample_with_cache(x, z, cache))
+            .or_else(|| self.waterfront_sample(x, z))
+    }
+
+    pub fn waterfront_sample(&self, x: f32, z: f32) -> Option<SettlementSample> {
+        self.waterfront.as_ref()?.sample(x, z)
     }
 
     /// Extra scenery at one road terminus, before it is combined with its original town.
@@ -210,6 +245,7 @@ impl DistrictExpansion {
             .iter()
             .flatten()
             .map(|town| town.obstruction(x, z))
+            .chain(self.waterfront.iter().map(|village| village.obstruction(x, z)))
             .fold(0.0, f32::max)
     }
 
@@ -218,6 +254,7 @@ impl DistrictExpansion {
             .iter()
             .flatten()
             .flat_map(TownExpansion::roof_groups)
+            .chain(self.waterfront.iter().flat_map(WaterfrontVillage::roof_groups))
     }
 }
 

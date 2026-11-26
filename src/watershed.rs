@@ -321,6 +321,20 @@ impl Watershed {
         &mut self, world: &World, seed: u64, region_x: i32, region_z: i32,
         work: &mut WatershedWork, pulse: &mut impl FnMut(),
     ) {
+        self.rebuild_routed(world, seed, (region_x, region_z), work, |_, _| true, pulse);
+    }
+
+    /// Repeat the terrain survey with an edge constraint. Every routed edge
+    /// still descends toward the same actual sea and passes the terrain proof.
+    pub(crate) fn rebuild_routed(
+        &mut self,
+        world: &World,
+        seed: u64,
+        (region_x, region_z): (i32, i32),
+        work: &mut WatershedWork,
+        mut allows: impl FnMut([f32; 2], [f32; 2]) -> bool,
+        pulse: &mut impl FnMut(),
+    ) {
         self.seed = seed;
         self.stream_count = 0;
         self.link_count = 0;
@@ -343,7 +357,10 @@ impl Watershed {
             ^ (seed >> 32) as u32
             ^ (region_x as u32).wrapping_mul(0x9e37_79b1)
             ^ (region_z as u32).wrapping_mul(0x85eb_ca77);
-        work.route_grid(key, pulse);
+        let origin = self.coverage.origin;
+        work.route_grid(key, |from, to| {
+            allows(world_point(origin, local(from)), world_point(origin, local(to)))
+        }, pulse);
         let mut check_budget = MAX_CHECKED_LINKS;
         let mut attempted = [0; MAX_ATTEMPTS];
         for attempt in 0..MAX_ATTEMPTS {
@@ -589,7 +606,12 @@ impl WatershedWork {
         }
     }
 
-    fn route_grid(&mut self, key: u32, pulse: &mut impl FnMut()) {
+    fn route_grid(
+        &mut self,
+        key: u32,
+        mut allows: impl FnMut(usize, usize) -> bool,
+        pulse: &mut impl FnMut(),
+    ) {
         self.key = key;
         self.mark_open_sea(pulse);
         self.directions.fill(0);
@@ -640,7 +662,7 @@ impl WatershedWork {
                 } else {
                     self.sea_links[next] + 1
                 };
-                if usize::from(distance) <= MAX_TRACE {
+                if usize::from(distance) <= MAX_TRACE && allows(cell, next) {
                     best = drop;
                     self.directions[cell] = direction;
                     self.sea_links[cell] = distance;

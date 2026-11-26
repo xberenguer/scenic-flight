@@ -4,6 +4,8 @@ use super::*;
 
 mod boroughs;
 mod neighborhoods;
+mod waterfront;
+pub(crate) use waterfront::WaterfrontVillage;
 
 use self::boroughs::Boroughs;
 pub(crate) use self::boroughs::BoroughPaintCache;
