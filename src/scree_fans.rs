@@ -1,13 +1,15 @@
 //! Rockfall aprons seated below a rocky face and widened across its lower slope.
 
 use crate::alpine_lakes::ALPINE_TILE_SIZE;
-use crate::math::{fraction, mix, smoothstep};
+use crate::math::{fraction, mix};
 use crate::world::{Sample, Surface, World};
 
 mod columnar;
 mod columnar_profiles;
+mod talus_profiles;
 pub use columnar::ColumnarHeadwall;
 pub use columnar_profiles::HeadwallProfile;
+pub use talus_profiles::TalusProfile;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScreeFan {
@@ -17,8 +19,7 @@ pub struct ScreeFan {
     length: f32,
     width: f32,
     bend: f32,
-    lobe: f32,
-    spill: f32,
+    profile: u8,
     headwall: Option<ColumnarHeadwall>,
 }
 
@@ -169,8 +170,7 @@ impl ScreeFan {
                     length,
                     width,
                     bend,
-                    lobe: 0.31 + fraction(mix(site_key ^ 0xfb8d)) * 0.29,
-                    spill: (fraction(mix(site_key ^ 0xda55)) - 0.5) * 0.29,
+                    profile: ((mix(site_key ^ 0xff49_542d_665b_0ab6) >> 24) % TalusProfile::ALL.len() as u64) as u8,
                     headwall,
                 });
             }
@@ -191,6 +191,10 @@ impl ScreeFan {
         self.headwall.as_ref()
     }
 
+    pub fn profile(&self) -> TalusProfile {
+        TalusProfile::ALL[usize::from(self.profile)]
+    }
+
     pub fn overlay(&self, x: f32, z: f32, ground: Sample) -> Sample {
         let [left, near, right, far] = self.bounds;
         if !(left..=right).contains(&x)
@@ -208,29 +212,17 @@ impl ScreeFan {
         }
         let centerline = self.bend * t * t;
         let side = (dz * ax - dx * az - centerline) / (self.width * (0.20 + 0.80 * t));
-        let wing = side.abs();
-        // Neighboring rockfall paths overlap at the apex and run to different
-        // distances downslope, leaving scalloped deposits at the lower edge.
-        let central = 1.0 - smoothstep(wing * 2.8);
-        let flank = 1.0 - smoothstep((wing - self.lobe).abs() * 3.6);
-        let toe = 0.89 - 0.26 * wing * wing + central * 0.09
-            + flank * (0.055 + side * self.spill);
-        let fade =
-            smoothstep(t * 8.5) * smoothstep((toe - t) * 9.0) * smoothstep((1.0 - wing) * 3.8);
-        if fade < 0.13 {
+        let (coverage, deposit, coarse) = self.profile().study(t, side);
+        if coverage <= 0.10 {
             return ground;
         }
-        // Deposits thicken downhill, with only subdued surface relief in the apron.
-        let runoff = smoothstep((t - 0.27) * 2.5) * flank;
-        let deposit = fade * (0.47 + 1.33 * t + 0.38 * runoff);
-        let blockiness = t + 0.13 * side * side - 0.19 * fade + runoff * 0.15;
-        let surface = if fade < 0.49 {
+        let surface = if coverage < 0.48 {
             if ground.surface == Surface::Rock {
                 Surface::Rock
             } else {
                 Surface::ScreeEdge
             }
-        } else if blockiness > 0.44 {
+        } else if coarse {
             Surface::ScreeCoarse
         } else {
             Surface::ScreeFine

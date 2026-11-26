@@ -2,6 +2,7 @@
 
 use crate::math::sin_cos;
 use crate::render::{Camera, view_distance};
+use crate::tunnel_facade::TunnelFacade;
 use crate::tunnels::{RoadTunnel, TUNNEL_HALF_WIDTH, TunnelMouth, TunnelPoint};
 use crate::world::{SEA_LEVEL, Sample, Surface};
 use crate::world_mesh::WorldMesh;
@@ -152,20 +153,14 @@ pub fn open_portals(
     cleared
 }
 
-/// Draw the original masonry rings and both lit approaches to the actual bore.
+/// Draw the masonry rings and both lit approaches to the actual bore.
 /// Call after `open_portals` when the terrain depth buffer is available.
 pub fn draw_tunnel(tunnel: &RoadTunnel, mesh: &mut WorldMesh<'_>) {
     let [first, last] = tunnel.mouths();
+    let facade = TunnelFacade::for_tunnel(tunnel);
     for mouth in [first, last] {
-        for (index, panel) in mouth.frame().into_iter().enumerate() {
-            let color = if index == 4 || index == 5 {
-                [184, 175, 153]
-            } else {
-                [154, 147, 133]
-            };
-            quad(mesh, panel.map(world_point), color, true);
-        }
-        draw_wings(tunnel, mesh, mouth);
+        facade.draw(mouth, mesh);
+        draw_wings(tunnel, mesh, mouth, facade.frame(mouth));
     }
 
     let length = tunnel.covered_length();
@@ -199,9 +194,11 @@ pub fn draw_tunnel(tunnel: &RoadTunnel, mesh: &mut WorldMesh<'_>) {
     draw_lamps(mesh, last, -grade);
 }
 
-fn draw_wings(tunnel: &RoadTunnel, mesh: &mut WorldMesh<'_>, mouth: TunnelMouth) {
+fn draw_wings(
+    tunnel: &RoadTunnel, mesh: &mut WorldMesh<'_>, mouth: TunnelMouth,
+    frame: [[TunnelPoint; 4]; 10],
+) {
     let opening = mouth.opening();
-    let frame = mouth.frame();
     for (side, edge, top) in [
         (-1.0, opening[0], frame[0][3]),
         (1.0, opening[10], frame[9][0]),

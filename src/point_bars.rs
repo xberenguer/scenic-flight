@@ -4,6 +4,9 @@ use crate::math::{fraction, mix, smoothstep};
 use crate::watershed::{Reach, RiverSample, Watershed, REGION_SIZE};
 use crate::world::{Sample, Surface, World};
 
+mod profiles;
+pub use profiles::PointBarProfile;
+
 const KNOTS: usize = 9;
 const SECTIONS: f32 = (KNOTS - 1) as f32;
 const BANK_MARGIN: f32 = 0.40;
@@ -17,6 +20,7 @@ pub(crate) struct PointBar {
     bank: [f32; KNOTS],
     level: [f32; KNOTS],
     spread: f32,
+    design: u8,
     bounds: [f32; 4],
 }
 
@@ -98,6 +102,7 @@ impl PointBar {
             bank: [0.0; KNOTS],
             level: [0.0; KNOTS],
             spread,
+            design: ((mix(key ^ 0xe654_6e22_e52d_b415) >> 24) % PointBarProfile::ALL.len() as u64) as u8,
             bounds: [
                 f32::INFINITY,
                 f32::INFINITY,
@@ -217,6 +222,10 @@ impl PointBar {
         self.bounds
     }
 
+    pub(crate) fn design(&self) -> PointBarProfile {
+        PointBarProfile::ALL[usize::from(self.design)]
+    }
+
     fn point(&self, forward: f32, lateral: f32) -> [f32; 2] {
         add(
             self.contact,
@@ -245,7 +254,9 @@ impl PointBar {
         if !(0.0..1.0).contains(&along) {
             return bank;
         }
-        let (outer, level, width) = self.profile(along);
+        let (outer, level, surveyed_width) = self.profile(along);
+        let design = self.design();
+        let width = surveyed_width * design.width(along);
         let across = dot(offset, self.inward) - outer - BANK_MARGIN;
         let rise = bank.elevation - level;
         if !(0.0..width).contains(&across) || !(0.22..5.8).contains(&rise) {
@@ -256,15 +267,16 @@ impl PointBar {
             * smoothstep((width - across) * 0.47)
             * smoothstep((rise - 0.22) * 2.6)
             * smoothstep((5.8 - rise) * 0.55);
-        let target = 0.96 + across * 0.097;
+        let (relief, material) = design.sediment(along, across / width);
+        let target = 0.96 + across * 0.097 + relief;
         let adjusted = (target - rise).clamp(-1.15, 0.44) * strength;
         Sample {
             elevation: bank.elevation + adjusted,
             surface: if strength >= 0.38 {
-                if across < 2.0 || across > width * 0.73 {
+                if across < 1.35 {
                     Surface::Gravel
                 } else {
-                    Surface::RiverSilt
+                    material
                 }
             } else {
                 bank.surface

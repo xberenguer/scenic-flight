@@ -4,6 +4,9 @@ use crate::ground_details::ParcelSurvey;
 use crate::math::{fraction, mix, smoothstep};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
+mod profiles;
+pub use profiles::BluffProfile;
+
 const KNOTS: usize = 5;
 const BACK: f32 = 65.0;
 
@@ -15,6 +18,7 @@ pub(crate) struct CoastalBluff {
     shores: [f32; KNOTS],
     height: f32,
     oblique: f32,
+    profile: u8,
 }
 
 pub(crate) struct BluffSampler {
@@ -115,6 +119,7 @@ impl CoastalBluff {
                 shores: [a - tip, b - tip, 0.0, c - tip, d - tip],
                 height: 5.4 + fraction(mix(design ^ 57)) * 2.9,
                 oblique: fraction(mix(design ^ 13)) * 2.0 - 1.0,
+                profile: ((mix(design ^ 0x1784_392e_73d4_a713) >> 23) % BluffProfile::ALL.len() as u64) as u8,
             };
             let bounds = bluff.bounds(center);
             if !(0..2).all(|i| bounds[i] > origin[i] + 2.0 && bounds[i + 2] < origin[i] + 510.0) {
@@ -135,6 +140,10 @@ impl CoastalBluff {
 
     pub(crate) fn seaward(self) -> [f32; 2] {
         self.seaward
+    }
+
+    pub(crate) fn profile(self) -> BluffProfile {
+        BluffProfile::ALL[usize::from(self.profile)]
     }
 
     fn point(self, center: [f32; 2], along: f32, out: f32) -> [f32; 2] {
@@ -224,21 +233,18 @@ impl CoastalBluff {
         if !(2.5..BACK).contains(&inland) {
             return ground;
         }
-        let flank = smoothstep((1.0 - u.abs()) * 1.95);
-        let face_start = (2.5 + 3.8 * u * u + self.oblique * u).max(2.5);
+        let profile = self.profile();
+        let (slope, rock_edge, cap_edge) = profile.study(u, inland, self.oblique);
         let rise = self.height
-            * flank
-            * smoothstep((inland - face_start) * 0.16)
-            * smoothstep((BACK - inland) * 0.024)
+            * slope
             * smoothstep((ground.elevation - 0.11) * 2.0)
             * smoothstep((23.0 - ground.elevation) * 0.15);
         if rise <= 0.0 {
             return ground;
         }
-        let rock_edge = 13.5 + 4.0 * (1.0 - u * u) + u * self.oblique * 3.0;
         let surface = if rise > 1.30 && inland < rock_edge {
             Surface::Rock
-        } else if rise > 2.50 && inland < 36.0 {
+        } else if rise > 2.50 && inland < cap_edge {
             Surface::Grass
         } else {
             ground.surface

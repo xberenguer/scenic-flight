@@ -228,6 +228,12 @@ impl DistrictExpansion {
         self.waterfront.as_ref()?.sample(x, z)
     }
 
+    pub fn waterfront_landmark_designs(
+        &self,
+    ) -> impl Iterator<Item = ([f32; 3], crate::settlement::riverfront_buildings::RiverfrontBuilding)> + '_ {
+        self.waterfront.iter().flat_map(|village| village.landmark_designs())
+    }
+
     /// Extra scenery at one road terminus, before it is combined with its original town.
     pub fn town_sample(&self, end: Terminus, x: f32, z: f32) -> Option<SettlementSample> {
         if !self.contains(x, z) {

@@ -5,6 +5,7 @@ use crate::highway_links::HighwayLink;
 use crate::math::smoothstep;
 use crate::ports::{Port, PortSurface};
 use crate::rail::{RailAnchor, RailAnchorKind, RailMaterial, RailPoint, RailService};
+use crate::rail_earthwork::EarthworkProfile;
 use crate::rail_station_art::{StationFixtures, StationLayout};
 use crate::roads::{ROAD_HALF_WIDTH, ROAD_REGION_SIZE};
 use crate::settlement::{Settlement, SettlementSurface};
@@ -184,6 +185,7 @@ pub struct RailCorridor {
     pub service: RailService,
     pub(crate) freight_route: crate::train_art::FreightRoute,
     stations: [CorridorStation; 2],
+    earthwork_offset: usize,
     points: [RailPoint; POINTS],
     run: [f32; POINTS],
     axis: Axis,
@@ -376,6 +378,9 @@ impl RailCorridor {
                     RailService::Commuter => crate::train_art::FreightRoute::Mixed,
                 },
                 stations,
+                earthwork_offset: (crate::math::mix(
+                    (start[0].to_bits() as u64) << 32 | start[1].to_bits() as u64
+                ) % EarthworkProfile::ALL.len() as u64) as usize,
                 points,
                 run,
                 axis,
@@ -527,8 +532,16 @@ impl RailCorridor {
                 });
             }
         }
-        let weight = smoothstep((EDGE * EDGE - best.0) / (EDGE * EDGE - BED * BED));
-        (weight > 0.0).then_some(CorridorSample {
+        if best.0 >= EDGE * EDGE {
+            return None;
+        }
+        let toe = (best.0 - BED * BED) / (EDGE * EDGE - BED * BED);
+        let stock = smoothstep(1.0 - toe);
+        let station_clearance = best.2.min(self.length() - best.2);
+        let blend_in = smoothstep((station_clearance - PLATFORM_END) / 12.0);
+        let profile = EarthworkProfile::route_weight(self.earthwork_offset, best.2, toe, raw > best.1);
+        let weight = blend(stock, profile, blend_in);
+        Some(CorridorSample {
             elevation: blend(raw, best.1, weight),
             material: None,
         })

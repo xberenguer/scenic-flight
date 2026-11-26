@@ -317,12 +317,72 @@ const quarryNames = await fetch('assets/artwork/quarry-profiles.txt')
   .then(text => text.trim().split('\n'))
   .catch(() => []);
 
+const outwashNames = await fetch('assets/artwork/glacial-outwash.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const runwayNames = await fetch('assets/artwork/runway-markings.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const bluffNames = await fetch('assets/artwork/coastal-bluffs.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const talusNames = await fetch('assets/artwork/talus-fans.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const pointBarNames = await fetch('assets/artwork/point-bars.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const tunnelFacadeNames = await fetch('assets/artwork/tunnel-facades.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const riverfrontBuildingNames = await fetch('assets/artwork/riverfront-buildings.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const outerBlockNames = await fetch('assets/artwork/outer-blocks.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const cascadeNames = await fetch('assets/artwork/alpine-cascades.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const earthworkNames = await fetch('assets/artwork/rail-earthworks.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
 const apronNames = await fetch('assets/artwork/airfield-aprons.txt')
   .then(response => response.ok ? response.text() : '')
   .then(text => text.trim().split('\n'))
   .catch(() => []);
 
 const categories = [
+  { title: 'Glacial outwash fans', label: 'Outwash profile', atlas: 'glacial-outwash.png',
+    columns: 5, rows: 5, name: index => outwashNames[index], animation: 'glacial-outwash.gif' },
+  { title: 'Runway markings', label: 'Approach pattern', atlas: 'runway-markings.png',
+    columns: 5, rows: 5, name: index => runwayNames[index], animation: 'runway-markings.gif' },
+  { title: 'Coastal bluffs', label: 'Shoreline profile', atlas: 'coastal-bluffs.png',
+    columns: 5, rows: 5, name: index => bluffNames[index], animation: 'coastal-bluffs.gif' },
+  { title: 'Alpine rockfall fans', label: 'Talus profile', atlas: 'talus-fans.png',
+    columns: 5, rows: 5, name: index => talusNames[index], animation: 'talus-fans.gif' },
+  { title: 'River bend point bars', label: 'Deposit shape', atlas: 'point-bars.png',
+    columns: 5, rows: 5, name: index => pointBarNames[index], animation: 'point-bars.gif' },
+  { title: 'Road tunnel portals', label: 'Portal design', atlas: 'tunnel-facades.png',
+    columns: 5, rows: 5, name: index => tunnelFacadeNames[index], animation: 'tunnel-facades.gif' },
+  { title: 'Riverfront buildings', label: 'Riverfront building', atlas: 'riverfront-buildings.png',
+    columns: 5, rows: 5, name: index => riverfrontBuildingNames[index], animation: 'riverfront-buildings.gif' },
+  { title: 'Outer neighborhood blocks', label: 'Block plan', atlas: 'outer-blocks.png',
+    columns: 5, rows: 5, name: index => outerBlockNames[index], animation: 'outer-blocks.gif' },
+  { title: 'Alpine cascades', label: 'Water flow', atlas: 'alpine-cascades.png',
+    columns: 5, rows: 5, name: index => cascadeNames[index], animation: 'alpine-cascades.gif' },
+  { title: 'Rail cuts and embankments', label: 'Earthwork profile', atlas: 'rail-earthworks.png',
+    columns: 5, rows: 5, name: index => earthworkNames[index], animation: 'rail-earthworks.gif' },
   { title: 'Airfield aprons', label: 'Apron layout', atlas: 'airfield-aprons.png',
     columns: 5, rows: 5, name: index => apronNames[index], animation: 'airfield-aprons.gif' },
   { title: 'Hillside quarries', label: 'Quarry', atlas: 'quarry-profiles.png',

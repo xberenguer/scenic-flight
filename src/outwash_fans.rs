@@ -26,6 +26,272 @@ const DIRECTIONS: [[f32; 2]; 16] = [
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OutwashProfile {
+    pub name: &'static str,
+    width: [f32; 2],
+    split: [f32; 2],
+    rejoin: [f32; 2],
+    branch_reach: f32,
+    deposit: f32,
+}
+
+impl OutwashProfile {
+    pub const ALL: [Self; 25] = [
+        Self::new(
+            "Wide braidplain",
+            [0.99, 0.00],
+            [0.05, 0.18],
+            [0.76, 0.92],
+            1.00,
+            0.92,
+        ),
+        Self::new(
+            "Narrow meltwater chute",
+            [0.69, 0.19],
+            [0.03, 0.14],
+            [0.79, 0.89],
+            0.80,
+            0.82,
+        ),
+        Self::new(
+            "Early left fork",
+            [0.91, -0.17],
+            [0.01, 0.25],
+            [0.63, 0.94],
+            1.12,
+            1.00,
+        ),
+        Self::new(
+            "Early right fork",
+            [0.90, 0.17],
+            [0.27, 0.01],
+            [0.94, 0.63],
+            1.12,
+            0.97,
+        ),
+        Self::new(
+            "Paired gravel bars",
+            [0.97, 0.00],
+            [0.08, 0.10],
+            [0.85, 0.88],
+            0.90,
+            1.15,
+        ),
+        Self::new(
+            "Long left anabranch",
+            [0.92, -0.09],
+            [0.01, 0.19],
+            [0.96, 0.72],
+            1.16,
+            0.94,
+        ),
+        Self::new(
+            "Long right anabranch",
+            [0.94, 0.10],
+            [0.20, 0.02],
+            [0.72, 0.96],
+            1.14,
+            0.99,
+        ),
+        Self::new(
+            "Tapered gravel tongue",
+            [0.78, 0.10],
+            [0.07, 0.18],
+            [0.77, 0.90],
+            0.85,
+            1.12,
+        ),
+        Self::new(
+            "Broad shingle toe",
+            [0.98, -0.22],
+            [0.13, 0.19],
+            [0.89, 0.95],
+            1.03,
+            1.20,
+        ),
+        Self::new(
+            "Offset silver braid",
+            [0.94, 0.23],
+            [0.03, 0.21],
+            [0.81, 0.95],
+            0.97,
+            0.85,
+        ),
+        Self::new(
+            "Deep central runnel",
+            [0.87, -0.11],
+            [0.10, 0.18],
+            [0.79, 0.93],
+            0.88,
+            0.79,
+        ),
+        Self::new(
+            "Stepped spill apron",
+            [0.81, 0.21],
+            [0.06, 0.11],
+            [0.75, 0.86],
+            0.92,
+            1.10,
+        ),
+        Self::new(
+            "Open gravel delta",
+            [0.98, 0.20],
+            [0.11, 0.23],
+            [0.93, 0.97],
+            1.10,
+            1.28,
+        ),
+        Self::new(
+            "Late left splay",
+            [0.92, -0.25],
+            [0.26, 0.08],
+            [0.96, 0.76],
+            1.02,
+            0.95,
+        ),
+        Self::new(
+            "Late right splay",
+            [0.94, 0.24],
+            [0.07, 0.27],
+            [0.77, 0.96],
+            1.04,
+            0.95,
+        ),
+        Self::new(
+            "Twin needle bars",
+            [0.83, 0.05],
+            [0.06, 0.07],
+            [0.92, 0.92],
+            0.67,
+            0.84,
+        ),
+        Self::new(
+            "Shallow fan bench",
+            [0.97, -0.23],
+            [0.07, 0.15],
+            [0.77, 0.83],
+            1.20,
+            1.07,
+        ),
+        Self::new(
+            "Pebble-rib apron",
+            [0.95, -0.25],
+            [0.02, 0.16],
+            [0.78, 0.89],
+            0.83,
+            1.25,
+        ),
+        Self::new(
+            "Hooked fan shoulder",
+            [0.92, 0.27],
+            [0.12, 0.07],
+            [0.85, 0.89],
+            1.16,
+            1.05,
+        ),
+        Self::new(
+            "Short split apron",
+            [0.83, -0.07],
+            [0.09, 0.16],
+            [0.68, 0.76],
+            0.98,
+            0.95,
+        ),
+        Self::new(
+            "Late-joining braid",
+            [0.99, 0.13],
+            [0.09, 0.14],
+            [0.94, 0.96],
+            1.08,
+            0.87,
+        ),
+        Self::new(
+            "Inset gravel islands",
+            [0.86, -0.16],
+            [0.12, 0.15],
+            [0.88, 0.92],
+            0.88,
+            1.15,
+        ),
+        Self::new(
+            "Splayed braid arms",
+            [0.98, 0.04],
+            [0.04, 0.11],
+            [0.88, 0.95],
+            1.24,
+            1.24,
+        ),
+        Self::new(
+            "Uneven terrace toes",
+            [0.84, -0.24],
+            [0.23, 0.06],
+            [0.95, 0.84],
+            0.96,
+            1.24,
+        ),
+        Self::new(
+            "Diverging lower apron",
+            [0.99, -0.07],
+            [0.21, 0.22],
+            [0.96, 0.98],
+            1.16,
+            1.15,
+        ),
+    ];
+
+    const fn new(
+        name: &'static str,
+        width: [f32; 2],
+        split: [f32; 2],
+        rejoin: [f32; 2],
+        branch_reach: f32,
+        deposit: f32,
+    ) -> Self {
+        Self {
+            name,
+            width,
+            split,
+            rejoin,
+            branch_reach,
+            deposit,
+        }
+    }
+
+    fn width_at(self, t: f32) -> f32 {
+        self.width[0] * (1.0 + self.width[1] * (t - 0.5))
+    }
+
+    fn strand_offsets(self, t: f32) -> [f32; 3] {
+        let [left, right] = core::array::from_fn(|i| {
+            let p = ((t - self.split[i]) / (self.rejoin[i] - self.split[i])).clamp(0.0, 1.0);
+            4.0 * p * (1.0 - p) * self.branch_reach
+        });
+        [-0.52 * left, 0.0, 0.61 * right]
+    }
+
+    fn thread(self, t: f32, side: f32, width: f32, sway: f32) -> f32 {
+        let near = self
+            .strand_offsets(t)
+            .map(|path| (path * width + sway - side).abs())
+            .into_iter()
+            .fold(f32::INFINITY, f32::min);
+        let lane = 1.7 + 1.95 * t * (1.55 - t) + 0.45 * (1.0 - (2.5 * t - 0.91).abs()).max(0.0);
+        smoothstep((lane + 0.9 - near) * 0.48)
+    }
+
+    pub fn study(self, t: f32, side: f32) -> (f32, f32) {
+        let width = 5.0 + 29.0 * t * (1.53 - 0.53 * t) * self.width_at(t).min(1.0);
+        let edge = width - side.abs();
+        let apron = smoothstep(edge * 0.13) * smoothstep(t * 12.0) * smoothstep((1.0 - t) * 7.5);
+        let thread = self.thread(t, side, width, 0.0);
+        (
+            apron * thread,
+            apron * (self.deposit * (1.0 - thread) - 0.40 * thread),
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutwashFan {
     center: [f32; 2],
     downhill: [f32; 2],
@@ -36,6 +302,7 @@ pub struct OutwashFan {
     bend: f32,
     drift: f32,
     deposit: f32,
+    design: u8,
 }
 
 impl OutwashFan {
@@ -142,7 +409,8 @@ impl OutwashFan {
                     spread,
                     bend,
                     drift,
-                    deposit: 0.74 + fraction(mix(key ^ 0xccf8)) * 0.69,
+                    deposit: 0.92 + fraction(mix(key ^ 0xccf8)) * 0.51,
+                    design: (mix(key ^ 0xbf19) % OutwashProfile::ALL.len() as u64) as u8,
                 };
                 if plan.prove(world, pulse) {
                     return Some(plan);
@@ -165,24 +433,24 @@ impl OutwashFan {
     }
 
     fn dimensions(&self, t: f32) -> (f32, f32) {
-        let spread = 5.0 + (self.spread - 5.0) * t * (1.53 - 0.53 * t);
+        let spread =
+            5.0 + (self.spread - 5.0) * t * (1.53 - 0.53 * t) * self.profile().width_at(t).min(1.0);
         let middle = self.drift * t + self.bend * (4.0 * t * (1.0 - t)) * (2.0 * t - 0.5);
         (middle, spread)
     }
 
+    pub fn profile(&self) -> OutwashProfile {
+        OutwashProfile::ALL[self.design as usize]
+    }
+
+    fn sway(&self, t: f32) -> f32 {
+        self.bend * (4.0 * t * (1.0 - t)) * (t - 0.47)
+    }
+
     fn channels(&self, t: f32, middle: f32, spread: f32) -> [f32; 3] {
-        // Shifting channels leave uneven bars. Each lateral strand splits
-        // and rejoins at different positions along the parent channel.
-        let left_t = ((t - 0.04) * (1.0 / 0.75)).clamp(0.0, 1.0);
-        let right_t = ((t - 0.21) * (1.0 / 0.71)).clamp(0.0, 1.0);
-        let left = 4.0 * left_t * (1.0 - left_t);
-        let right = 4.0 * right_t * (1.0 - right_t);
-        let sway = self.bend * (4.0 * t * (1.0 - t)) * (t - 0.47);
-        [
-            middle + sway - spread * left * (0.39 + 0.27 * left_t),
-            middle + sway,
-            middle + sway + spread * right * (0.71 - 0.20 * right_t),
-        ]
+        self.profile()
+            .strand_offsets(t)
+            .map(|offset| middle + self.sway(t) + spread * offset)
     }
 
     fn prove(&self, world: &World, pulse: &mut impl FnMut()) -> bool {
@@ -243,17 +511,12 @@ impl OutwashFan {
             return ground;
         }
         let ends = smoothstep(t * 12.0) * smoothstep((1.0 - t) * 7.5);
-        let near = self
-            .channels(t, middle, spread)
-            .map(|path| (path - side).abs())
-            .into_iter()
-            .fold(f32::INFINITY, f32::min);
-        let lane = 1.7 + 1.95 * t * (1.55 - t) + 0.45 * (1.0 - (2.5 * t - 0.91).abs()).max(0.0);
-        let thread = smoothstep((lane + 0.9 - near) * 0.48);
+        let profile = self.profile();
+        let thread = profile.thread(t, side - middle, spread, self.sway(t));
         let ground_support = smoothstep((ground.elevation - 46.0) * (1.0 / 5.0))
             * smoothstep((104.0 - ground.elevation) * (1.0 / 7.0));
         let apron = smoothstep(edge * 0.13) * ends * ground_support;
-        let rise = (self.deposit * (1.0 - thread) - 0.40 * thread) * apron;
+        let rise = (self.deposit * profile.deposit * (1.0 - thread) - 0.40 * thread) * apron;
         let surface = if apron > 0.20 && thread > 0.58 {
             Surface::Gravel
         } else if apron > 0.38 && thread > 0.14 && ground.surface != Surface::Rock {
@@ -282,6 +545,27 @@ fn shifted(center: [f32; 2], [ax, az]: [f32; 2], forward: f32, side: f32) -> [f3
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn outwash_designs_have_distinct_relief_and_close_their_channels() {
+        let designs = OutwashProfile::ALL.map(|profile| {
+            assert_eq!(profile.strand_offsets(0.0), [0.0; 3]);
+            assert_eq!(profile.strand_offsets(1.0), [0.0; 3]);
+            [0.18, 0.31, 0.5, 0.67, 0.86].map(|t| {
+                [-24.0, -16.0, -12.0, -6.0, 0.0, 6.0, 12.0, 16.0, 24.0].map(|side| {
+                    let (gravel, relief) = profile.study(t, side);
+                    ((gravel * 20.0) as i8, (relief * 20.0) as i8)
+                })
+            })
+        });
+        for (index, design) in designs.iter().enumerate() {
+            assert!(
+                !designs[..index].contains(design),
+                "{}",
+                OutwashProfile::ALL[index].name
+            );
+        }
+    }
 
     #[test]
     fn the_gravel_threads_split_rejoin_and_follow_a_downhill_valley() {

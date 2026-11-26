@@ -1,6 +1,7 @@
 //! Surveyed playas, dunes, badlands, and coastal bluffs.
 
 use crate::coastal_bluffs::{BluffSampler, CoastalBluff};
+pub use crate::coastal_bluffs::BluffProfile;
 use crate::cove_dunes::CoveDune;
 pub use crate::cove_dunes::CoveDuneProfile;
 use crate::math::{fraction, mix, sin_cos, smoothstep};
@@ -280,6 +281,11 @@ impl DryLandmark {
     pub fn fan_profile(&self) -> Option<FanProfile> {
         let Shape::AlluvialFan(fan) = self.shape else { return None };
         Some(FanProfile::ALL[usize::from(fan.profile)])
+    }
+
+    pub fn bluff_profile(&self) -> Option<BluffProfile> {
+        let Shape::CoastalBluff(bluff) = self.shape else { return None };
+        Some(bluff.profile())
     }
 
     /// Direction from the head of a ravine or fan towards its dry outlet.

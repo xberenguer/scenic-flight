@@ -511,6 +511,11 @@ impl Neighborhoods {
             let row = Building::new(footprint, base, height, Form::Terrace(frontage));
             return Parcel::with_yard(row, front_walk);
         }
+        if (key >> 20) & 3 != 0 {
+            let frontage = choose_frontage(self.block_frontages(index), district);
+            return crate::settlement::neighborhood_blocks::NeighborhoodBlock::for_site(district, key, distance)
+                .parcel(area, frontage, base, key);
+        }
         let mut parcel = Parcel::EMPTY;
         if style >= 5 && distance < 122.0 || district & 3 == 0 && style >= 9 {
             // Mid-rise apartments, office slabs and industrial sheds.

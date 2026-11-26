@@ -1,7 +1,7 @@
 //! Small prepared low terraces, anchored to measured river reaches.
 
 use crate::math::{mix, smoothstep};
-use crate::point_bars::PointBar;
+use crate::point_bars::{PointBar, PointBarProfile};
 use crate::river_islands::{IslandProfile, RiverIsland};
 use crate::watershed::{Reach, RiverSample, Watershed, REGION_SIZE};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
@@ -118,6 +118,10 @@ impl Floodplain {
 
     pub fn island_profile(&self) -> Option<(IslandProfile, [f32; 2])> {
         self.island.as_ref().map(|site| (site.profile(), site.center()))
+    }
+
+    pub fn point_bar_profile(&self) -> Option<(PointBarProfile, [f32; 4])> {
+        self.bar.as_ref().map(|bar| (bar.design(), bar.bounds()))
     }
 
     pub fn sites(&self) -> impl Iterator<Item = (FloodplainKind, Area)> + '_ {

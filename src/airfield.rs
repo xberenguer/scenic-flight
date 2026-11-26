@@ -13,7 +13,9 @@ const ACCESS_HALF_WIDTH: f32 = 1.65;
 
 mod aprons;
 mod buildings;
+mod runways;
 pub use aprons::ApronProfile;
+pub use runways::RunwayProfile;
 const BUILDING_SLOTS: usize = 4;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,6 +59,8 @@ pub struct AirfieldSite {
     access: [Option<AccessLeg>; 2],
     bounds: Bounds,
     apron_profile: u8,
+    runway_profile: u8,
+    runway_number: u8,
 }
 
 impl AirfieldSite {
@@ -232,6 +236,15 @@ impl AirfieldSite {
         ApronProfile::ALL[usize::from(self.apron_profile)]
     }
 
+    pub fn runway_profile(&self) -> RunwayProfile {
+        RunwayProfile::ALL[usize::from(self.runway_profile)]
+    }
+
+    /// Threshold numbers in the same order as the surveyed runway endpoints.
+    pub fn runway_numbers(&self) -> [u8; 2] {
+        [self.runway_number, runways::reciprocal(self.runway_number)]
+    }
+
     pub fn apron_center(&self) -> [f32; 2] {
         let point = self.local.world(self.apron.along, self.apron.across);
         [point.x, point.z]
@@ -286,32 +299,13 @@ impl AirfieldSite {
     }
 
     fn runway_material(&self, along: f32, across: f32) -> AirfieldMaterial {
-        let position = along + self.runway.half_length;
-        let from_end = self.runway.half_length - along.abs();
-        let side = across.abs();
-        let regional = self.kind == AirfieldKind::Regional;
-        let spaced = position % 11.2;
-        if regional && side >= self.runway.half_width - 0.60 && spaced < 1.1 && from_end > 1.0 {
-            return AirfieldMaterial::EdgeLight;
-        }
-        if regional
-            && (side < 0.52 && position % 12.0 < 6.0
-                || (4.0..6.3).contains(&from_end)
-                    && (1.0..self.runway.half_width - 1.1).contains(&side))
-        {
-            return AirfieldMaterial::RunwayMarking;
-        }
-        if !regional
-            && (0.8..3.3).contains(&from_end)
-            && (0.9..self.runway.half_width - 0.38).contains(&side)
-        {
-            return AirfieldMaterial::RunwayMarking;
-        }
-        if regional {
-            AirfieldMaterial::PavedRunway
-        } else {
-            AirfieldMaterial::GrassRunway
-        }
+        let end = usize::from(along > 0.0);
+        self.runway_profile().sample(
+            self.runway.half_length - along.abs(),
+            across * if end == 0 { 1.0 } else { -1.0 },
+            self.runway.half_width,
+            self.runway_numbers()[end],
+        )
     }
 }
 
@@ -815,6 +809,8 @@ impl Layout {
             bounds,
             apron_profile: (mix(key ^ 0x292e_b327_291c_fda1) % ApronProfile::ALL.len() as u64)
                 as u8,
+            runway_profile: RunwayProfile::choose(self.kind, mix(key ^ 0x98bb_0761_f21d_4307)),
+            runway_number: runways::number(basis.direction),
         })
     }
 }

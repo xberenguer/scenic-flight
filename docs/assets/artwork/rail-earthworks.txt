@@ -1,0 +1,25 @@
+Rock notch and riprap
+Rock notch and toe berm
+Rock notch and gravel terrace
+Rock notch and spread apron
+Rock notch and long batter
+High ledge and riprap
+High ledge and toe berm
+High ledge and gravel terrace
+High ledge and spread apron
+High ledge and long batter
+Benched cutting and riprap
+Benched cutting and toe berm
+Benched cutting and gravel terrace
+Benched cutting and spread apron
+Benched cutting and long batter
+Drainage shelf and riprap
+Drainage shelf and toe berm
+Drainage shelf and gravel terrace
+Drainage shelf and spread apron
+Drainage shelf and long batter
+Outer scarp and riprap
+Outer scarp and toe berm
+Outer scarp and gravel terrace
+Outer scarp and spread apron
+Outer scarp and long batter

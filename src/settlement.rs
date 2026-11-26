@@ -6,6 +6,8 @@ use crate::world::{World, SEA_LEVEL};
 use crate::world_mesh::{bounds_in_view, WorldMesh};
 
 mod neighborhoods;
+pub mod neighborhood_blocks;
+pub mod riverfront_buildings;
 mod building_forms;
 mod expansion;
 pub mod town_landmarks;
@@ -1109,9 +1111,14 @@ impl Parcel {
             1 => b,
             _ => {
                 let [dx, dz] = [(a.x - b.x).abs(), (a.z - b.z).abs()];
+                let (shift_x, shift_z) = if dx > dz {
+                    (0.5 * (b.x - a.x).signum() * (a.half_width - b.half_width), 0.0)
+                } else {
+                    (0.0, 0.5 * (b.z - a.z).signum() * (a.half_depth - b.half_depth))
+                };
                 Area {
-                    x: (a.x + b.x) * 0.5,
-                    z: (a.z + b.z) * 0.5,
+                    x: (a.x + b.x) * 0.5 + shift_x,
+                    z: (a.z + b.z) * 0.5 + shift_z,
                     half_width: if dx > dz {
                         (dx - a.half_width - b.half_width) * 0.5
                     } else {

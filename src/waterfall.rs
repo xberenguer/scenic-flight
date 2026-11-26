@@ -2,7 +2,7 @@
 
 use crate::alpine_lakes::{AlpineLake, AlpineSurface};
 use crate::math::{fraction, mix, smoothstep};
-use crate::render::{screen_region, Camera, ScreenRect};
+use crate::render::{Camera, ScreenRect, screen_region};
 use crate::world::{Sample, Surface, World};
 use crate::world_mesh::WorldMesh;
 
@@ -31,6 +31,7 @@ pub struct Waterfall {
     bounds: [Vertex; 2],
     count: u8,
     phase: u8,
+    profile: u8,
 }
 
 impl Waterfall {
@@ -146,6 +147,7 @@ impl Waterfall {
             bounds,
             count: count as u8,
             phase: roll as u8,
+            profile: ((roll >> 29) % CascadeProfile::ALL.len() as u64) as u8,
         };
         for edge in fall.sections().windows(2) {
             for triangle in strip(edge[0], edge[1]) {
@@ -170,6 +172,10 @@ impl Waterfall {
         self.bounds
     }
 
+    pub fn profile(&self) -> CascadeProfile {
+        CascadeProfile::ALL[self.profile as usize]
+    }
+
     pub fn conflicts_with(&self, mut occupied: impl FnMut(f32, f32) -> bool) -> bool {
         self.sections().windows(2).any(|edge| {
             strip(edge[0], edge[1])
@@ -188,34 +194,8 @@ impl Waterfall {
         if visibility <= 0.03 {
             return;
         }
-        let clock = (ticks as u8).wrapping_mul(5).wrapping_add(self.phase);
-        for (i, edge) in self.sections().windows(2).enumerate() {
-            let [a, b] = [edge[0], edge[1]];
-            let descent = ((a[0][1] + a[1][1]) - (b[0][1] + b[1][1])) * 0.5;
-            let foam = smoothstep((descent - 0.29) / 0.75);
-            let wave = clock.wrapping_sub((i as u8).wrapping_mul(32));
-            let pulse = f32::from(wave.min(255 - wave)) * (1.0 / 127.0);
-            let color = [
-                (75.0 + foam * 48.0 + pulse * 12.0) as u8,
-                (128.0 + foam * 43.0 + pulse * 10.0) as u8,
-                (150.0 + foam * 40.0 + pulse * 10.0) as u8,
-            ];
-            let toe = (self.sections().len() - i - 1) as f32;
-            let alpha = visibility * smoothstep((toe + 0.45) * 0.48);
-            for triangle in strip(a, b) {
-                mesh.faded_triangle(triangle, color, alpha);
-            }
-            if foam > 0.20 && visibility > 0.54 && toe > 1.5 {
-                let stripe =
-                    0.26 + 0.20 * (f32::from(self.phase.wrapping_add(i as u8 * 17) & 15) / 15.0);
-                let inset =
-                    |section: Section| [across(section, stripe), across(section, stripe + 0.34)];
-                let gray = (176.0 + foam * 29.0 + pulse * 19.0) as u8;
-                for triangle in strip(inset(a), inset(b)) {
-                    mesh.faded_triangle(triangle, [gray - 19, gray, gray + 12], alpha);
-                }
-            }
-        }
+        self.profile()
+            .draw_reach(self.sections(), ticks, self.phase, visibility, mesh);
     }
 
     fn opacity(&self, camera: Camera) -> f32 {
@@ -229,6 +209,192 @@ impl Waterfall {
         let squared = dx * dx + dy * dy + dz * dz;
         1.0 - smoothstep((squared - 118.0 * 118.0) / (MAX_REACH * MAX_REACH - 118.0 * 118.0))
     }
+}
+
+#[derive(Clone, Copy)]
+enum Channel {
+    Curtain,
+    Chute,
+    Fan,
+    Split,
+    Deflected,
+}
+
+#[derive(Clone, Copy)]
+enum Foam {
+    Glass,
+    Beads,
+    Edges,
+    Rapids,
+    Surge,
+}
+
+/// A flow layout drawn entirely within the surveyed downhill strip.
+#[derive(Clone, Copy)]
+pub struct CascadeProfile {
+    pub name: &'static str,
+    channel: Channel,
+    foam: Foam,
+}
+
+impl CascadeProfile {
+    pub const ALL: [Self; 25] = [
+        Self::new("Glass curtain", Channel::Curtain, Foam::Glass),
+        Self::new("Beaded curtain", Channel::Curtain, Foam::Beads),
+        Self::new("Laced curtain", Channel::Curtain, Foam::Edges),
+        Self::new("Broken curtain", Channel::Curtain, Foam::Rapids),
+        Self::new("Surging curtain", Channel::Curtain, Foam::Surge),
+        Self::new("Clear rock chute", Channel::Chute, Foam::Glass),
+        Self::new("Beaded rock chute", Channel::Chute, Foam::Beads),
+        Self::new("White-edged chute", Channel::Chute, Foam::Edges),
+        Self::new("Stepped rock chute", Channel::Chute, Foam::Rapids),
+        Self::new("Pulsing rock chute", Channel::Chute, Foam::Surge),
+        Self::new("Glass fan", Channel::Fan, Foam::Glass),
+        Self::new("Beaded fan", Channel::Fan, Foam::Beads),
+        Self::new("Feathered fan", Channel::Fan, Foam::Edges),
+        Self::new("Broken fan", Channel::Fan, Foam::Rapids),
+        Self::new("Surging fan", Channel::Fan, Foam::Surge),
+        Self::new("Clear twin channels", Channel::Split, Foam::Glass),
+        Self::new("Beaded twin channels", Channel::Split, Foam::Beads),
+        Self::new("Laced twin channels", Channel::Split, Foam::Edges),
+        Self::new("Twin rapids", Channel::Split, Foam::Rapids),
+        Self::new("Twin surges", Channel::Split, Foam::Surge),
+        Self::new("Clear deflected ribbon", Channel::Deflected, Foam::Glass),
+        Self::new("Beaded deflected ribbon", Channel::Deflected, Foam::Beads),
+        Self::new("Laced deflected ribbon", Channel::Deflected, Foam::Edges),
+        Self::new("Broken deflected ribbon", Channel::Deflected, Foam::Rapids),
+        Self::new("Surging deflected ribbon", Channel::Deflected, Foam::Surge),
+    ];
+
+    const fn new(name: &'static str, channel: Channel, foam: Foam) -> Self {
+        Self {
+            name,
+            channel,
+            foam,
+        }
+    }
+
+    fn channel_at(self, progress: f32, branch: usize) -> [f32; 2] {
+        match self.channel {
+            Channel::Curtain => [0.03, 0.97],
+            Channel::Chute => [0.22, 0.78],
+            Channel::Fan => {
+                let spread = 0.19 + 0.31 * smoothstep(progress * 1.35);
+                [0.5 - spread, 0.5 + spread]
+            }
+            Channel::Split => {
+                let outward = 0.16 * smoothstep(progress * 2.4);
+                [
+                    [0.18 - outward, 0.49 - outward],
+                    [0.52 + outward, 0.83 + outward],
+                ][branch]
+            }
+            Channel::Deflected => {
+                let left = 0.08 + 0.43 * smoothstep(progress * 1.33);
+                [left, left + 0.44]
+            }
+        }
+    }
+
+    fn foam_at(self, wave: u8, turbulence: f32, branch: usize) -> Option<([f32; 2], f32)> {
+        let pulse = f32::from(wave.min(255 - wave)) / 127.0;
+        let edge = if branch == 0 {
+            [0.08, 0.23]
+        } else {
+            [0.76, 0.91]
+        };
+        let (band, strength) = match self.foam {
+            Foam::Glass => ([0.38, 0.60], 0.30 * turbulence * pulse),
+            Foam::Beads => ([0.34, 0.64], smoothstep((pulse - 0.48) * 2.1) * 0.85),
+            Foam::Edges => (edge, 0.36 + 0.26 * turbulence + 0.23 * pulse),
+            Foam::Rapids => (
+                [0.16, 0.84],
+                smoothstep((turbulence - 0.26) * 1.5) * (0.52 + 0.48 * pulse),
+            ),
+            Foam::Surge => {
+                let center = 0.22 + 0.56 * pulse;
+                (
+                    [center - 0.16, center + 0.16],
+                    0.32 + 0.62 * smoothstep((pulse - 0.24) * 1.33),
+                )
+            }
+        };
+        (strength > 0.06).then_some((band, strength))
+    }
+
+    /// Paint a prepared strip. This is shared by the in-game cascade and its artwork.
+    pub fn draw_reach(
+        self,
+        sections: &[Section],
+        ticks: u64,
+        phase: u8,
+        visibility: f32,
+        mesh: &mut WorldMesh<'_>,
+    ) {
+        let branches = if matches!(self.channel, Channel::Split) {
+            2
+        } else {
+            1
+        };
+        let span = sections.len().saturating_sub(1) as f32;
+        let clock = (ticks as u8).wrapping_mul(5).wrapping_add(phase);
+        for (i, edge) in sections.windows(2).enumerate() {
+            let [a, b] = [edge[0], edge[1]];
+            let descent = ((a[0][1] + a[1][1]) - (b[0][1] + b[1][1])) * 0.5;
+            let turbulence = smoothstep((descent - 0.29) / 0.75);
+            let toe = span - i as f32;
+            let alpha = visibility * smoothstep((toe + 0.45) * 0.48);
+            for branch in 0..branches {
+                let water = [
+                    narrow(a, self.channel_at(i as f32 / span, branch)),
+                    narrow(b, self.channel_at((i + 1) as f32 / span, branch)),
+                ];
+                let color = [
+                    (80.0 + 33.0 * turbulence) as u8,
+                    (132.0 + 32.0 * turbulence) as u8,
+                    (156.0 + 32.0 * turbulence) as u8,
+                ];
+                let foam = if visibility > 0.54 && toe > 1.0 {
+                    let wave = clock.wrapping_sub((i as u8).wrapping_mul(32) + (branch as u8 * 17));
+                    self.foam_at(wave, turbulence, branch)
+                } else {
+                    None
+                };
+                if let Some(([left, right], strength)) = foam {
+                    let white = [201_u8, 224, 231];
+                    let tinted = core::array::from_fn(|i| {
+                        let base = f32::from(color[i]);
+                        (base + (f32::from(white[i]) - base) * strength) as u8
+                    });
+                    for (interval, tint) in [
+                        ([0.0, left], color),
+                        ([left, right], tinted),
+                        ([right, 1.0], color),
+                    ] {
+                        draw_band(mesh, water, interval, tint, alpha);
+                    }
+                } else {
+                    draw_band(mesh, water, [0.0, 1.0], color, alpha);
+                }
+            }
+        }
+    }
+}
+
+fn narrow(section: Section, band: [f32; 2]) -> Section {
+    band.map(|fraction| across(section, fraction))
+}
+
+fn draw_band(
+    mesh: &mut WorldMesh<'_>,
+    [a, b]: [Section; 2],
+    width: [f32; 2],
+    color: [u8; 3],
+    alpha: f32,
+) {
+    let [left_a, right_a] = narrow(a, width);
+    let [left_b, right_b] = narrow(b, width);
+    mesh.faded_quad([left_a, right_a, right_b, left_b], color, alpha);
 }
 
 fn downhill(
@@ -350,6 +516,34 @@ fn triangle_samples([a, b, c]: [Vertex; 3], mut test: impl FnMut(Vertex) -> bool
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flow_layouts_have_distinct_channels_and_animation_inside_the_survey() {
+        let mut seen = [[0; 24]; CascadeProfile::ALL.len()];
+        for (index, profile) in CascadeProfile::ALL.into_iter().enumerate() {
+            for (column, progress) in [0.0, 0.25, 0.6, 1.0].into_iter().enumerate() {
+                let [left, right] = profile.channel_at(progress, 0);
+                assert!(0.0 <= left && left < right && right <= 1.0);
+                seen[index][column * 2] = (left * 100.0) as u8;
+                seen[index][column * 2 + 1] = (right * 100.0) as u8;
+                if matches!(profile.channel, Channel::Split) {
+                    let [inner, outer] = profile.channel_at(progress, 1);
+                    assert!(right <= inner && inner < outer && outer <= 1.0);
+                }
+            }
+            for (column, wave) in [20, 63, 105, 128, 163].into_iter().enumerate() {
+                if let Some(([left, right], strength)) = profile.foam_at(wave, 0.71, 0) {
+                    assert!(0.0 <= left && left < right && right <= 1.0);
+                    assert!((0.0..=1.0).contains(&strength));
+                    let start = 8 + column * 3;
+                    seen[index][start..start + 3].copy_from_slice(
+                        &[left, right, strength].map(|value| (value * 100.0) as u8),
+                    );
+                }
+            }
+            assert!(!seen[..index].contains(&seen[index]), "{}", profile.name);
+        }
+    }
 
     #[test]
     fn exposed_cascade_starts_below_the_lake_and_descends_the_rock_face() {

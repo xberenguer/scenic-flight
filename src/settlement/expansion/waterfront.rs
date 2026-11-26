@@ -431,6 +431,12 @@ impl WaterfrontVillage {
             .chain(self.lots().map(|id| self.design(id).0))
     }
 
+    pub(crate) fn landmark_designs(
+        &self,
+    ) -> impl Iterator<Item = ([f32; 3], crate::settlement::riverfront_buildings::RiverfrontBuilding)> + '_ {
+        self.landmarks.iter().flatten().filter_map(|landmark| landmark.design_site(self.local))
+    }
+
     pub(crate) fn footprints(&self, mut emit: impl FnMut([f32; 4])) {
         for area in self.areas() {
             let (x, z) = self.local.world(area.x, area.z);

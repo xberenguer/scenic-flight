@@ -1,6 +1,7 @@
 //! Small waterfront buildings with connected landings and distinct silhouettes.
 
 use super::*;
+use crate::settlement::riverfront_buildings::{District, RiverfrontBuilding};
 use crate::skyline::{SkylineTower, COTTAGE_GROUP, INDUSTRIAL_GROUP, SHOP_GROUP};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -9,6 +10,7 @@ enum Kind {
     PicnicPavilion,
     Lookout,
     Market,
+    Designed(u8),
 }
 
 impl Kind {
@@ -18,6 +20,7 @@ impl Kind {
             Self::PicnicPavilion => [3.4, 3.4],
             Self::Lookout => [2.5, 2.5],
             Self::Market => [4.8, 3.4],
+            Self::Designed(index) => RiverfrontBuilding::ALL[usize::from(index)].size,
         }
     }
 
@@ -27,6 +30,7 @@ impl Kind {
             Self::PicnicPavilion => 4.1,
             Self::Lookout => 8.9,
             Self::Market => 5.6,
+            Self::Designed(index) => RiverfrontBuilding::ALL[usize::from(index)].height,
         }
     }
 }
@@ -85,6 +89,7 @@ impl WalkLandmark {
         let v = (rx * dx + rz * dz) / depth;
         let [a, b] = [u.abs(), v.abs()];
         let (surface, height) = match self.kind {
+            Kind::Designed(index) => RiverfrontBuilding::ALL[usize::from(index)].roof([u, v])?,
             Kind::BoatShed if a > 0.83 && v < 0.1 => (SettlementSurface::FlatRoof, 3.05),
             Kind::BoatShed => (SettlementSurface::PitchedRoof, 3.5 + (1.0 - b) * 1.8),
             Kind::PicnicPavilion if a + b > 1.66 => return None,
@@ -108,11 +113,22 @@ impl WalkLandmark {
             Kind::BoatShed => INDUSTRIAL_GROUP,
             Kind::PicnicPavilion => COTTAGE_GROUP,
             Kind::Lookout | Kind::Market => SHOP_GROUP,
+            Kind::Designed(index) => match RiverfrontBuilding::ALL[usize::from(index)].district {
+                District::Boating | District::Service => INDUSTRIAL_GROUP,
+                District::Park => COTTAGE_GROUP,
+                District::Lookout | District::Market => SHOP_GROUP,
+            },
         };
         SkylineTower {
             center: [x, z], footprint: [roof.half_width, roof.half_depth],
             direction: [local.fx, local.fz], base: self.base, height: self.kind.height(), profile,
         }
+    }
+
+    pub(super) fn design_site(self, local: Local) -> Option<([f32; 3], RiverfrontBuilding)> {
+        let Kind::Designed(index) = self.kind else { return None };
+        let (x, z) = local.world(self.center[0], self.center[1]);
+        Some(([x, self.base, z], RiverfrontBuilding::ALL[usize::from(index)]))
     }
 }
 
@@ -134,12 +150,24 @@ impl WaterfrontVillage {
                 let start = walk_point(end, along, step);
                 let key = block_key(self.key ^ 0x735b_a4ce, arm * 8 + usize::from(step));
                 let preferred = ((key >> 23) & 3) as usize;
+                let catalog_size = RiverfrontBuilding::ALL.len();
+                let design = ((key >> 12) as usize) % catalog_size;
                 for flip in [false, true] {
                     let direction = (walk.direction + if flip { 2 } else { 0 }) & 3;
                     let (dx, dz, _, _) = DIRECTIONS[usize::from(direction)];
                     let [dx, dz] = [dx as f32, dz as f32];
                     let styles = [Kind::BoatShed, Kind::PicnicPavilion, Kind::Lookout, Kind::Market];
-                    for kind in [styles[preferred], styles[(preferred + 1) % styles.len()]] {
+                    let mut choices = [
+                        Kind::Designed(design as u8),
+                        Kind::Designed(((design + 11) % catalog_size) as u8),
+                        Kind::Designed(((design + 17) % catalog_size) as u8),
+                        styles[preferred],
+                        styles[(preferred + 1) % styles.len()],
+                    ];
+                    if key & 15 == 0 {
+                        choices.swap(0, 3);
+                    }
+                    for kind in choices {
                         pulse();
                         if self.landmarks.iter().flatten().any(|landmark| landmark.kind == kind) {
                             continue;
