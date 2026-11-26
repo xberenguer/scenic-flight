@@ -12,14 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PAGES = "https://xberenguer.github.io/scenic-flight/"
 FEATURED = ('airfield-visitor-stands', 'sedge-strand-tarn', 'lantern-causeway-skyline', 'high-cruise', 'quay-customs-annex')
-AIRCRAFT = ("Bush Plane", "Racer", "Sport Jet", "Ultralight", "Glider",
-            "F/A-18 Fighter", "SR-71 Blackbird", "Bald Eagle")
-ARTWORK = (("Contour fields", "contour-fields", 25), ("Summit trail fixtures", "summit-trail-rests", 25), ("Badlands ravines", "badlands-ravines", 25), ("Metropolitan neighborhood plans", "metro-layouts", 25), ("Glacial outwash fans", "glacial-outwash", 25), ("Runway markings", "runway-markings", 25), ("Coastal bluffs", "coastal-bluffs", 25), ("Alpine rockfall fans", "talus-fans", 25), ("River bend point bars", "point-bars", 25), ("Road tunnel portals", "tunnel-facades", 25), ("Riverfront buildings", "riverfront-buildings", 25), ("Outer neighborhood blocks", "outer-blocks", 25), ("Alpine cascades", "alpine-cascades", 25), ("Rail cuts and embankments", "rail-earthworks", 25), ("Airfield aprons", "airfield-aprons", 25), ("Hillside quarries", "quarry-profiles", 25), ("Quayside workshops", "quay-workshops", 25), ("Sheltered cove dunes", "cove-dunes", 25), ("Cultivated fields", "cultivated-fields", 25), ("Columnar rock faces", "columnar-headwalls", 25), ("Desert alluvial fans", "alluvial-fans", 25), ("Solar array layouts", "solar-layouts", 25), ("Municipal water towers", "water-towers", 25), ("Glacial moraines", "moraines", 25), ("Mountain lake shores", "tarns", 25), ("Alpine glaciers", "glaciers", 25), ("River islands", "river-islands", 25), ("River and coastal bridges", "bridges", 25), ("Mountain cableways", "cableways", 25), ("Lighthouses", "lighthouses", 25), ("Coastal rock formations", "coastal-rocks", 25), ("Countryside buildings", "countryside-buildings", 25), ("Sandstone mesas", "mesa-profiles", 25), ("Floodplain details", "floodplain-details", 25), ("Industrial landmarks", "industrial-landmarks", 25), ("Alpine ground details", "alpine-ground-details", 25), ("Headland details", "headland-details", 25), ("Grassland details", "grassland-details", 25), ("Dryland details", "dryland-details", 25), ("Woodland details", "woodland-details", 25), ("Airfield buildings", "airfield-buildings", 25), ("Street buildings", "street-buildings", 25), ("Freshwater details", "freshwater-details", 25), ("Mountain details", "mountain-details", 25), ("Roadside models", "roadside-models", 30), ("Harbor models", "harbor-models", 30), ("Railway fixtures", "rail-stations", 25), ("Farm details", "farm-details", 25), ("Coastal details", "coastal-details", 25), ("Skyline landmarks", "skyline-landmarks", 100), ("Summit landmarks", "summit-landmarks", 25), ("Town landmarks", "town-landmarks", 25),
-           ("Neighborhood buildings", "neighborhood-buildings", 27),
-           ("Habitat details", "habitat-details", 30), ("City towers", "towers", 250), ("Trees", "trees", 256), ("Rocks", "rocks", 256), ("Bushes", "bushes", 256),
-           ("Cacti", "cacti", 256), ("Freight wagons", "wagons", 250), ("Vessels", "vessels", 250), ("Service vessels", "service-vessels", 25),
-           ("Wetland plants", "wetlands", 256),
-           ("Locomotives", "locomotives", 6), ("Waterfront landmarks", "waterfront-landmarks", 4))
 
 
 def make_preview(entry):
@@ -66,35 +58,52 @@ def gameplay_card(entry):
     return label, card
 
 
-def render(entries):
+def render(entries, order):
     videos = {entry["id"]: entry for entry in entries}
     sections = [
         "## Gameplay showcase",
         "Select a preview to open the full-size clip or screenshot.",
         grid([gameplay_card(videos[key]) for key in FEATURED]),
     ]
-    categories = dict.fromkeys(["Sky & Weather", *(entry["category"] for entry in entries)])
+    categories = dict.fromkeys(["Sky & Weather", "Encounters", "Biomes", "Built World",
+                                "Aircraft", "Interface", *(entry["category"] for entry in entries)])
     for category in categories:
         group = [gameplay_card(entry) for entry in reversed(entries)
                  if entry["category"] == category and entry["id"] not in FEATURED]
         if group:
             sections.extend((f"### {category}", grid(group)))
     sections.extend(("## Artwork gallery", "### Aircraft and picker screens"))
-    for start in range(0, len(AIRCRAFT), 4):
-        aircraft = []
-        for index in range(start, min(start + 4, len(AIRCRAFT))):
-            name = AIRCRAFT[index]
+    aircraft = order["aircraft"]
+    for start in range(0, len(aircraft), 4):
+        cards = []
+        for entry in aircraft[start:start + 4]:
+            name, index = entry["name"], entry["asset"]
             turntable = preview(f"{name} turntable", f"docs/assets/turntable-{index}.gif", width=168)
             picker = preview(f"{name} picker screen", f"docs/assets/picker-{index}.png", width=168)
-            aircraft.append((name, f"{turntable}<br>{picker}"))
-        sections.append(grid(aircraft, columns=4))
-    sections.append("### Scenery sprites")
-    for title, slug, count in ARTWORK:
-        path = f"docs/assets/artwork/{slug}.png"
-        sections.extend((f"#### {title} · {count} variants", preview(title, path, width=780)))
-        animation = f"assets/artwork/{slug}.gif"
-        if (DOCS / animation).is_file():
-            sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
+            cards.append((name, f"{picker}<br>{turntable}"))
+        sections.append(grid(cards, columns=4))
+
+    speeds = ["| Aircraft | Real-world speed reference |", "| --- | --- |"]
+    speeds.extend(
+        f'| {entry["name"]} | {entry["speed"]} ([{entry["reference"]}]({entry["url"]})) |'
+        for entry in aircraft
+    )
+    sections.append("\n".join(speeds))
+    groups = order["scenery"]
+    anchors = " · ".join(
+        f'[{group["title"]}](#{group["title"].lower().replace(" ", "-")})'
+        for group in groups
+    )
+    sections.append(anchors)
+    for group in groups:
+        sections.append(f'### {group["title"]}')
+        for entry in group["sections"]:
+            title, slug, count = entry["title"], entry["id"], entry["count"]
+            path = f"docs/assets/artwork/{slug}.png"
+            sections.extend((f"#### {title} · {count} variants", preview(title, path, width=780)))
+            animation = f"assets/artwork/{slug}.gif"
+            if (DOCS / animation).is_file():
+                sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
     return "\n\n".join(sections)
 
 
@@ -103,6 +112,7 @@ def main():
     parser.add_argument("--refresh-previews", action="store_true", help="Regenerate animated thumbnails with FFmpeg.")
     args = parser.parse_args()
     entries = json.loads((DOCS / "assets/media.json").read_text())
+    order = json.loads((DOCS / "assets/gallery-order.json").read_text())
     if args.refresh_previews:
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             list(pool.map(make_preview, (item for item in entries if item["format"] in {"Video", "GIF"})))
@@ -111,7 +121,7 @@ def main():
     _, end, after = remainder.partition("<!-- END GALLERY -->")
     if not start or not end:
         raise ValueError("README gallery markers are missing")
-    readme.write_text(f"{before}{start}\n\n{render(entries)}\n\n{end}{after}")
+    readme.write_text(f"{before}{start}\n\n{render(entries, order)}\n\n{end}{after}")
 
 
 if __name__ == "__main__":

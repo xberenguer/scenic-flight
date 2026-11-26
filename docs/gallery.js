@@ -1,4 +1,4 @@
-const planes = [
+const planeAssets = [
   ['Bush Plane', 'Low and deliberate', 'Climbs early and banks through mountain passes.'],
   ['Racer', 'Quick and agile', 'Sweeps into tighter lowland turns and finds dry exits from islands.'],
   ['Sport Jet', 'Fast and measured', 'Occasionally drops for a coastal pass.'],
@@ -8,6 +8,10 @@ const planes = [
   ['SR-71 Blackbird', 'Very high, fast and steady', 'Purple reheat and a level tanker rendezvous below cruise.'],
   ['Bald Eagle', 'Lowest and slowest', 'Measured wingbeats, soaring lift and occasional train follows.'],
 ];
+
+const arrangement = await fetch('./assets/gallery-order.json').then(response => response.json());
+const planeOrder = arrangement.aircraft;
+const planes = planeOrder.map(entry => planeAssets[entry.asset]);
 
 const events = [
   ['Blackbird refueling', 'Rare', '24–29 s · ⅔ chance per 21 min'],
@@ -130,17 +134,21 @@ function browsePlane(name) {
 }
 
 function coverage() {
-  for (const [name, style, signature] of planes) {
+  for (const [index, [name, style, signature]] of planes.entries()) {
     const row = element('tr');
     const heading = element('th', name);
     heading.scope = 'row';
+    const speed = document.createElement('td');
+    const reference = element('a', planeOrder[index].speed);
+    reference.href = planeOrder[index].url;
+    speed.append(reference);
     const visuals = records.filter(item => item.aircraft === name);
     const count = element('td');
     const button = element('button', `${visuals.length} visuals`, 'button');
     button.type = 'button';
     button.addEventListener('click', () => browsePlane(name));
     count.append(button);
-    row.append(heading, element('td', style), element('td', signature), count);
+    row.append(heading, speed, element('td', style), element('td', signature), count);
     qs('#aircraft-coverage').append(row);
   }
   for (const [name, frequency, timing] of events) {
@@ -168,10 +176,10 @@ try {
   records = await (await get('./assets/media.json')).json();
   const biomeNames = [...new Set(records.map(item => item.biome).filter(Boolean))].sort();
   qs('#biome').append(...biomeNames.map(option));
-  const figures = planes.map(([name],index)=>({id:`turntable-${index}`,title:`${name} turntable`,category:'Aircraft',
+  const figures = planeOrder.map(({name,asset:index})=>({id:`turntable-${index}`,title:`${name} turntable`,category:'Aircraft',
     aircraft:name,biome:'',format:'GIF',poster:`assets/turntable-${index}.png`,src:`assets/turntable-${index}.gif`,
     note:'Animated in-game model'}));
-  const pickers = planes.map(([name],index)=>({id:`picker-${index}`,title:`${name} picker`,category:'Interface',
+  const pickers = planeOrder.map(({name,asset:index})=>({id:`picker-${index}`,title:`${name} picker`,category:'Interface',
     aircraft:name,biome:'',format:'Still',poster:`assets/picker-${index}.png`,src:`assets/picker-${index}.png`}));
   const featured = featuredIds.map(id => records.find(item => item.id === id));
   qs('#featured').replaceChildren(...featured.map(createCard));

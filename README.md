@@ -52,6 +52,21 @@ Select a preview to open the full-size clip or screenshot.
   </tr>
 </table>
 
+### Encounters
+
+<table>
+  <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/blackbird-refueling.mp4"><img src="docs/assets/readme/blackbird-refueling.gif" width="220" alt="Blackbird refueling"></a><br><a href="docs/assets/current/blackbird-refueling.png">Still</a><br>Blackbird refueling</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-echelon.mp4"><img src="docs/assets/readme/formation-echelon.gif" width="220" alt="Fighter echelon and peel-away"></a><br><a href="docs/assets/current/formation-echelon.png">Still</a><br>Fighter echelon and peel-away</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-four.mp4"><img src="docs/assets/readme/formation-four.gif" width="220" alt="Fighter wedge · 4 wingmates"></a><br><a href="docs/assets/current/formation-four.png">Still</a><br>Fighter wedge · 4 wingmates</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-pair.mp4"><img src="docs/assets/readme/formation-pair.gif" width="220" alt="Fighter line abreast"></a><br><a href="docs/assets/current/formation-pair.png">Still</a><br>Fighter line abreast</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/blackbird-reheat.mp4"><img src="docs/assets/readme/blackbird-reheat.gif" width="220" alt="Blackbird purple reheat"></a><br><a href="docs/assets/current/blackbird-reheat.png">Still</a><br>Blackbird purple reheat</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/fighter-afterburners.mp4"><img src="docs/assets/readme/fighter-afterburners.gif" width="220" alt="Fighter orange afterburner"></a><br><a href="docs/assets/current/fighter-afterburners.png">Still</a><br>Fighter orange afterburner</td>
+  </tr>
+</table>
+
 ### Biomes
 
 <table>
@@ -380,21 +395,6 @@ Select a preview to open the full-size clip or screenshot.
   </tr>
 </table>
 
-### Encounters
-
-<table>
-  <tr>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/blackbird-refueling.mp4"><img src="docs/assets/readme/blackbird-refueling.gif" width="220" alt="Blackbird refueling"></a><br><a href="docs/assets/current/blackbird-refueling.png">Still</a><br>Blackbird refueling</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-echelon.mp4"><img src="docs/assets/readme/formation-echelon.gif" width="220" alt="Fighter echelon and peel-away"></a><br><a href="docs/assets/current/formation-echelon.png">Still</a><br>Fighter echelon and peel-away</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-four.mp4"><img src="docs/assets/readme/formation-four.gif" width="220" alt="Fighter wedge · 4 wingmates"></a><br><a href="docs/assets/current/formation-four.png">Still</a><br>Fighter wedge · 4 wingmates</td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-pair.mp4"><img src="docs/assets/readme/formation-pair.gif" width="220" alt="Fighter line abreast"></a><br><a href="docs/assets/current/formation-pair.png">Still</a><br>Fighter line abreast</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/blackbird-reheat.mp4"><img src="docs/assets/readme/blackbird-reheat.gif" width="220" alt="Blackbird purple reheat"></a><br><a href="docs/assets/current/blackbird-reheat.png">Still</a><br>Blackbird purple reheat</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/fighter-afterburners.mp4"><img src="docs/assets/readme/fighter-afterburners.gif" width="220" alt="Fighter orange afterburner"></a><br><a href="docs/assets/current/fighter-afterburners.png">Still</a><br>Fighter orange afterburner</td>
-  </tr>
-</table>
-
 ### Aircraft
 
 <table>
@@ -419,171 +419,36 @@ Select a preview to open the full-size clip or screenshot.
 
 <table>
   <tr>
-    <td align="center"><a href="docs/assets/turntable-0.gif"><img src="docs/assets/turntable-0.gif" width="168" alt="Bush Plane turntable"></a><br><a href="docs/assets/picker-0.png"><img src="docs/assets/picker-0.png" width="168" alt="Bush Plane picker screen"></a><br>Bush Plane</td>
-    <td align="center"><a href="docs/assets/turntable-1.gif"><img src="docs/assets/turntable-1.gif" width="168" alt="Racer turntable"></a><br><a href="docs/assets/picker-1.png"><img src="docs/assets/picker-1.png" width="168" alt="Racer picker screen"></a><br>Racer</td>
-    <td align="center"><a href="docs/assets/turntable-2.gif"><img src="docs/assets/turntable-2.gif" width="168" alt="Sport Jet turntable"></a><br><a href="docs/assets/picker-2.png"><img src="docs/assets/picker-2.png" width="168" alt="Sport Jet picker screen"></a><br>Sport Jet</td>
-    <td align="center"><a href="docs/assets/turntable-3.gif"><img src="docs/assets/turntable-3.gif" width="168" alt="Ultralight turntable"></a><br><a href="docs/assets/picker-3.png"><img src="docs/assets/picker-3.png" width="168" alt="Ultralight picker screen"></a><br>Ultralight</td>
+    <td align="center"><a href="docs/assets/picker-7.png"><img src="docs/assets/picker-7.png" width="168" alt="Bald Eagle picker screen"></a><br><a href="docs/assets/turntable-7.gif"><img src="docs/assets/turntable-7.gif" width="168" alt="Bald Eagle turntable"></a><br>Bald Eagle</td>
+    <td align="center"><a href="docs/assets/picker-3.png"><img src="docs/assets/picker-3.png" width="168" alt="Ultralight picker screen"></a><br><a href="docs/assets/turntable-3.gif"><img src="docs/assets/turntable-3.gif" width="168" alt="Ultralight turntable"></a><br>Ultralight</td>
+    <td align="center"><a href="docs/assets/picker-4.png"><img src="docs/assets/picker-4.png" width="168" alt="Glider picker screen"></a><br><a href="docs/assets/turntable-4.gif"><img src="docs/assets/turntable-4.gif" width="168" alt="Glider turntable"></a><br>Glider</td>
+    <td align="center"><a href="docs/assets/picker-0.png"><img src="docs/assets/picker-0.png" width="168" alt="Bush Plane picker screen"></a><br><a href="docs/assets/turntable-0.gif"><img src="docs/assets/turntable-0.gif" width="168" alt="Bush Plane turntable"></a><br>Bush Plane</td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td align="center"><a href="docs/assets/turntable-4.gif"><img src="docs/assets/turntable-4.gif" width="168" alt="Glider turntable"></a><br><a href="docs/assets/picker-4.png"><img src="docs/assets/picker-4.png" width="168" alt="Glider picker screen"></a><br>Glider</td>
-    <td align="center"><a href="docs/assets/turntable-5.gif"><img src="docs/assets/turntable-5.gif" width="168" alt="F/A-18 Fighter turntable"></a><br><a href="docs/assets/picker-5.png"><img src="docs/assets/picker-5.png" width="168" alt="F/A-18 Fighter picker screen"></a><br>F/A-18 Fighter</td>
-    <td align="center"><a href="docs/assets/turntable-6.gif"><img src="docs/assets/turntable-6.gif" width="168" alt="SR-71 Blackbird turntable"></a><br><a href="docs/assets/picker-6.png"><img src="docs/assets/picker-6.png" width="168" alt="SR-71 Blackbird picker screen"></a><br>SR-71 Blackbird</td>
-    <td align="center"><a href="docs/assets/turntable-7.gif"><img src="docs/assets/turntable-7.gif" width="168" alt="Bald Eagle turntable"></a><br><a href="docs/assets/picker-7.png"><img src="docs/assets/picker-7.png" width="168" alt="Bald Eagle picker screen"></a><br>Bald Eagle</td>
+    <td align="center"><a href="docs/assets/picker-1.png"><img src="docs/assets/picker-1.png" width="168" alt="Racer picker screen"></a><br><a href="docs/assets/turntable-1.gif"><img src="docs/assets/turntable-1.gif" width="168" alt="Racer turntable"></a><br>Racer</td>
+    <td align="center"><a href="docs/assets/picker-2.png"><img src="docs/assets/picker-2.png" width="168" alt="Sport Jet picker screen"></a><br><a href="docs/assets/turntable-2.gif"><img src="docs/assets/turntable-2.gif" width="168" alt="Sport Jet turntable"></a><br>Sport Jet</td>
+    <td align="center"><a href="docs/assets/picker-5.png"><img src="docs/assets/picker-5.png" width="168" alt="F/A-18 Fighter picker screen"></a><br><a href="docs/assets/turntable-5.gif"><img src="docs/assets/turntable-5.gif" width="168" alt="F/A-18 Fighter turntable"></a><br>F/A-18 Fighter</td>
+    <td align="center"><a href="docs/assets/picker-6.png"><img src="docs/assets/picker-6.png" width="168" alt="SR-71 Blackbird picker screen"></a><br><a href="docs/assets/turntable-6.gif"><img src="docs/assets/turntable-6.gif" width="168" alt="SR-71 Blackbird turntable"></a><br>SR-71 Blackbird</td>
   </tr>
 </table>
 
-### Scenery sprites
-
-#### Contour fields · 25 variants
-
-<a href="docs/assets/artwork/contour-fields.png"><img src="docs/assets/artwork/contour-fields.png" width="780" alt="Contour fields"></a>
-
-<a href="docs/assets/artwork/contour-fields.gif"><img src="docs/assets/artwork/contour-fields.gif" width="550" alt="Contour fields animated atlas"></a>
-
-#### Summit trail fixtures · 25 variants
-
-<a href="docs/assets/artwork/summit-trail-rests.png"><img src="docs/assets/artwork/summit-trail-rests.png" width="780" alt="Summit trail fixtures"></a>
-
-<a href="docs/assets/artwork/summit-trail-rests.gif"><img src="docs/assets/artwork/summit-trail-rests.gif" width="550" alt="Summit trail fixtures animated atlas"></a>
-
-#### Badlands ravines · 25 variants
-
-<a href="docs/assets/artwork/badlands-ravines.png"><img src="docs/assets/artwork/badlands-ravines.png" width="780" alt="Badlands ravines"></a>
-
-<a href="docs/assets/artwork/badlands-ravines.gif"><img src="docs/assets/artwork/badlands-ravines.gif" width="550" alt="Badlands ravines animated atlas"></a>
-
-#### Metropolitan neighborhood plans · 25 variants
-
-<a href="docs/assets/artwork/metro-layouts.png"><img src="docs/assets/artwork/metro-layouts.png" width="780" alt="Metropolitan neighborhood plans"></a>
-
-#### Glacial outwash fans · 25 variants
-
-<a href="docs/assets/artwork/glacial-outwash.png"><img src="docs/assets/artwork/glacial-outwash.png" width="780" alt="Glacial outwash fans"></a>
-
-<a href="docs/assets/artwork/glacial-outwash.gif"><img src="docs/assets/artwork/glacial-outwash.gif" width="550" alt="Glacial outwash fans animated atlas"></a>
-
-#### Runway markings · 25 variants
-
-<a href="docs/assets/artwork/runway-markings.png"><img src="docs/assets/artwork/runway-markings.png" width="780" alt="Runway markings"></a>
-
-<a href="docs/assets/artwork/runway-markings.gif"><img src="docs/assets/artwork/runway-markings.gif" width="550" alt="Runway markings animated atlas"></a>
-
-#### Coastal bluffs · 25 variants
-
-<a href="docs/assets/artwork/coastal-bluffs.png"><img src="docs/assets/artwork/coastal-bluffs.png" width="780" alt="Coastal bluffs"></a>
-
-<a href="docs/assets/artwork/coastal-bluffs.gif"><img src="docs/assets/artwork/coastal-bluffs.gif" width="550" alt="Coastal bluffs animated atlas"></a>
-
-#### Alpine rockfall fans · 25 variants
-
-<a href="docs/assets/artwork/talus-fans.png"><img src="docs/assets/artwork/talus-fans.png" width="780" alt="Alpine rockfall fans"></a>
-
-<a href="docs/assets/artwork/talus-fans.gif"><img src="docs/assets/artwork/talus-fans.gif" width="550" alt="Alpine rockfall fans animated atlas"></a>
-
-#### River bend point bars · 25 variants
-
-<a href="docs/assets/artwork/point-bars.png"><img src="docs/assets/artwork/point-bars.png" width="780" alt="River bend point bars"></a>
-
-<a href="docs/assets/artwork/point-bars.gif"><img src="docs/assets/artwork/point-bars.gif" width="550" alt="River bend point bars animated atlas"></a>
-
-#### Road tunnel portals · 25 variants
-
-<a href="docs/assets/artwork/tunnel-facades.png"><img src="docs/assets/artwork/tunnel-facades.png" width="780" alt="Road tunnel portals"></a>
-
-<a href="docs/assets/artwork/tunnel-facades.gif"><img src="docs/assets/artwork/tunnel-facades.gif" width="550" alt="Road tunnel portals animated atlas"></a>
-
-#### Riverfront buildings · 25 variants
-
-<a href="docs/assets/artwork/riverfront-buildings.png"><img src="docs/assets/artwork/riverfront-buildings.png" width="780" alt="Riverfront buildings"></a>
-
-<a href="docs/assets/artwork/riverfront-buildings.gif"><img src="docs/assets/artwork/riverfront-buildings.gif" width="550" alt="Riverfront buildings animated atlas"></a>
-
-#### Outer neighborhood blocks · 25 variants
-
-<a href="docs/assets/artwork/outer-blocks.png"><img src="docs/assets/artwork/outer-blocks.png" width="780" alt="Outer neighborhood blocks"></a>
-
-<a href="docs/assets/artwork/outer-blocks.gif"><img src="docs/assets/artwork/outer-blocks.gif" width="550" alt="Outer neighborhood blocks animated atlas"></a>
-
-#### Alpine cascades · 25 variants
-
-<a href="docs/assets/artwork/alpine-cascades.png"><img src="docs/assets/artwork/alpine-cascades.png" width="780" alt="Alpine cascades"></a>
-
-<a href="docs/assets/artwork/alpine-cascades.gif"><img src="docs/assets/artwork/alpine-cascades.gif" width="550" alt="Alpine cascades animated atlas"></a>
-
-#### Rail cuts and embankments · 25 variants
-
-<a href="docs/assets/artwork/rail-earthworks.png"><img src="docs/assets/artwork/rail-earthworks.png" width="780" alt="Rail cuts and embankments"></a>
-
-<a href="docs/assets/artwork/rail-earthworks.gif"><img src="docs/assets/artwork/rail-earthworks.gif" width="550" alt="Rail cuts and embankments animated atlas"></a>
-
-#### Airfield aprons · 25 variants
-
-<a href="docs/assets/artwork/airfield-aprons.png"><img src="docs/assets/artwork/airfield-aprons.png" width="780" alt="Airfield aprons"></a>
-
-<a href="docs/assets/artwork/airfield-aprons.gif"><img src="docs/assets/artwork/airfield-aprons.gif" width="550" alt="Airfield aprons animated atlas"></a>
-
-#### Hillside quarries · 25 variants
-
-<a href="docs/assets/artwork/quarry-profiles.png"><img src="docs/assets/artwork/quarry-profiles.png" width="780" alt="Hillside quarries"></a>
-
-<a href="docs/assets/artwork/quarry-profiles.gif"><img src="docs/assets/artwork/quarry-profiles.gif" width="550" alt="Hillside quarries animated atlas"></a>
-
-#### Quayside workshops · 25 variants
-
-<a href="docs/assets/artwork/quay-workshops.png"><img src="docs/assets/artwork/quay-workshops.png" width="780" alt="Quayside workshops"></a>
-
-<a href="docs/assets/artwork/quay-workshops.gif"><img src="docs/assets/artwork/quay-workshops.gif" width="550" alt="Quayside workshops animated atlas"></a>
-
-#### Sheltered cove dunes · 25 variants
-
-<a href="docs/assets/artwork/cove-dunes.png"><img src="docs/assets/artwork/cove-dunes.png" width="780" alt="Sheltered cove dunes"></a>
-
-<a href="docs/assets/artwork/cove-dunes.gif"><img src="docs/assets/artwork/cove-dunes.gif" width="550" alt="Sheltered cove dunes animated atlas"></a>
-
-#### Cultivated fields · 25 variants
-
-<a href="docs/assets/artwork/cultivated-fields.png"><img src="docs/assets/artwork/cultivated-fields.png" width="780" alt="Cultivated fields"></a>
-
-<a href="docs/assets/artwork/cultivated-fields.gif"><img src="docs/assets/artwork/cultivated-fields.gif" width="550" alt="Cultivated fields animated atlas"></a>
-
-#### Columnar rock faces · 25 variants
-
-<a href="docs/assets/artwork/columnar-headwalls.png"><img src="docs/assets/artwork/columnar-headwalls.png" width="780" alt="Columnar rock faces"></a>
-
-<a href="docs/assets/artwork/columnar-headwalls.gif"><img src="docs/assets/artwork/columnar-headwalls.gif" width="550" alt="Columnar rock faces animated atlas"></a>
-
-#### Desert alluvial fans · 25 variants
-
-<a href="docs/assets/artwork/alluvial-fans.png"><img src="docs/assets/artwork/alluvial-fans.png" width="780" alt="Desert alluvial fans"></a>
-
-<a href="docs/assets/artwork/alluvial-fans.gif"><img src="docs/assets/artwork/alluvial-fans.gif" width="550" alt="Desert alluvial fans animated atlas"></a>
-
-#### Solar array layouts · 25 variants
-
-<a href="docs/assets/artwork/solar-layouts.png"><img src="docs/assets/artwork/solar-layouts.png" width="780" alt="Solar array layouts"></a>
-
-<a href="docs/assets/artwork/solar-layouts.gif"><img src="docs/assets/artwork/solar-layouts.gif" width="550" alt="Solar array layouts animated atlas"></a>
-
-#### Municipal water towers · 25 variants
-
-<a href="docs/assets/artwork/water-towers.png"><img src="docs/assets/artwork/water-towers.png" width="780" alt="Municipal water towers"></a>
-
-<a href="docs/assets/artwork/water-towers.gif"><img src="docs/assets/artwork/water-towers.gif" width="550" alt="Municipal water towers animated atlas"></a>
-
-#### Glacial moraines · 25 variants
-
-<a href="docs/assets/artwork/moraines.png"><img src="docs/assets/artwork/moraines.png" width="780" alt="Glacial moraines"></a>
-
-<a href="docs/assets/artwork/moraines.gif"><img src="docs/assets/artwork/moraines.gif" width="550" alt="Glacial moraines animated atlas"></a>
-
-#### Mountain lake shores · 25 variants
-
-<a href="docs/assets/artwork/tarns.png"><img src="docs/assets/artwork/tarns.png" width="780" alt="Mountain lake shores"></a>
-
-<a href="docs/assets/artwork/tarns.gif"><img src="docs/assets/artwork/tarns.gif" width="550" alt="Mountain lake shores animated atlas"></a>
+| Aircraft | Real-world speed reference |
+| --- | --- |
+| Bald Eagle | 30–35 mph in level flight ([Bureau of Land Management](https://www.blm.gov/sites/blm.gov/files/uploads/programs_fish-and-wildlife_wildlife_eagle-%20watch_about-bald-eagles_baldeagle_funfacts.pdf)) |
+| Ultralight | 40 mph cruise ([North Wing Maverick trike](https://northwing.com/Maverick_Trike_Owners_Manual.pdf)) |
+| Glider | 56 mph at best glide ([Schleicher ASK 21 Mi](https://www.alexander-schleicher.de/wp-content/uploads/2015/04/AS-Einzelprosp-ASK-21-Mi-15-k.pdf)) |
+| Bush Plane | 80 mph top speed ([Smithsonian Piper J-3 Cub](https://www.si.edu/object/nasm_A19771128000)) |
+| Racer | 181 knots indicated cruise ([Extra 330LX handbook](https://www.electronicsandbooks.com/edt/manual/Hardware/E/Extra%20Aircraft/POH_330LX_US_20170412_CUS.pdf)) |
+| Sport Jet | 317 knots maximum cruise ([Cirrus Vision Jet](https://cirrusaircraft.com/aircraft/vision-jet/)) |
+| F/A-18 Fighter | Mach 1.8+ top speed ([NASA F/A-18](https://www.nasa.gov/aeronautics/f-a-18-mission-support-aircraft/)) |
+| SR-71 Blackbird | Mach 3.2 cruise ([NASA SR-71](https://www.nasa.gov/image-article/sr-71-3/)) |
+
+[Mountains and ice](#mountains-and-ice) · [Rivers and lakes](#rivers-and-lakes) · [Coasts](#coasts) · [Deserts and badlands](#deserts-and-badlands) · [Vegetation and ground cover](#vegetation-and-ground-cover) · [Farms and industry](#farms-and-industry) · [Cities and towns](#cities-and-towns) · [Roads and mountain routes](#roads-and-mountain-routes) · [Railways](#railways) · [Airfields](#airfields) · [Ports and vessels](#ports-and-vessels)
+
+### Mountains and ice
 
 #### Alpine glaciers · 25 variants
 
@@ -591,107 +456,29 @@ Select a preview to open the full-size clip or screenshot.
 
 <a href="docs/assets/artwork/glaciers.gif"><img src="docs/assets/artwork/glaciers.gif" width="550" alt="Alpine glaciers animated atlas"></a>
 
-#### River islands · 25 variants
+#### Glacial moraines · 25 variants
 
-<a href="docs/assets/artwork/river-islands.png"><img src="docs/assets/artwork/river-islands.png" width="780" alt="River islands"></a>
+<a href="docs/assets/artwork/moraines.png"><img src="docs/assets/artwork/moraines.png" width="780" alt="Glacial moraines"></a>
 
-<a href="docs/assets/artwork/river-islands.gif"><img src="docs/assets/artwork/river-islands.gif" width="550" alt="River islands animated atlas"></a>
+<a href="docs/assets/artwork/moraines.gif"><img src="docs/assets/artwork/moraines.gif" width="550" alt="Glacial moraines animated atlas"></a>
 
-#### River and coastal bridges · 25 variants
+#### Glacial outwash fans · 25 variants
 
-<a href="docs/assets/artwork/bridges.png"><img src="docs/assets/artwork/bridges.png" width="780" alt="River and coastal bridges"></a>
+<a href="docs/assets/artwork/glacial-outwash.png"><img src="docs/assets/artwork/glacial-outwash.png" width="780" alt="Glacial outwash fans"></a>
 
-<a href="docs/assets/artwork/bridges.gif"><img src="docs/assets/artwork/bridges.gif" width="550" alt="River and coastal bridges animated atlas"></a>
+<a href="docs/assets/artwork/glacial-outwash.gif"><img src="docs/assets/artwork/glacial-outwash.gif" width="550" alt="Glacial outwash fans animated atlas"></a>
 
-#### Mountain cableways · 25 variants
+#### Alpine rockfall fans · 25 variants
 
-<a href="docs/assets/artwork/cableways.png"><img src="docs/assets/artwork/cableways.png" width="780" alt="Mountain cableways"></a>
+<a href="docs/assets/artwork/talus-fans.png"><img src="docs/assets/artwork/talus-fans.png" width="780" alt="Alpine rockfall fans"></a>
 
-<a href="docs/assets/artwork/cableways.gif"><img src="docs/assets/artwork/cableways.gif" width="550" alt="Mountain cableways animated atlas"></a>
+<a href="docs/assets/artwork/talus-fans.gif"><img src="docs/assets/artwork/talus-fans.gif" width="550" alt="Alpine rockfall fans animated atlas"></a>
 
-#### Lighthouses · 25 variants
+#### Columnar rock faces · 25 variants
 
-<a href="docs/assets/artwork/lighthouses.png"><img src="docs/assets/artwork/lighthouses.png" width="780" alt="Lighthouses"></a>
+<a href="docs/assets/artwork/columnar-headwalls.png"><img src="docs/assets/artwork/columnar-headwalls.png" width="780" alt="Columnar rock faces"></a>
 
-<a href="docs/assets/artwork/lighthouses.gif"><img src="docs/assets/artwork/lighthouses.gif" width="550" alt="Lighthouses animated atlas"></a>
-
-#### Coastal rock formations · 25 variants
-
-<a href="docs/assets/artwork/coastal-rocks.png"><img src="docs/assets/artwork/coastal-rocks.png" width="780" alt="Coastal rock formations"></a>
-
-<a href="docs/assets/artwork/coastal-rocks.gif"><img src="docs/assets/artwork/coastal-rocks.gif" width="550" alt="Coastal rock formations animated atlas"></a>
-
-#### Countryside buildings · 25 variants
-
-<a href="docs/assets/artwork/countryside-buildings.png"><img src="docs/assets/artwork/countryside-buildings.png" width="780" alt="Countryside buildings"></a>
-
-<a href="docs/assets/artwork/countryside-buildings.gif"><img src="docs/assets/artwork/countryside-buildings.gif" width="550" alt="Countryside buildings animated atlas"></a>
-
-#### Sandstone mesas · 25 variants
-
-<a href="docs/assets/artwork/mesa-profiles.png"><img src="docs/assets/artwork/mesa-profiles.png" width="780" alt="Sandstone mesas"></a>
-
-<a href="docs/assets/artwork/mesa-profiles.gif"><img src="docs/assets/artwork/mesa-profiles.gif" width="550" alt="Sandstone mesas animated atlas"></a>
-
-#### Floodplain details · 25 variants
-
-<a href="docs/assets/artwork/floodplain-details.png"><img src="docs/assets/artwork/floodplain-details.png" width="780" alt="Floodplain details"></a>
-
-<a href="docs/assets/artwork/floodplain-details.gif"><img src="docs/assets/artwork/floodplain-details.gif" width="550" alt="Floodplain details animated atlas"></a>
-
-#### Industrial landmarks · 25 variants
-
-<a href="docs/assets/artwork/industrial-landmarks.png"><img src="docs/assets/artwork/industrial-landmarks.png" width="780" alt="Industrial landmarks"></a>
-
-<a href="docs/assets/artwork/industrial-landmarks.gif"><img src="docs/assets/artwork/industrial-landmarks.gif" width="550" alt="Industrial landmarks animated atlas"></a>
-
-#### Alpine ground details · 25 variants
-
-<a href="docs/assets/artwork/alpine-ground-details.png"><img src="docs/assets/artwork/alpine-ground-details.png" width="780" alt="Alpine ground details"></a>
-
-<a href="docs/assets/artwork/alpine-ground-details.gif"><img src="docs/assets/artwork/alpine-ground-details.gif" width="550" alt="Alpine ground details animated atlas"></a>
-
-#### Headland details · 25 variants
-
-<a href="docs/assets/artwork/headland-details.png"><img src="docs/assets/artwork/headland-details.png" width="780" alt="Headland details"></a>
-
-<a href="docs/assets/artwork/headland-details.gif"><img src="docs/assets/artwork/headland-details.gif" width="550" alt="Headland details animated atlas"></a>
-
-#### Grassland details · 25 variants
-
-<a href="docs/assets/artwork/grassland-details.png"><img src="docs/assets/artwork/grassland-details.png" width="780" alt="Grassland details"></a>
-
-<a href="docs/assets/artwork/grassland-details.gif"><img src="docs/assets/artwork/grassland-details.gif" width="550" alt="Grassland details animated atlas"></a>
-
-#### Dryland details · 25 variants
-
-<a href="docs/assets/artwork/dryland-details.png"><img src="docs/assets/artwork/dryland-details.png" width="780" alt="Dryland details"></a>
-
-<a href="docs/assets/artwork/dryland-details.gif"><img src="docs/assets/artwork/dryland-details.gif" width="550" alt="Dryland details animated atlas"></a>
-
-#### Woodland details · 25 variants
-
-<a href="docs/assets/artwork/woodland-details.png"><img src="docs/assets/artwork/woodland-details.png" width="780" alt="Woodland details"></a>
-
-<a href="docs/assets/artwork/woodland-details.gif"><img src="docs/assets/artwork/woodland-details.gif" width="550" alt="Woodland details animated atlas"></a>
-
-#### Airfield buildings · 25 variants
-
-<a href="docs/assets/artwork/airfield-buildings.png"><img src="docs/assets/artwork/airfield-buildings.png" width="780" alt="Airfield buildings"></a>
-
-<a href="docs/assets/artwork/airfield-buildings.gif"><img src="docs/assets/artwork/airfield-buildings.gif" width="550" alt="Airfield buildings animated atlas"></a>
-
-#### Street buildings · 25 variants
-
-<a href="docs/assets/artwork/street-buildings.png"><img src="docs/assets/artwork/street-buildings.png" width="780" alt="Street buildings"></a>
-
-<a href="docs/assets/artwork/street-buildings.gif"><img src="docs/assets/artwork/street-buildings.gif" width="550" alt="Street buildings animated atlas"></a>
-
-#### Freshwater details · 25 variants
-
-<a href="docs/assets/artwork/freshwater-details.png"><img src="docs/assets/artwork/freshwater-details.png" width="780" alt="Freshwater details"></a>
-
-<a href="docs/assets/artwork/freshwater-details.gif"><img src="docs/assets/artwork/freshwater-details.gif" width="550" alt="Freshwater details animated atlas"></a>
+<a href="docs/assets/artwork/columnar-headwalls.gif"><img src="docs/assets/artwork/columnar-headwalls.gif" width="550" alt="Columnar rock faces animated atlas"></a>
 
 #### Mountain details · 25 variants
 
@@ -699,29 +486,75 @@ Select a preview to open the full-size clip or screenshot.
 
 <a href="docs/assets/artwork/mountain-details.gif"><img src="docs/assets/artwork/mountain-details.gif" width="550" alt="Mountain details animated atlas"></a>
 
-#### Roadside models · 30 variants
+#### Alpine ground details · 25 variants
 
-<a href="docs/assets/artwork/roadside-models.png"><img src="docs/assets/artwork/roadside-models.png" width="780" alt="Roadside models"></a>
+<a href="docs/assets/artwork/alpine-ground-details.png"><img src="docs/assets/artwork/alpine-ground-details.png" width="780" alt="Alpine ground details"></a>
 
-<a href="docs/assets/artwork/roadside-models.gif"><img src="docs/assets/artwork/roadside-models.gif" width="550" alt="Roadside models animated atlas"></a>
+<a href="docs/assets/artwork/alpine-ground-details.gif"><img src="docs/assets/artwork/alpine-ground-details.gif" width="550" alt="Alpine ground details animated atlas"></a>
 
-#### Harbor models · 30 variants
+### Rivers and lakes
 
-<a href="docs/assets/artwork/harbor-models.png"><img src="docs/assets/artwork/harbor-models.png" width="780" alt="Harbor models"></a>
+#### Mountain lake shores · 25 variants
 
-<a href="docs/assets/artwork/harbor-models.gif"><img src="docs/assets/artwork/harbor-models.gif" width="550" alt="Harbor models animated atlas"></a>
+<a href="docs/assets/artwork/tarns.png"><img src="docs/assets/artwork/tarns.png" width="780" alt="Mountain lake shores"></a>
 
-#### Railway fixtures · 25 variants
+<a href="docs/assets/artwork/tarns.gif"><img src="docs/assets/artwork/tarns.gif" width="550" alt="Mountain lake shores animated atlas"></a>
 
-<a href="docs/assets/artwork/rail-stations.png"><img src="docs/assets/artwork/rail-stations.png" width="780" alt="Railway fixtures"></a>
+#### Alpine cascades · 25 variants
 
-<a href="docs/assets/artwork/rail-stations.gif"><img src="docs/assets/artwork/rail-stations.gif" width="550" alt="Railway fixtures animated atlas"></a>
+<a href="docs/assets/artwork/alpine-cascades.png"><img src="docs/assets/artwork/alpine-cascades.png" width="780" alt="Alpine cascades"></a>
 
-#### Farm details · 25 variants
+<a href="docs/assets/artwork/alpine-cascades.gif"><img src="docs/assets/artwork/alpine-cascades.gif" width="550" alt="Alpine cascades animated atlas"></a>
 
-<a href="docs/assets/artwork/farm-details.png"><img src="docs/assets/artwork/farm-details.png" width="780" alt="Farm details"></a>
+#### River islands · 25 variants
 
-<a href="docs/assets/artwork/farm-details.gif"><img src="docs/assets/artwork/farm-details.gif" width="550" alt="Farm details animated atlas"></a>
+<a href="docs/assets/artwork/river-islands.png"><img src="docs/assets/artwork/river-islands.png" width="780" alt="River islands"></a>
+
+<a href="docs/assets/artwork/river-islands.gif"><img src="docs/assets/artwork/river-islands.gif" width="550" alt="River islands animated atlas"></a>
+
+#### River bend point bars · 25 variants
+
+<a href="docs/assets/artwork/point-bars.png"><img src="docs/assets/artwork/point-bars.png" width="780" alt="River bend point bars"></a>
+
+<a href="docs/assets/artwork/point-bars.gif"><img src="docs/assets/artwork/point-bars.gif" width="550" alt="River bend point bars animated atlas"></a>
+
+#### Floodplain details · 25 variants
+
+<a href="docs/assets/artwork/floodplain-details.png"><img src="docs/assets/artwork/floodplain-details.png" width="780" alt="Floodplain details"></a>
+
+<a href="docs/assets/artwork/floodplain-details.gif"><img src="docs/assets/artwork/floodplain-details.gif" width="550" alt="Floodplain details animated atlas"></a>
+
+#### Freshwater details · 25 variants
+
+<a href="docs/assets/artwork/freshwater-details.png"><img src="docs/assets/artwork/freshwater-details.png" width="780" alt="Freshwater details"></a>
+
+<a href="docs/assets/artwork/freshwater-details.gif"><img src="docs/assets/artwork/freshwater-details.gif" width="550" alt="Freshwater details animated atlas"></a>
+
+### Coasts
+
+#### Coastal bluffs · 25 variants
+
+<a href="docs/assets/artwork/coastal-bluffs.png"><img src="docs/assets/artwork/coastal-bluffs.png" width="780" alt="Coastal bluffs"></a>
+
+<a href="docs/assets/artwork/coastal-bluffs.gif"><img src="docs/assets/artwork/coastal-bluffs.gif" width="550" alt="Coastal bluffs animated atlas"></a>
+
+#### Coastal rock formations · 25 variants
+
+<a href="docs/assets/artwork/coastal-rocks.png"><img src="docs/assets/artwork/coastal-rocks.png" width="780" alt="Coastal rock formations"></a>
+
+<a href="docs/assets/artwork/coastal-rocks.gif"><img src="docs/assets/artwork/coastal-rocks.gif" width="550" alt="Coastal rock formations animated atlas"></a>
+
+#### Sheltered cove dunes · 25 variants
+
+<a href="docs/assets/artwork/cove-dunes.png"><img src="docs/assets/artwork/cove-dunes.png" width="780" alt="Sheltered cove dunes"></a>
+
+<a href="docs/assets/artwork/cove-dunes.gif"><img src="docs/assets/artwork/cove-dunes.gif" width="550" alt="Sheltered cove dunes animated atlas"></a>
+
+#### Headland details · 25 variants
+
+<a href="docs/assets/artwork/headland-details.png"><img src="docs/assets/artwork/headland-details.png" width="780" alt="Headland details"></a>
+
+<a href="docs/assets/artwork/headland-details.gif"><img src="docs/assets/artwork/headland-details.gif" width="550" alt="Headland details animated atlas"></a>
 
 #### Coastal details · 25 variants
 
@@ -729,43 +562,37 @@ Select a preview to open the full-size clip or screenshot.
 
 <a href="docs/assets/artwork/coastal-details.gif"><img src="docs/assets/artwork/coastal-details.gif" width="550" alt="Coastal details animated atlas"></a>
 
-#### Skyline landmarks · 100 variants
+### Deserts and badlands
 
-<a href="docs/assets/artwork/skyline-landmarks.png"><img src="docs/assets/artwork/skyline-landmarks.png" width="780" alt="Skyline landmarks"></a>
+#### Badlands ravines · 25 variants
 
-<a href="docs/assets/artwork/skyline-landmarks.gif"><img src="docs/assets/artwork/skyline-landmarks.gif" width="550" alt="Skyline landmarks animated atlas"></a>
+<a href="docs/assets/artwork/badlands-ravines.png"><img src="docs/assets/artwork/badlands-ravines.png" width="780" alt="Badlands ravines"></a>
 
-#### Summit landmarks · 25 variants
+<a href="docs/assets/artwork/badlands-ravines.gif"><img src="docs/assets/artwork/badlands-ravines.gif" width="550" alt="Badlands ravines animated atlas"></a>
 
-<a href="docs/assets/artwork/summit-landmarks.png"><img src="docs/assets/artwork/summit-landmarks.png" width="780" alt="Summit landmarks"></a>
+#### Sandstone mesas · 25 variants
 
-<a href="docs/assets/artwork/summit-landmarks.gif"><img src="docs/assets/artwork/summit-landmarks.gif" width="550" alt="Summit landmarks animated atlas"></a>
+<a href="docs/assets/artwork/mesa-profiles.png"><img src="docs/assets/artwork/mesa-profiles.png" width="780" alt="Sandstone mesas"></a>
 
-#### Town landmarks · 25 variants
+<a href="docs/assets/artwork/mesa-profiles.gif"><img src="docs/assets/artwork/mesa-profiles.gif" width="550" alt="Sandstone mesas animated atlas"></a>
 
-<a href="docs/assets/artwork/town-landmarks.png"><img src="docs/assets/artwork/town-landmarks.png" width="780" alt="Town landmarks"></a>
+#### Desert alluvial fans · 25 variants
 
-<a href="docs/assets/artwork/town-landmarks.gif"><img src="docs/assets/artwork/town-landmarks.gif" width="550" alt="Town landmarks animated atlas"></a>
+<a href="docs/assets/artwork/alluvial-fans.png"><img src="docs/assets/artwork/alluvial-fans.png" width="780" alt="Desert alluvial fans"></a>
 
-#### Neighborhood buildings · 27 variants
+<a href="docs/assets/artwork/alluvial-fans.gif"><img src="docs/assets/artwork/alluvial-fans.gif" width="550" alt="Desert alluvial fans animated atlas"></a>
 
-<a href="docs/assets/artwork/neighborhood-buildings.png"><img src="docs/assets/artwork/neighborhood-buildings.png" width="780" alt="Neighborhood buildings"></a>
+#### Dryland details · 25 variants
 
-#### Habitat details · 30 variants
+<a href="docs/assets/artwork/dryland-details.png"><img src="docs/assets/artwork/dryland-details.png" width="780" alt="Dryland details"></a>
 
-<a href="docs/assets/artwork/habitat-details.png"><img src="docs/assets/artwork/habitat-details.png" width="780" alt="Habitat details"></a>
+<a href="docs/assets/artwork/dryland-details.gif"><img src="docs/assets/artwork/dryland-details.gif" width="550" alt="Dryland details animated atlas"></a>
 
-#### City towers · 250 variants
-
-<a href="docs/assets/artwork/towers.png"><img src="docs/assets/artwork/towers.png" width="780" alt="City towers"></a>
+### Vegetation and ground cover
 
 #### Trees · 256 variants
 
 <a href="docs/assets/artwork/trees.png"><img src="docs/assets/artwork/trees.png" width="780" alt="Trees"></a>
-
-#### Rocks · 256 variants
-
-<a href="docs/assets/artwork/rocks.png"><img src="docs/assets/artwork/rocks.png" width="780" alt="Rocks"></a>
 
 #### Bushes · 256 variants
 
@@ -775,9 +602,227 @@ Select a preview to open the full-size clip or screenshot.
 
 <a href="docs/assets/artwork/cacti.png"><img src="docs/assets/artwork/cacti.png" width="780" alt="Cacti"></a>
 
+#### Wetland plants · 256 variants
+
+<a href="docs/assets/artwork/wetlands.png"><img src="docs/assets/artwork/wetlands.png" width="780" alt="Wetland plants"></a>
+
+#### Woodland details · 25 variants
+
+<a href="docs/assets/artwork/woodland-details.png"><img src="docs/assets/artwork/woodland-details.png" width="780" alt="Woodland details"></a>
+
+<a href="docs/assets/artwork/woodland-details.gif"><img src="docs/assets/artwork/woodland-details.gif" width="550" alt="Woodland details animated atlas"></a>
+
+#### Grassland details · 25 variants
+
+<a href="docs/assets/artwork/grassland-details.png"><img src="docs/assets/artwork/grassland-details.png" width="780" alt="Grassland details"></a>
+
+<a href="docs/assets/artwork/grassland-details.gif"><img src="docs/assets/artwork/grassland-details.gif" width="550" alt="Grassland details animated atlas"></a>
+
+#### Rocks · 256 variants
+
+<a href="docs/assets/artwork/rocks.png"><img src="docs/assets/artwork/rocks.png" width="780" alt="Rocks"></a>
+
+#### Habitat details · 30 variants
+
+<a href="docs/assets/artwork/habitat-details.png"><img src="docs/assets/artwork/habitat-details.png" width="780" alt="Habitat details"></a>
+
+### Farms and industry
+
+#### Cultivated fields · 25 variants
+
+<a href="docs/assets/artwork/cultivated-fields.png"><img src="docs/assets/artwork/cultivated-fields.png" width="780" alt="Cultivated fields"></a>
+
+<a href="docs/assets/artwork/cultivated-fields.gif"><img src="docs/assets/artwork/cultivated-fields.gif" width="550" alt="Cultivated fields animated atlas"></a>
+
+#### Contour fields · 25 variants
+
+<a href="docs/assets/artwork/contour-fields.png"><img src="docs/assets/artwork/contour-fields.png" width="780" alt="Contour fields"></a>
+
+<a href="docs/assets/artwork/contour-fields.gif"><img src="docs/assets/artwork/contour-fields.gif" width="550" alt="Contour fields animated atlas"></a>
+
+#### Farm details · 25 variants
+
+<a href="docs/assets/artwork/farm-details.png"><img src="docs/assets/artwork/farm-details.png" width="780" alt="Farm details"></a>
+
+<a href="docs/assets/artwork/farm-details.gif"><img src="docs/assets/artwork/farm-details.gif" width="550" alt="Farm details animated atlas"></a>
+
+#### Countryside buildings · 25 variants
+
+<a href="docs/assets/artwork/countryside-buildings.png"><img src="docs/assets/artwork/countryside-buildings.png" width="780" alt="Countryside buildings"></a>
+
+<a href="docs/assets/artwork/countryside-buildings.gif"><img src="docs/assets/artwork/countryside-buildings.gif" width="550" alt="Countryside buildings animated atlas"></a>
+
+#### Hillside quarries · 25 variants
+
+<a href="docs/assets/artwork/quarry-profiles.png"><img src="docs/assets/artwork/quarry-profiles.png" width="780" alt="Hillside quarries"></a>
+
+<a href="docs/assets/artwork/quarry-profiles.gif"><img src="docs/assets/artwork/quarry-profiles.gif" width="550" alt="Hillside quarries animated atlas"></a>
+
+#### Solar array layouts · 25 variants
+
+<a href="docs/assets/artwork/solar-layouts.png"><img src="docs/assets/artwork/solar-layouts.png" width="780" alt="Solar array layouts"></a>
+
+<a href="docs/assets/artwork/solar-layouts.gif"><img src="docs/assets/artwork/solar-layouts.gif" width="550" alt="Solar array layouts animated atlas"></a>
+
+#### Industrial landmarks · 25 variants
+
+<a href="docs/assets/artwork/industrial-landmarks.png"><img src="docs/assets/artwork/industrial-landmarks.png" width="780" alt="Industrial landmarks"></a>
+
+<a href="docs/assets/artwork/industrial-landmarks.gif"><img src="docs/assets/artwork/industrial-landmarks.gif" width="550" alt="Industrial landmarks animated atlas"></a>
+
+### Cities and towns
+
+#### Metropolitan neighborhood plans · 25 variants
+
+<a href="docs/assets/artwork/metro-layouts.png"><img src="docs/assets/artwork/metro-layouts.png" width="780" alt="Metropolitan neighborhood plans"></a>
+
+#### Outer neighborhood blocks · 25 variants
+
+<a href="docs/assets/artwork/outer-blocks.png"><img src="docs/assets/artwork/outer-blocks.png" width="780" alt="Outer neighborhood blocks"></a>
+
+<a href="docs/assets/artwork/outer-blocks.gif"><img src="docs/assets/artwork/outer-blocks.gif" width="550" alt="Outer neighborhood blocks animated atlas"></a>
+
+#### Neighborhood buildings · 27 variants
+
+<a href="docs/assets/artwork/neighborhood-buildings.png"><img src="docs/assets/artwork/neighborhood-buildings.png" width="780" alt="Neighborhood buildings"></a>
+
+#### Street buildings · 25 variants
+
+<a href="docs/assets/artwork/street-buildings.png"><img src="docs/assets/artwork/street-buildings.png" width="780" alt="Street buildings"></a>
+
+<a href="docs/assets/artwork/street-buildings.gif"><img src="docs/assets/artwork/street-buildings.gif" width="550" alt="Street buildings animated atlas"></a>
+
+#### Town landmarks · 25 variants
+
+<a href="docs/assets/artwork/town-landmarks.png"><img src="docs/assets/artwork/town-landmarks.png" width="780" alt="Town landmarks"></a>
+
+<a href="docs/assets/artwork/town-landmarks.gif"><img src="docs/assets/artwork/town-landmarks.gif" width="550" alt="Town landmarks animated atlas"></a>
+
+#### Riverfront buildings · 25 variants
+
+<a href="docs/assets/artwork/riverfront-buildings.png"><img src="docs/assets/artwork/riverfront-buildings.png" width="780" alt="Riverfront buildings"></a>
+
+<a href="docs/assets/artwork/riverfront-buildings.gif"><img src="docs/assets/artwork/riverfront-buildings.gif" width="550" alt="Riverfront buildings animated atlas"></a>
+
+#### Municipal water towers · 25 variants
+
+<a href="docs/assets/artwork/water-towers.png"><img src="docs/assets/artwork/water-towers.png" width="780" alt="Municipal water towers"></a>
+
+<a href="docs/assets/artwork/water-towers.gif"><img src="docs/assets/artwork/water-towers.gif" width="550" alt="Municipal water towers animated atlas"></a>
+
+#### City towers · 250 variants
+
+<a href="docs/assets/artwork/towers.png"><img src="docs/assets/artwork/towers.png" width="780" alt="City towers"></a>
+
+#### Skyline landmarks · 100 variants
+
+<a href="docs/assets/artwork/skyline-landmarks.png"><img src="docs/assets/artwork/skyline-landmarks.png" width="780" alt="Skyline landmarks"></a>
+
+<a href="docs/assets/artwork/skyline-landmarks.gif"><img src="docs/assets/artwork/skyline-landmarks.gif" width="550" alt="Skyline landmarks animated atlas"></a>
+
+### Roads and mountain routes
+
+#### River and coastal bridges · 25 variants
+
+<a href="docs/assets/artwork/bridges.png"><img src="docs/assets/artwork/bridges.png" width="780" alt="River and coastal bridges"></a>
+
+<a href="docs/assets/artwork/bridges.gif"><img src="docs/assets/artwork/bridges.gif" width="550" alt="River and coastal bridges animated atlas"></a>
+
+#### Road tunnel portals · 25 variants
+
+<a href="docs/assets/artwork/tunnel-facades.png"><img src="docs/assets/artwork/tunnel-facades.png" width="780" alt="Road tunnel portals"></a>
+
+<a href="docs/assets/artwork/tunnel-facades.gif"><img src="docs/assets/artwork/tunnel-facades.gif" width="550" alt="Road tunnel portals animated atlas"></a>
+
+#### Roadside models · 30 variants
+
+<a href="docs/assets/artwork/roadside-models.png"><img src="docs/assets/artwork/roadside-models.png" width="780" alt="Roadside models"></a>
+
+<a href="docs/assets/artwork/roadside-models.gif"><img src="docs/assets/artwork/roadside-models.gif" width="550" alt="Roadside models animated atlas"></a>
+
+#### Mountain cableways · 25 variants
+
+<a href="docs/assets/artwork/cableways.png"><img src="docs/assets/artwork/cableways.png" width="780" alt="Mountain cableways"></a>
+
+<a href="docs/assets/artwork/cableways.gif"><img src="docs/assets/artwork/cableways.gif" width="550" alt="Mountain cableways animated atlas"></a>
+
+#### Summit landmarks · 25 variants
+
+<a href="docs/assets/artwork/summit-landmarks.png"><img src="docs/assets/artwork/summit-landmarks.png" width="780" alt="Summit landmarks"></a>
+
+<a href="docs/assets/artwork/summit-landmarks.gif"><img src="docs/assets/artwork/summit-landmarks.gif" width="550" alt="Summit landmarks animated atlas"></a>
+
+#### Summit trail fixtures · 25 variants
+
+<a href="docs/assets/artwork/summit-trail-rests.png"><img src="docs/assets/artwork/summit-trail-rests.png" width="780" alt="Summit trail fixtures"></a>
+
+<a href="docs/assets/artwork/summit-trail-rests.gif"><img src="docs/assets/artwork/summit-trail-rests.gif" width="550" alt="Summit trail fixtures animated atlas"></a>
+
+### Railways
+
+#### Rail cuts and embankments · 25 variants
+
+<a href="docs/assets/artwork/rail-earthworks.png"><img src="docs/assets/artwork/rail-earthworks.png" width="780" alt="Rail cuts and embankments"></a>
+
+<a href="docs/assets/artwork/rail-earthworks.gif"><img src="docs/assets/artwork/rail-earthworks.gif" width="550" alt="Rail cuts and embankments animated atlas"></a>
+
+#### Railway fixtures · 25 variants
+
+<a href="docs/assets/artwork/rail-stations.png"><img src="docs/assets/artwork/rail-stations.png" width="780" alt="Railway fixtures"></a>
+
+<a href="docs/assets/artwork/rail-stations.gif"><img src="docs/assets/artwork/rail-stations.gif" width="550" alt="Railway fixtures animated atlas"></a>
+
+#### Locomotives · 6 variants
+
+<a href="docs/assets/artwork/locomotives.png"><img src="docs/assets/artwork/locomotives.png" width="780" alt="Locomotives"></a>
+
 #### Freight wagons · 250 variants
 
 <a href="docs/assets/artwork/wagons.png"><img src="docs/assets/artwork/wagons.png" width="780" alt="Freight wagons"></a>
+
+### Airfields
+
+#### Runway markings · 25 variants
+
+<a href="docs/assets/artwork/runway-markings.png"><img src="docs/assets/artwork/runway-markings.png" width="780" alt="Runway markings"></a>
+
+<a href="docs/assets/artwork/runway-markings.gif"><img src="docs/assets/artwork/runway-markings.gif" width="550" alt="Runway markings animated atlas"></a>
+
+#### Airfield aprons · 25 variants
+
+<a href="docs/assets/artwork/airfield-aprons.png"><img src="docs/assets/artwork/airfield-aprons.png" width="780" alt="Airfield aprons"></a>
+
+<a href="docs/assets/artwork/airfield-aprons.gif"><img src="docs/assets/artwork/airfield-aprons.gif" width="550" alt="Airfield aprons animated atlas"></a>
+
+#### Airfield buildings · 25 variants
+
+<a href="docs/assets/artwork/airfield-buildings.png"><img src="docs/assets/artwork/airfield-buildings.png" width="780" alt="Airfield buildings"></a>
+
+<a href="docs/assets/artwork/airfield-buildings.gif"><img src="docs/assets/artwork/airfield-buildings.gif" width="550" alt="Airfield buildings animated atlas"></a>
+
+### Ports and vessels
+
+#### Lighthouses · 25 variants
+
+<a href="docs/assets/artwork/lighthouses.png"><img src="docs/assets/artwork/lighthouses.png" width="780" alt="Lighthouses"></a>
+
+<a href="docs/assets/artwork/lighthouses.gif"><img src="docs/assets/artwork/lighthouses.gif" width="550" alt="Lighthouses animated atlas"></a>
+
+#### Waterfront landmarks · 4 variants
+
+<a href="docs/assets/artwork/waterfront-landmarks.png"><img src="docs/assets/artwork/waterfront-landmarks.png" width="780" alt="Waterfront landmarks"></a>
+
+#### Quayside workshops · 25 variants
+
+<a href="docs/assets/artwork/quay-workshops.png"><img src="docs/assets/artwork/quay-workshops.png" width="780" alt="Quayside workshops"></a>
+
+<a href="docs/assets/artwork/quay-workshops.gif"><img src="docs/assets/artwork/quay-workshops.gif" width="550" alt="Quayside workshops animated atlas"></a>
+
+#### Harbor models · 30 variants
+
+<a href="docs/assets/artwork/harbor-models.png"><img src="docs/assets/artwork/harbor-models.png" width="780" alt="Harbor models"></a>
+
+<a href="docs/assets/artwork/harbor-models.gif"><img src="docs/assets/artwork/harbor-models.gif" width="550" alt="Harbor models animated atlas"></a>
 
 #### Vessels · 250 variants
 
@@ -789,45 +834,20 @@ Select a preview to open the full-size clip or screenshot.
 
 <a href="docs/assets/artwork/service-vessels.gif"><img src="docs/assets/artwork/service-vessels.gif" width="550" alt="Service vessels animated atlas"></a>
 
-#### Wetland plants · 256 variants
-
-<a href="docs/assets/artwork/wetlands.png"><img src="docs/assets/artwork/wetlands.png" width="780" alt="Wetland plants"></a>
-
-#### Locomotives · 6 variants
-
-<a href="docs/assets/artwork/locomotives.png"><img src="docs/assets/artwork/locomotives.png" width="780" alt="Locomotives"></a>
-
-#### Waterfront landmarks · 4 variants
-
-<a href="docs/assets/artwork/waterfront-landmarks.png"><img src="docs/assets/artwork/waterfront-landmarks.png" width="780" alt="Waterfront landmarks"></a>
-
 <!-- END GALLERY -->
 
 ## Controls
 
-| When | Small button | Large button |
+| When | Right button | Left button |
 | --- | --- | --- |
 | Aircraft picker | Browse the eight aircraft | Take off |
 | In flight | Tap for flight info. Hold until the progress bar fills to return to the picker and start a new world. | — |
 
 The first picker launches a random aircraft after ten seconds if no buttons are pressed.
 
-## Aircraft
-
-| Aircraft | Flight style |
-| --- | --- |
-| Bush Plane | Low, deliberate flying and early climbs around ridges |
-| Racer | Tighter turns over lowland terrain |
-| Sport Jet | Smooth jet handling and occasional coastal passes |
-| Ultralight | Slow sightseeing and occasional train follows |
-| Glider | Thermal circles, ridge lift and downdrafts |
-| F/A-18 Fighter | Formation flybys and short orange reheat bursts |
-| SR-71 Blackbird | High cruise, purple reheat and a rare refueling rendezvous |
-| Bald Eagle | Low soaring, measured wingbeats and occasional train follows |
-
 ## Install and build
 
-Generate the scenery artwork directly from the game’s geometry with `./tools/export-artwork.sh`. The freight gallery shows 250 cars across 10 equipment families. Each car has a named load or return assignment, an explanation of its equipment, and a reference to the real railcars it draws on.
+Generate the scenery artwork directly from the game’s geometry with `./tools/export-artwork.sh`.
 
 [Open the firmware flasher](https://xn--sg8hhb.ws/flasher/?project=scenic-flight) for compatible round Waveshare units. See the [latest GitHub release](https://github.com/xberenguer/scenic-flight/releases/latest) for the firmware and checksum.
 

@@ -551,6 +551,10 @@ const categories = [
   { title: 'Locomotives', label: 'Locomotive', atlas: 'locomotives.png', columns: 3, rows: 2,
     family: index => locomotives[index][0], detail: index => locomotives[index][1] },
 ];
+const arrangement = await fetch('./assets/gallery-order.json').then(response => response.json());
+const collections = arrangement.scenery;
+const categoriesById = new Map(categories.map(category => [category.atlas.replace(/\.png$/, ''), category]));
+const collection = document.querySelector('#artwork-collection');
 const tabs = document.querySelector('#artwork-categories');
 const families = document.querySelector('#artwork-family');
 const grid = document.querySelector('#artwork-grid');
@@ -643,12 +647,20 @@ function selectCategory(category) {
   render(category);
 }
 
-families.addEventListener('change', () => render(activeCategory));
-for (const category of categories) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = category.title;
-  button.addEventListener('click', () => selectCategory(category));
-  tabs.append(button);
+function selectCollection() {
+  const group = collections[Number(collection.value)];
+  const choices = group.sections.map(entry => categoriesById.get(entry.id));
+  tabs.replaceChildren(...choices.map(category => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = category.title;
+    button.addEventListener('click', () => selectCategory(category));
+    return button;
+  }));
+  selectCategory(choices[0]);
 }
-selectCategory(activeCategory);
+
+families.addEventListener('change', () => render(activeCategory));
+collection.replaceChildren(...collections.map((group, index) => new Option(group.title, index)));
+collection.addEventListener('change', selectCollection);
+selectCollection();

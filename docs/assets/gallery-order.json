@@ -1,0 +1,442 @@
+{
+  "aircraft": [
+    {
+      "asset": 7,
+      "name": "Bald Eagle",
+      "speed": "30–35 mph in level flight",
+      "reference": "Bureau of Land Management",
+      "url": "https://www.blm.gov/sites/blm.gov/files/uploads/programs_fish-and-wildlife_wildlife_eagle-%20watch_about-bald-eagles_baldeagle_funfacts.pdf"
+    },
+    {
+      "asset": 3,
+      "name": "Ultralight",
+      "speed": "40 mph cruise",
+      "reference": "North Wing Maverick trike",
+      "url": "https://northwing.com/Maverick_Trike_Owners_Manual.pdf"
+    },
+    {
+      "asset": 4,
+      "name": "Glider",
+      "speed": "56 mph at best glide",
+      "reference": "Schleicher ASK 21 Mi",
+      "url": "https://www.alexander-schleicher.de/wp-content/uploads/2015/04/AS-Einzelprosp-ASK-21-Mi-15-k.pdf"
+    },
+    {
+      "asset": 0,
+      "name": "Bush Plane",
+      "speed": "80 mph top speed",
+      "reference": "Smithsonian Piper J-3 Cub",
+      "url": "https://www.si.edu/object/nasm_A19771128000"
+    },
+    {
+      "asset": 1,
+      "name": "Racer",
+      "speed": "181 knots indicated cruise",
+      "reference": "Extra 330LX handbook",
+      "url": "https://www.electronicsandbooks.com/edt/manual/Hardware/E/Extra%20Aircraft/POH_330LX_US_20170412_CUS.pdf"
+    },
+    {
+      "asset": 2,
+      "name": "Sport Jet",
+      "speed": "317 knots maximum cruise",
+      "reference": "Cirrus Vision Jet",
+      "url": "https://cirrusaircraft.com/aircraft/vision-jet/"
+    },
+    {
+      "asset": 5,
+      "name": "F/A-18 Fighter",
+      "speed": "Mach 1.8+ top speed",
+      "reference": "NASA F/A-18",
+      "url": "https://www.nasa.gov/aeronautics/f-a-18-mission-support-aircraft/"
+    },
+    {
+      "asset": 6,
+      "name": "SR-71 Blackbird",
+      "speed": "Mach 3.2 cruise",
+      "reference": "NASA SR-71",
+      "url": "https://www.nasa.gov/image-article/sr-71-3/"
+    }
+  ],
+  "scenery": [
+    {
+      "title": "Mountains and ice",
+      "sections": [
+        {
+          "id": "glaciers",
+          "title": "Alpine glaciers",
+          "count": 25
+        },
+        {
+          "id": "moraines",
+          "title": "Glacial moraines",
+          "count": 25
+        },
+        {
+          "id": "glacial-outwash",
+          "title": "Glacial outwash fans",
+          "count": 25
+        },
+        {
+          "id": "talus-fans",
+          "title": "Alpine rockfall fans",
+          "count": 25
+        },
+        {
+          "id": "columnar-headwalls",
+          "title": "Columnar rock faces",
+          "count": 25
+        },
+        {
+          "id": "mountain-details",
+          "title": "Mountain details",
+          "count": 25
+        },
+        {
+          "id": "alpine-ground-details",
+          "title": "Alpine ground details",
+          "count": 25
+        }
+      ]
+    },
+    {
+      "title": "Rivers and lakes",
+      "sections": [
+        {
+          "id": "tarns",
+          "title": "Mountain lake shores",
+          "count": 25
+        },
+        {
+          "id": "alpine-cascades",
+          "title": "Alpine cascades",
+          "count": 25
+        },
+        {
+          "id": "river-islands",
+          "title": "River islands",
+          "count": 25
+        },
+        {
+          "id": "point-bars",
+          "title": "River bend point bars",
+          "count": 25
+        },
+        {
+          "id": "floodplain-details",
+          "title": "Floodplain details",
+          "count": 25
+        },
+        {
+          "id": "freshwater-details",
+          "title": "Freshwater details",
+          "count": 25
+        }
+      ]
+    },
+    {
+      "title": "Coasts",
+      "sections": [
+        {
+          "id": "coastal-bluffs",
+          "title": "Coastal bluffs",
+          "count": 25
+        },
+        {
+          "id": "coastal-rocks",
+          "title": "Coastal rock formations",
+          "count": 25
+        },
+        {
+          "id": "cove-dunes",
+          "title": "Sheltered cove dunes",
+          "count": 25
+        },
+        {
+          "id": "headland-details",
+          "title": "Headland details",
+          "count": 25
+        },
+        {
+          "id": "coastal-details",
+          "title": "Coastal details",
+          "count": 25
+        }
+      ]
+    },
+    {
+      "title": "Deserts and badlands",
+      "sections": [
+        {
+          "id": "badlands-ravines",
+          "title": "Badlands ravines",
+          "count": 25
+        },
+        {
+          "id": "mesa-profiles",
+          "title": "Sandstone mesas",
+          "count": 25
+        },
+        {
+          "id": "alluvial-fans",
+          "title": "Desert alluvial fans",
+          "count": 25
+        },
+        {
+          "id": "dryland-details",
+          "title": "Dryland details",
+          "count": 25
+        }
+      ]
+    },
+    {
+      "title": "Vegetation and ground cover",
+      "sections": [
+        {
+          "id": "trees",
+          "title": "Trees",
+          "count": 256
+        },
+        {
+          "id": "bushes",
+          "title": "Bushes",
+          "count": 256
+        },
+        {
+          "id": "cacti",
+          "title": "Cacti",
+          "count": 256
+        },
+        {
+          "id": "wetlands",
+          "title": "Wetland plants",
+          "count": 256
+        },
+        {
+          "id": "woodland-details",
+          "title": "Woodland details",
+          "count": 25
+        },
+        {
+          "id": "grassland-details",
+          "title": "Grassland details",
+          "count": 25
+        },
+        {
+          "id": "rocks",
+          "title": "Rocks",
+          "count": 256
+        },
+        {
+          "id": "habitat-details",
+          "title": "Habitat details",
+          "count": 30
+        }
+      ]
+    },
+    {
+      "title": "Farms and industry",
+      "sections": [
+        {
+          "id": "cultivated-fields",
+          "title": "Cultivated fields",
+          "count": 25
+        },
+        {
+          "id": "contour-fields",
+          "title": "Contour fields",
+          "count": 25
+        },
+        {
+          "id": "farm-details",
+          "title": "Farm details",
+          "count": 25
+        },
+        {
+          "id": "countryside-buildings",
+          "title": "Countryside buildings",
+          "count": 25
+        },
+        {
+          "id": "quarry-profiles",
+          "title": "Hillside quarries",
+          "count": 25
+        },
+        {
+          "id": "solar-layouts",
+          "title": "Solar array layouts",
+          "count": 25
+        },
+        {
+          "id": "industrial-landmarks",
+          "title": "Industrial landmarks",
+          "count": 25
+        }
+      ]
+    },
+    {
+      "title": "Cities and towns",
+      "sections": [
+        {
+          "id": "metro-layouts",
+          "title": "Metropolitan neighborhood plans",
+          "count": 25
+        },
+        {
+          "id": "outer-blocks",
+          "title": "Outer neighborhood blocks",
+          "count": 25
+        },
+        {
+          "id": "neighborhood-buildings",
+          "title": "Neighborhood buildings",
+          "count": 27
+        },
+        {
+          "id": "street-buildings",
+          "title": "Street buildings",
+          "count": 25
+        },
+        {
+          "id": "town-landmarks",
+          "title": "Town landmarks",
+          "count": 25
+        },
+        {
+          "id": "riverfront-buildings",
+          "title": "Riverfront buildings",
+          "count": 25
+        },
+        {
+          "id": "water-towers",
+          "title": "Municipal water towers",
+          "count": 25
+        },
+        {
+          "id": "towers",
+          "title": "City towers",
+          "count": 250
+        },
+        {
+          "id": "skyline-landmarks",
+          "title": "Skyline landmarks",
+          "count": 100
+        }
+      ]
+    },
+    {
+      "title": "Roads and mountain routes",
+      "sections": [
+        {
+          "id": "bridges",
+          "title": "River and coastal bridges",
+          "count": 25
+        },
+        {
+          "id": "tunnel-facades",
+          "title": "Road tunnel portals",
+          "count": 25
+        },
+        {
+          "id": "roadside-models",
+          "title": "Roadside models",
+          "count": 30
+        },
+        {
+          "id": "cableways",
+          "title": "Mountain cableways",
+          "count": 25
+        },
+        {
+          "id": "summit-landmarks",
+          "title": "Summit landmarks",
+          "count": 25
+        },
+        {
+          "id": "summit-trail-rests",
+          "title": "Summit trail fixtures",
+          "count": 25
+        }
+      ]
+    },
+    {
+      "title": "Railways",
+      "sections": [
+        {
+          "id": "rail-earthworks",
+          "title": "Rail cuts and embankments",
+          "count": 25
+        },
+        {
+          "id": "rail-stations",
+          "title": "Railway fixtures",
+          "count": 25
+        },
+        {
+          "id": "locomotives",
+          "title": "Locomotives",
+          "count": 6
+        },
+        {
+          "id": "wagons",
+          "title": "Freight wagons",
+          "count": 250
+        }
+      ]
+    },
+    {
+      "title": "Airfields",
+      "sections": [
+        {
+          "id": "runway-markings",
+          "title": "Runway markings",
+          "count": 25
+        },
+        {
+          "id": "airfield-aprons",
+          "title": "Airfield aprons",
+          "count": 25
+        },
+        {
+          "id": "airfield-buildings",
+          "title": "Airfield buildings",
+          "count": 25
+        }
+      ]
+    },
+    {
+      "title": "Ports and vessels",
+      "sections": [
+        {
+          "id": "lighthouses",
+          "title": "Lighthouses",
+          "count": 25
+        },
+        {
+          "id": "waterfront-landmarks",
+          "title": "Waterfront landmarks",
+          "count": 4
+        },
+        {
+          "id": "quay-workshops",
+          "title": "Quayside workshops",
+          "count": 25
+        },
+        {
+          "id": "harbor-models",
+          "title": "Harbor models",
+          "count": 30
+        },
+        {
+          "id": "vessels",
+          "title": "Vessels",
+          "count": 250
+        },
+        {
+          "id": "service-vessels",
+          "title": "Service vessels",
+          "count": 25
+        }
+      ]
+    }
+  ]
+}
