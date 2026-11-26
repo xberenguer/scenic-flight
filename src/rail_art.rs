@@ -174,7 +174,7 @@ fn fixture_reach_squared((width, height): (usize, usize)) -> Option<f32> {
     if width == 0 || height == 0 || width > 512 || height > 512 {
         return None;
     }
-    let reach = width.min(height) as f32 * 0.78;
+    let reach = width.min(height) as f32 * 1.12;
     Some(reach * reach)
 }
 

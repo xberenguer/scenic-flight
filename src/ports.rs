@@ -7,6 +7,9 @@ use crate::ground_details::ParcelSurvey;
 use crate::math::{fraction, mix, sin_cos};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
+mod forms;
+use forms::HarborForm;
+
 const LAND_LIMIT: usize = 14;
 const VESSEL_LIMIT: usize = 3;
 const ACCESS_HALF_WIDTH: f32 = 2.1;
@@ -19,6 +22,16 @@ pub enum PortKind {
     Marina,
     Ferry,
     Freight,
+}
+
+impl PortKind {
+    fn equipment_surface(self) -> PortSurface {
+        match self {
+            Self::Marina => PortSurface::Equipment(CargoColor::Ochre),
+            Self::Ferry => PortSurface::Equipment(CargoColor::Blue),
+            Self::Freight => PortSurface::Equipment(CargoColor::Rust),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,6 +50,7 @@ pub enum PortSurface {
     Terminal,
     Warehouse,
     Crane,
+    Equipment(CargoColor),
     Cargo(CargoColor),
     BoatHull,
     BoatDeck,
@@ -97,6 +111,18 @@ impl Rect {
     fn contains(self, x: f32, z: f32) -> bool {
         x >= self.left && x <= self.right && z >= self.rear && z <= self.front
     }
+
+    fn coordinates(self, x: f32, z: f32) -> [f32; 2] {
+        [
+            (x - self.left) * (2.0 / (self.right - self.left)) - 1.0,
+            (z - self.rear) * (2.0 / (self.front - self.rear)) - 1.0,
+        ]
+    }
+
+    fn overlaps(self, other: Self, clearance: f32) -> bool {
+        self.left < other.right + clearance && self.right + clearance > other.left
+            && self.rear < other.front + clearance && self.front + clearance > other.rear
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -126,6 +152,13 @@ impl LandPiece {
             elevation: SEA_LEVEL,
         },
     };
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct YardDetail {
+    form: HarborForm,
+    rect: Rect,
+    footing: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -208,6 +241,8 @@ pub struct Port {
     pier: Option<Pier>,
     buildings: [LandPiece; LAND_LIMIT],
     buildings_count: usize,
+    terminal_form: HarborForm,
+    yard_detail: Option<YardDetail>,
     vessels: [MooredVessel; VESSEL_LIMIT],
     vessel_count: usize,
 }
@@ -260,6 +295,7 @@ impl Port {
                         continue;
                     };
                     if plan.land_use_clear(world, seed, pulse) {
+                        plan.yard_detail = plan.fit_yard_detail(world, key);
                         if let Some(pier) = plan.fit_pier(world) {
                             plan.pier = Some(pier);
                             plan.bounds = plan.calculate_bounds();
@@ -337,11 +373,28 @@ impl Port {
         {
             return None;
         }
-        if let Some(piece) = self.buildings[..self.buildings_count]
-            .iter()
-            .find(|piece| piece.rect.contains(along, out))
+        if let Some((index, piece)) = self.buildings[..self.buildings_count]
+            .iter().enumerate()
+            .find(|(_, piece)| piece.rect.contains(along, out))
         {
+            if index == 0 {
+                let shape = self.terminal_form.roof(piece.rect.coordinates(along, out));
+                let rise = self.terminal_form.height();
+                return Some(PortSample {
+                    surface: piece.sample.surface,
+                    elevation: ground.elevation.max(piece.sample.elevation - rise + rise * shape),
+                });
+            }
             return Some(piece.sample);
+        }
+        if let Some(detail) = self.yard_detail.filter(|site| site.rect.contains(along, out)) {
+            let shape = detail.form.roof(detail.rect.coordinates(along, out));
+            if shape > 0.0 {
+                return Some(PortSample {
+                    surface: self.kind.equipment_surface(),
+                    elevation: ground.elevation.max(detail.footing + detail.form.height() * shape),
+                });
+            }
         }
         let surface = if self.landing.contains(along, out)
             || (self.apron.contains(along, out) && out >= self.apron.front - 3.0)
@@ -400,6 +453,8 @@ impl Port {
             bounds: [0.0; 4],
             buildings: [LandPiece::EMPTY; LAND_LIMIT],
             buildings_count: 0,
+            terminal_form: HarborForm::building(kind, key),
+            yard_detail: None,
             vessels: [MooredVessel::EMPTY; VESSEL_LIMIT],
             vessel_count: 0,
         };
@@ -408,6 +463,33 @@ impl Port {
         }
         port.bounds = port.calculate_bounds();
         Some(port)
+    }
+
+    fn fit_yard_detail(&self, world: &World, key: u64) -> Option<YardDetail> {
+        let form = HarborForm::equipment(self.kind, key);
+        let (along, width, depth) = match self.kind {
+            PortKind::Marina => (6.2, 5.8, 3.0),
+            PortKind::Ferry => (8.6, 7.1, 4.3),
+            PortKind::Freight => (19.1, 7.6, 4.5),
+        };
+        let preferred = if key >> 30 & 1 == 0 { 1.0 } else { -1.0 };
+        for side in [preferred, -preferred] {
+            let rect = Rect::around(side * along, self.apron.rear + depth * 0.5 + 0.65, width, depth);
+            if !self.apron.contains(rect.left, rect.rear)
+                || !self.apron.contains(rect.right, rect.front)
+                || (rect.left < ACCESS_HALF_WIDTH + 0.60 && rect.right > -ACCESS_HALF_WIDTH - 0.60)
+                || self.buildings[..self.buildings_count].iter().any(|piece| rect.overlaps(piece.rect, 0.68))
+            {
+                continue;
+            }
+            let Some((low, high)) = ground_range(world, self.shore, rect) else {
+                continue;
+            };
+            if low > SEA_LEVEL + 0.31 && high - low <= 0.86 {
+                return Some(YardDetail { form, rect, footing: high });
+            }
+        }
+        None
     }
 
     fn fit_pier(&self, world: &World) -> Option<Pier> {
@@ -491,25 +573,27 @@ impl Port {
     }
 
     fn build_yard(&mut self, world: &World, key: u64) -> bool {
+        self.terminal_form = HarborForm::building(self.kind, key);
+        let rise = self.terminal_form.height();
         let frontage = self.apron.front;
         match self.kind {
             PortKind::Marina => self.add_piece(
                 world,
                 Rect::around(-4.8, frontage - 5.1, 5.5, 3.5),
-                2.2,
+                rise,
                 PortSurface::Terminal,
             ),
             PortKind::Ferry => self.add_piece(
                 world,
                 Rect::around(-7.6, frontage - 7.4, 11.0, 5.5),
-                3.6,
+                rise,
                 PortSurface::Terminal,
             ),
             PortKind::Freight => {
                 if !self.add_piece(
                     world,
                     Rect::around(0.0, self.apron.rear + 4.0, 23.0, 6.5),
-                    4.8,
+                    rise,
                     PortSurface::Warehouse,
                 ) {
                     return false;
@@ -986,6 +1070,58 @@ mod tests {
                 assert_ne!(first.buildings.map(|piece| piece.rect), second.buildings.map(|piece| piece.rect));
             }
         }
+    }
+
+    #[test]
+    fn thirty_harbor_forms_fit_surveyed_aprons_and_have_distinct_geometry() {
+        let mut forms = std::collections::HashSet::new();
+        let mut signatures = std::collections::HashSet::new();
+        for (seed, _, [x,z], kind) in FIXTURES {
+            let world = World::new(seed);
+            let original = Port::generate(&world, seed, x, z).unwrap();
+            for variant in 0..5_u64 {
+                let key = (variant << 42) | (variant << 23);
+                let mut port = original;
+                port.buildings.fill(LandPiece::EMPTY);
+                port.buildings_count = 0;
+                assert!(port.build_yard(&world, key));
+                let detail = port.fit_yard_detail(&world, key).expect("working fixture has a clear equipment pad");
+                port.yard_detail = Some(detail);
+                assert!(!detail.rect.overlaps(Rect::around(0.0, port.apron.rear + 2.0, 5.4, 4.0), 0.0));
+                assert!(port.buildings[..port.buildings_count].iter().all(|piece| !piece.rect.overlaps(detail.rect, 0.55)));
+                assert_eq!(port.terminal_form, HarborForm::building(kind, key));
+                assert_eq!(detail.form, HarborForm::equipment(kind, key));
+
+                for (form, rect, material) in [
+                    (port.terminal_form, port.buildings[0].rect, port.buildings[0].sample.surface),
+                    (detail.form, detail.rect, kind.equipment_surface()),
+                ] {
+                    assert!(forms.insert(form));
+                    let mut height_map = [0_u8; 19*19];
+                    let mut covered = 0;
+                    for (i, height) in height_map.iter_mut().enumerate() {
+                        let u = ((i % 19) as f32 + 0.5) / 19.0;
+                        let v = ((i / 19) as f32 + 0.5) / 19.0;
+                        let along = rect.left + (rect.right - rect.left) * u;
+                        let out = rect.rear + (rect.front - rect.rear) * v;
+                        let [x,z] = port.shore.world(along,out);
+                        let raw = world.sample(x,z);
+                        let sample = port.sample(x,z,raw).expect("apron has a visible surface");
+                        let fraction = form.roof([u*2.0-1.0,v*2.0-1.0]);
+                        assert!((0.0..=1.0001).contains(&fraction), "{form:?} elevation");
+                        *height = (fraction * 50.0).round() as u8;
+                        if fraction > 0.0 {
+                            assert_eq!(sample.surface, material, "{form:?}");
+                            assert!(sample.elevation > raw.elevation);
+                            covered += 1;
+                        }
+                    }
+                    assert!(covered > 35, "{form:?} is too small");
+                    assert!(signatures.insert(height_map), "duplicate harbor form {form:?}");
+                }
+            }
+        }
+        assert_eq!(forms.len(), 30);
     }
 
     #[test]

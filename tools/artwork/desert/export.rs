@@ -24,7 +24,11 @@ mod artwork {
 
     fn render_variant(kind: PropKind, variant: u8) -> [u16; SIDE * SIDE] {
         // The fixed view and scale retain the proportions of all three kinds.
-        let camera = Camera { x: 3.1, z: -4.3, altitude: 3.35, heading: -0.624, pitch: 0.36, bank: 0.0 };
+        let camera = if matches!(kind, PropKind::Habitat(Feature::Farm(_))) {
+            Camera { x: 3.7, z: -5.13, altitude: 3.80, heading: -0.624, pitch: 0.36, bank: 0.0 }
+        } else {
+            Camera { x: 3.1, z: -4.3, altitude: 3.35, heading: -0.624, pitch: 0.36, bank: 0.0 }
+        };
         let daylight = crate::sky::Sky::from_time(41, 0, 0.5);
         let prop = Prop { origin: [0.0; 3], size: 1.0, kind, variant, opacity: 1.0 };
         let mut scene = DesertProps { props: [None; 72], region: None };
@@ -44,6 +48,63 @@ mod artwork {
             (((pixel >> 5) & 63) * 255 / 63) as u8,
             ((pixel & 31) * 255 / 31) as u8,
         ]
+    }
+
+    pub fn shore(out: &Path) -> std::io::Result<()> {
+        use habitats::shore::ShoreFeature::*;
+        let forms = [
+            ShellBank, PumiceRaft, KelpStipes, TangledRoots, OysterRidge,
+            IcePlant, DuneSedge, SandVerbena, BeachPea, SaltPrunedPine,
+            PebbleTerrace, BoulderTripod, BasaltFingers, SplitSlab, ErodedSandstone,
+            HauledSkiff, LobsterPots, NetRack, FishCrates, OarTrestle,
+            RescueStand, DuneGate, ShadeSail, BeachSteps, TrailKiosk,
+        ];
+        model_atlas(out, "shore", forms.map(Feature::Shore))
+    }
+
+    pub fn farm(out: &Path) -> std::io::Result<()> {
+        use habitats::farm::FarmFeature::*;
+        let forms = [
+            RoundBales, StrawStack, CoveredWagon, GrainAuger, Combine,
+            GambrelBarn, PoleShed, MilkParlor, Glasshouse, RootCellar,
+            TankStand, PumpCabin, HoseReel, StoneTrough, SluiceHouse,
+            OrchardBins, VineTrellis, PickingLadder, PickingPlatform, ColdStore,
+            ProduceStall, Weighbridge, FeedDepot, Windpump, FieldGate,
+        ];
+        model_atlas(out, "farm", forms.map(Feature::Farm))
+    }
+
+    fn model_atlas(out: &Path, name: &str, forms: [Feature; 25]) -> std::io::Result<()> {
+        const COLUMNS: usize = 5;
+        let (tile, left, top) = if name == "farm" { (64, 16, 20) } else { (SIDE, 0, 0) };
+        let width = COLUMNS * tile;
+        for angle in 0..16 {
+            let mut atlas = vec![0; width * width * 3];
+            for (index, form) in forms.into_iter().enumerate() {
+                let pixels = render_variant(PropKind::Habitat(form), angle);
+                let offset_x = index % COLUMNS * tile;
+                let offset_y = index / COLUMNS * tile;
+                assert!(pixels.iter().any(|&pixel| pixel != 0), "{form:?} is empty");
+                for (index, pixel) in pixels.into_iter().enumerate() {
+                    let (x, y) = (index % SIDE, index / SIDE);
+                    let inside = (left..left + tile).contains(&x) && (top..top + tile).contains(&y);
+                    if pixel != 0 {
+                        assert!((left + 3..left + tile - 3).contains(&x)
+                            && (top + 3..top + tile - 3).contains(&y),
+                            "{form:?} outside its tile at angle {angle}");
+                    }
+                    if inside {
+                        let destination = ((offset_y + y - top) * width + offset_x + x - left) * 3;
+                        atlas[destination..destination + 3].copy_from_slice(&rgb(pixel));
+                    }
+                }
+            }
+            let mut image = BufWriter::new(File::create(out.join(format!("{name}-{angle:02}.ppm")))?);
+            write!(image, "P6\n{width} {width}\n255\n")?;
+            image.write_all(&atlas)?;
+            image.flush()?;
+        }
+        Ok(())
     }
 
     pub fn write(out: &Path) -> std::io::Result<()> {
@@ -94,6 +155,18 @@ mod artwork {
 }
 
 fn main() -> std::io::Result<()> {
-    let output = std::env::args_os().nth(1).expect("Provide the scratch output directory");
-    artwork::write(std::path::Path::new(&output))
+    let mut arguments = std::env::args_os().skip(1);
+    let output = arguments.next().expect("Provide the scratch output directory");
+    let output = std::path::Path::new(&output);
+    let mode = arguments.next();
+    match mode.as_deref().and_then(std::ffi::OsStr::to_str) {
+        Some("--shore-only") => artwork::shore(output),
+        Some("--farm-only") => artwork::farm(output),
+        None => {
+            artwork::write(output)?;
+            artwork::shore(output)?;
+            artwork::farm(output)
+        }
+        _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unknown artwork mode")),
+    }
 }

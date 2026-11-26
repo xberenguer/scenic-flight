@@ -9,8 +9,16 @@ out=$(CDPATH='' cd -- "$out" && pwd)
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/scenic-desert-art.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT HUP INT TERM
 
-# Include the production mesh file verbatim apart from its module-level doc line.
-sed '1{/^\/\/!/d;}' "$game/src/desert_props.rs" > "$scratch/desert_props.rs"
+# Include production meshes with paths and visibility adapted for this standalone exporter.
+sed -e '1{/^\/\/!/d;}' -e 's/^mod habitats;$/#[path = "habitats.rs"]\
+mod habitats;/' "$game/src/desert_props.rs" > "$scratch/desert_props.rs"
+sed -e 's/^mod shore;$/#[path = "shore.rs"]\
+pub(super) mod shore;/' \
+    -e 's/^mod farm;$/#[path = "farm.rs"]\
+pub(super) mod farm;/' "$game/src/desert_props/habitats.rs" > "$scratch/habitats.rs"
+sed 's/pub(in crate::desert_props) enum ShoreFeature/pub(crate) enum ShoreFeature/' \
+    "$game/src/desert_props/habitats/shore.rs" > "$scratch/shore.rs"
+cp "$game/src/desert_props/habitats/farm.rs" "$scratch/farm.rs"
 sed -n '/^pub(crate) fn floor_i32(/,/^}/p' "$game/src/render.rs" > "$scratch/floor.rs"
 
 cargo build --manifest-path "$game/Cargo.toml" --locked --release --lib \
@@ -23,7 +31,29 @@ rustc --edition=2021 -O "$here/export.rs" \
     -L "dependency=$game/target/release/deps" \
     -o "$scratch/export"
 
+render_atlas() {
+    ffmpeg -hide_banner -loglevel error -y -i "$scratch/$1-00.ppm" -frames:v 1 "$out/$2.png"
+    ffmpeg -hide_banner -loglevel error -y -framerate 6 -i "$scratch/$1-%02d.ppm" \
+        -filter_complex_threads 1 \
+        -filter_complex 'split[a][b];[a]palettegen=max_colors=112[p];[b][p]paletteuse=dither=bayer' \
+        -loop 0 "$out/$2.gif"
+}
+
+case "${1:-}" in
+    --shore-only)
+        "$scratch/export" "$scratch" --shore-only
+        render_atlas shore coastal-details
+        exit
+        ;;
+    --farm-only)
+        "$scratch/export" "$scratch" --farm-only
+        render_atlas farm farm-details
+        exit
+        ;;
+esac
 "$scratch/export" "$scratch" > "$scratch/render-verification.txt"
+render_atlas shore coastal-details
+render_atlas farm farm-details
 for name in desert-rocks desert-bushes desert-cacti wetland-plants; do
     ffmpeg -hide_banner -loglevel error -y -i "$scratch/$name.ppm" -frames:v 1 "$scratch/$name.png"
     ffmpeg -hide_banner -loglevel error -y -i "$scratch/$name.png" -frames:v 1 "$scratch/$name.decoded.ppm"

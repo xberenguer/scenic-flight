@@ -1,5 +1,7 @@
 //! Small permanent objects inside the already surveyed station boundary.
 
+mod platform;
+use platform::Fixture;
 use crate::math::smoothstep;
 use crate::rail::{GrainTerminal, RailAnchorKind, RailMaterial, RailService};
 use crate::render::{Camera, ScreenProjection, ScreenRect};
@@ -283,7 +285,7 @@ impl StationFixtures {
         let [x, y, z] = self.mounts[i];
         let dx = self.along[0].abs() * wide + self.outside[0].abs() * deep;
         let dz = self.along[1].abs() * wide + self.outside[1].abs() * deep;
-        let height = match (self.layout, i) {
+        let legacy_height: f32 = match (self.layout, i) {
             (StationLayout::FreightApron { .. }, 0) => 3.89,
             (StationLayout::FreightApron { .. }, _) => 1.49,
             (StationLayout::FreightShed, _) => 1.81,
@@ -291,6 +293,7 @@ impl StationFixtures {
             (_, 0) => 2.72,
             _ => 1.20,
         };
+        let height = legacy_height.max(2.86);
         [[x - dx, y - 1.35, z - dz], [x + dx, y + height, z + dz]]
     }
 
@@ -335,6 +338,17 @@ impl StationFixtures {
         cargo: FreightRoute,
     ) {
         for (i, opacity, _) in self.visible(camera, projection, range_squared) {
+            let [x, _, z] = self.mounts[i];
+            let hash = crate::math::mix((u64::from(x.to_bits()) << 32) ^ u64::from(z.to_bits())
+                ^ 0x2ab7_448c_5d0e_3ef1);
+            if let Some(model) = Fixture::select(self.layout, i, cargo, hash) {
+                let [wide, deep] = self.footprint(i);
+                model.paint(|triangle, color| {
+                    let world = triangle.map(|[u, y, v]| self.place(i, [u * wide, y, v * deep]));
+                    mesh.faded_triangle(world, color, opacity);
+                });
+                continue;
+            }
             let mut art = Builder {
                 mesh,
                 opacity,
@@ -500,6 +514,51 @@ mod tests {
     use crate::settlement::Terminus;
     use crate::sky::Sky;
     use crate::world::World;
+
+    #[test]
+    fn station_catalog_draws_twenty_five_distinct_survey_safe_models() {
+        use std::collections::HashSet;
+        use crate::rail_station_art::platform::Fixture;
+
+        let mut models = HashSet::new();
+        for layout in [StationLayout::RuralHalt, StationLayout::TownStop, StationLayout::RegionalStation,
+            StationLayout::FreightShed, StationLayout::FreightApron { regional: false },
+            StationLayout::FreightApron { regional: true }]
+        {
+            for slot in 0..2 {
+                for roll in 0..15 {
+                    if let Some(model) = Fixture::select(layout, slot, FreightRoute::Mixed, (roll << 17) | 1) {
+                        models.insert(model);
+                    }
+                }
+            }
+        }
+        assert_eq!(models.len(), 25);
+        assert_eq!(Fixture::select(StationLayout::FreightShed, 0, FreightRoute::Liquid, 1),
+            Some(Fixture::HoseManifold));
+        assert_eq!(Fixture::select(StationLayout::FreightShed, 1, FreightRoute::Forest, 1),
+            Some(Fixture::TimberBunks));
+
+        const SIDE: usize = 60;
+        let camera = Camera { x: -4.1, z: -6.9, altitude: 3.7, heading: 0.536, pitch: 0.34, bank: 0.0 };
+        let sky = Sky::from_time(41, 0, 0.48);
+        let mut silhouettes = HashSet::new();
+        for model in models {
+            let mut pixels = [0; SIDE * SIDE];
+            let mut depth = [u16::MAX; SIDE * SIDE];
+            let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), camera, &sky).unwrap();
+            model.paint(|triangle, _| {
+                for [x,y,z] in triangle {
+                    assert!(x.abs() <= 1.001 && z.abs() <= 1.001, "{model:?} reaches {x}, {z}");
+                    assert!((-1.35..=2.86).contains(&y), "{model:?} reaches {y}");
+                }
+                mesh.triangle(triangle.map(|[u,y,v]| [u*1.5,y,v*0.4]), [255; 3]);
+            });
+            let silhouette = pixels.map(|pixel| pixel != 0);
+            assert!(silhouette.contains(&true), "{model:?}");
+            assert!(silhouettes.insert(silhouette), "Duplicate silhouette for {model:?}");
+        }
+    }
 
     #[test]
     fn grain_elevator_geometry_stays_in_the_pad_or_clear_loading_corridor() {

@@ -69,7 +69,72 @@ const buildingRows = [
 const buildingTiles = buildingRows.flatMap((row, y) => row.map((name, x) => ({ name, x, y })));
 const buildingFamilies = ['Detached homes', 'Duplexes', 'Townhouses', 'Industry', 'Main street'];
 
+const coastalNames = [
+  'Shell bank', 'Pumice raft', 'Kelp stipes', 'Tangled roots', 'Oyster ridge',
+  'Ice plant', 'Dune sedge', 'Sand verbena', 'Beach pea', 'Salt-pruned pine',
+  'Pebble terrace', 'Boulder tripod', 'Basalt fingers', 'Split slab', 'Eroded sandstone',
+  'Hauled skiff', 'Lobster pots', 'Net rack', 'Fish crates', 'Oar trestle',
+  'Rescue stand', 'Dune gate', 'Shade sail', 'Beach steps', 'Trail kiosk',
+];
+const coastalGroups = ['Strand debris', 'Dune plants', 'Rock formations', 'Working beaches', 'Beach access'];
+
+const farmNames = [
+  'Round bales', 'Straw stack', 'Covered wagon', 'Grain auger', 'Combine',
+  'Gambrel barn', 'Pole shed', 'Milk parlor', 'Glasshouse', 'Root cellar',
+  'Tank stand', 'Pump cabin', 'Hose reel', 'Stone trough', 'Sluice house',
+  'Orchard bins', 'Vine trellis', 'Picking ladder', 'Picking platform', 'Cold store',
+  'Produce stall', 'Weighbridge', 'Feed depot', 'Windpump', 'Field gate',
+];
+const farmGroups = ['Harvest', 'Farm buildings', 'Water and irrigation', 'Orchards', 'Farm access'];
+
+const railwayNames = [
+  'Station clock', 'Timetable case', 'Platform marker', 'Lamp pair', 'Dispatch hut',
+  'Luggage shelter', 'Parcel trolley', 'Ticket kiosk', 'Waiting screen', 'Newsstand',
+  'Semaphore', 'Signal cabinet', 'Tool locker', 'Sand box', 'Track-gauge rack',
+  'Jib crane', 'Loading hoist', 'Weigh desk', 'Sack hopper', 'Hose manifold',
+  'Timber bunks', 'Coil cradles', 'Milk churns', 'Drum pallet', 'Stacked crates',
+];
+const railwayFamilies = ['Platform equipment', 'Passenger services', 'Maintenance', 'Freight loading', 'Freight storage'];
+
+const harborNames = [
+  'Sail loft', 'Yacht club', 'Boatworks', 'Marina office', 'Chandlery',
+  'Glazed concourse', 'Customs hall', 'Transfer station', 'Ticket wings', 'Ferry gallery',
+  'Sawtooth warehouse', 'Refrigerated hall', 'Bonded depot', 'Transfer hangar', 'Mill supply depot',
+  'Dinghy rack', 'Boat lift', 'Fuel island', 'Mast cradle', 'Floating-dock staging',
+  'Ramp winch', 'Baggage-cart shed', 'Shuttle canopy', 'Ferry information pylon', 'Service stairs',
+  'Weigh station', 'Pipe racks', 'Transload hopper', 'Pump compound', 'Forklift shelter',
+];
+const harborFamilies = [
+  'Marina buildings', 'Ferry terminals', 'Freight warehouses',
+  'Marina equipment', 'Ferry equipment', 'Freight equipment',
+];
+
+const roadsideNames = [
+  'Viewfinders', 'Relief map', 'Viewing deck', 'Stone monument', 'Lookout steps',
+  'Panorama canopy', 'Sundial', 'Wind screen', 'Cairn pair', 'Orientation wheel',
+  'Trail map', 'Gear rack', 'Cycle shelter', 'Boot bench', 'Trail arch',
+  'Emergency call box', 'Bottle fountain', 'Picnic lean-to', 'Trail register', 'Fire cache',
+  'Fuel canopy', 'Pump house', 'Roadside carport', 'Charging bank', 'Route kiosk',
+  'Produce market', 'Picnic pavilion', 'Vending shelter', 'Bus shelter', 'Road gate',
+];
+const roadsideFamilies = ['Scenic overlooks', 'Trailheads', 'Rest stops'];
+
 const categories = [
+  { title: 'Roadside models', label: 'Roadside model', atlas: 'roadside-models.png', columns: 5, rows: 6,
+    name: index => roadsideNames[index], family: index => roadsideFamilies[Math.floor(index / 10)],
+    animation: 'roadside-models.gif' },
+  { title: 'Harbor models', label: 'Harbor model', atlas: 'harbor-models.png', columns: 5, rows: 6,
+    name: index => harborNames[index], family: index => harborFamilies[Math.floor(index / 5)],
+    animation: 'harbor-models.gif' },
+  { title: 'Railway fixtures', label: 'Railway fixture', atlas: 'rail-stations.png', columns: 5, rows: 5,
+    name: index => railwayNames[index], family: index => railwayFamilies[Math.floor(index / 5)],
+    animation: 'rail-stations.gif' },
+  { title: 'Farm details', label: 'Farm detail', atlas: 'farm-details.png', columns: 5, rows: 5,
+    name: index => farmNames[index], family: index => farmGroups[Math.floor(index / 5)],
+    animation: 'farm-details.gif' },
+  { title: 'Coastal details', label: 'Coastal detail', atlas: 'coastal-details.png', columns: 5, rows: 5,
+    name: index => coastalNames[index], family: index => coastalGroups[Math.floor(index / 5)],
+    animation: 'coastal-details.gif' },
   { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 5, rows: 5,
     name: index => skylineNames[index], animation: 'skyline-landmarks.gif' },
   { title: 'Neighborhood buildings', label: 'Neighborhood building', atlas: 'neighborhood-buildings.png',

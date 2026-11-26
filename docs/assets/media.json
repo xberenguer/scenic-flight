@@ -237,22 +237,22 @@
     "id": "marina-piers",
     "title": "Marina and sailboats",
     "category": "Built World",
-    "aircraft": "Bush Plane",
+    "aircraft": "",
     "biome": "Coast & Ocean",
-    "format": "Still",
+    "format": "Video",
     "poster": "assets/current/marina-piers.png",
-    "src": "assets/current/marina-piers.png",
+    "src": "assets/current/marina-piers.mp4",
     "note": "Small moorings at the end of a coastal road."
   },
   {
     "id": "ferry-terminal",
     "title": "Ferry terminal",
     "category": "Built World",
-    "aircraft": "Bush Plane",
+    "aircraft": "",
     "biome": "Coast & Ocean",
-    "format": "Still",
+    "format": "Video",
     "poster": "assets/current/ferry-terminal.png",
-    "src": "assets/current/ferry-terminal.png",
+    "src": "assets/current/ferry-terminal.mp4",
     "note": "A ferry berth, apron, and terminal on the shore."
   },
   {
@@ -373,11 +373,11 @@
     "id": "freight-harbor",
     "title": "Freight harbor",
     "category": "Built World",
-    "aircraft": "Bush Plane",
+    "aircraft": "",
     "biome": "Coast & Ocean",
-    "format": "Still",
+    "format": "Video",
     "poster": "assets/current/freight-harbor.png",
-    "src": "assets/current/freight-harbor.png",
+    "src": "assets/current/freight-harbor.mp4",
     "note": "Container lanes, a crane, and moored freight vessels."
   },
   {
@@ -606,5 +606,75 @@
     "format": "Screenshot",
     "poster": "assets/current/coastal-boardwalk.png",
     "src": "assets/current/coastal-boardwalk.png"
+  },
+  {
+    "id": "coastal-details-flight",
+    "title": "Bald eagle along the sandy coast",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Coast & Ocean",
+    "format": "Video",
+    "poster": "assets/current/coastal-details-flight.png",
+    "src": "assets/current/coastal-details-flight.mp4"
+  },
+  {
+    "id": "farm-details-flyover",
+    "title": "Harvest equipment beside the fields",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "Farmland",
+    "format": "Video",
+    "poster": "assets/current/farm-details-flyover.png",
+    "src": "assets/current/farm-details-flyover.mp4"
+  },
+  {
+    "id": "station-platform-preview",
+    "title": "Passenger station platform",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/station-platform-preview.png",
+    "src": "assets/current/station-platform-preview.mp4"
+  },
+  {
+    "id": "freight-apron-preview",
+    "title": "Freight siding and loading apron",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/freight-apron-preview.png",
+    "src": "assets/current/freight-apron-preview.mp4"
+  },
+  {
+    "id": "road-overlook",
+    "title": "Mountain road overlook",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "Alpine",
+    "format": "Video",
+    "poster": "assets/current/road-overlook.png",
+    "src": "assets/current/road-overlook.mp4"
+  },
+  {
+    "id": "woodland-trailhead",
+    "title": "Woodland trailhead",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "Forest",
+    "format": "Video",
+    "poster": "assets/current/woodland-trailhead.png",
+    "src": "assets/current/woodland-trailhead.mp4"
+  },
+  {
+    "id": "road-rest-stop",
+    "title": "Roadside rest stop",
+    "category": "Built World",
+    "aircraft": "",
+    "biome": "Foothills",
+    "format": "Video",
+    "poster": "assets/current/road-rest-stop.png",
+    "src": "assets/current/road-rest-stop.mp4"
   }
 ]

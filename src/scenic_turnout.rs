@@ -5,6 +5,9 @@ use crate::math::{fraction, mix, smoothstep};
 use crate::roads::{RoadNetwork, ROAD_HALF_WIDTH, ROAD_REGION_SIZE};
 use crate::world::{Sample, Surface, World};
 
+mod fixtures;
+use fixtures::RoadsideFixture;
+
 const INNER: f32 = ROAD_HALF_WIDTH - 0.22;
 const WALL_HALF: f32 = 0.84;
 
@@ -264,11 +267,34 @@ impl ScenicTurnout {
         None
     }
 
+    fn fixture_pad(&self) -> Option<[f32; 4]> {
+        let overlook = self.kind == TurnoutKind::Overlook;
+        let side = if overlook || self.variant & 1 != 0 { -1.0 } else { 1.0 };
+        let along = self.half_length * side * if overlook { 0.35 } else { 0.45 };
+        let half_length = (self.half_length * 0.17).clamp(1.64, 2.38);
+        let half_depth = if overlook { 0.82 } else { 1.14 };
+        let max_across = self.outer(along.abs() + half_length) - half_depth - 0.64;
+        let across = (INNER + if overlook { 4.18 } else { 5.62 }).min(max_across);
+        (across - half_depth >= INNER + 3.0).then_some([along, across, half_length, half_depth])
+    }
+
     fn amenity(&self, along: f32, across: f32, edge: f32, deck: f32) -> Option<Sample> {
         // Leave the through lane and both tapers clear. All furnishings stay
         // inside the strip whose foundations the turnout survey approved.
         if edge > -0.4 || across < INNER + 3.0 {
             return None;
+        }
+        let fixture = self.fixture_pad();
+        if let Some([center_u, center_v, reach, depth]) = fixture {
+            let u = along - center_u;
+            let v = across - center_v;
+            if u.abs() <= reach && v.abs() <= depth {
+                if let Some((height, surface)) = RoadsideFixture::select(self.kind, self.variant)
+                    .profile([u / reach, v / depth])
+                {
+                    return Some(Sample { elevation: deck + height, surface });
+                }
+            }
         }
         let width_style = f32::from(self.variant % 5);
         let roof_style = f32::from(self.variant / 5 % 5);
@@ -289,7 +315,7 @@ impl ScenicTurnout {
             _ => stop_roof(self.kind, self.variant, u, v)
                 .and_then(|(height, surface)| strip(height, surface))
                 .or_else(|| {
-                    ((along + direction * self.half_length * 0.43).abs() < 0.8 && v.abs() < 0.46)
+                    (fixture.is_none() && (along + direction * self.half_length * 0.43).abs() < 0.8 && v.abs() < 0.46)
                         .then(|| Sample { elevation: deck + 1.35 + roof_style * 0.06, surface: Surface::Boardwalk })
                 }),
         }
@@ -383,6 +409,59 @@ mod tests {
             assert!(property.elevation > h);
             assert!(world.elevation(pos[0], pos[1]) > 6.0);
         }
+    }
+
+    #[test]
+    fn thirty_fixture_designs_fit_real_turnout_shoulders() {
+        use std::collections::HashSet;
+
+        let seed = 4;
+        let world = World::new(seed);
+        let mut forms = HashSet::new();
+        let mut masks = HashSet::new();
+        for (region, kind) in [
+            ([4, -4], TurnoutKind::Overlook),
+            ([1, -2], TurnoutKind::Trailhead),
+            ([-3, -4], TurnoutKind::RestStop),
+        ] {
+            let road = RoadNetwork::generate(&world, region[0], region[1]).unwrap();
+            let mut site = ScenicTurnout::survey(&world, seed, region, &road, |_, _| false, || {}).unwrap();
+            assert_eq!(site.kind, kind);
+            for variant in 0..10 {
+                site.variant = variant * 25;
+                let form = RoadsideFixture::select(kind, site.variant);
+                assert!(forms.insert(form));
+                let [along, across, reach, depth] = site.fixture_pad().expect("approved fixture strip");
+                let mut silhouette = [0_u8; 19 * 19];
+                let mut occupied = 0;
+                for (i, cell) in silhouette.iter_mut().enumerate() {
+                    let u = ((i % 19) as f32 + 0.5) * (2.0 / 19.0) - 1.0;
+                    let v = ((i / 19) as f32 + 0.5) * (2.0 / 19.0) - 1.0;
+                    let [x,z] = site.place(along + u * reach, across + v * depth);
+                    // Sample the profile at the actual world-coordinate point.
+                    // A rounded point on a stair riser can fall on either step.
+                    let [dx,dz] = [x - site.center[0],z - site.center[2]];
+                    let [ax,az] = site.axis;
+                    let sample_along = dx * ax + dz * az;
+                    let sample_across = site.side * (dz * ax - dx * az);
+                    let Some((height, material)) = form.profile([
+                        (sample_along-along)/reach, (sample_across-across)/depth,
+                    ]) else { continue };
+                    assert!((0.18..=2.75).contains(&height), "{form:?} height {height}");
+                    let raw = world.sample(x,z);
+                    let observed = site.sample(x,z,raw).expect("drawn fixture");
+                    assert_eq!(observed.surface, material, "{form:?}");
+                    assert!((observed.elevation - site.deck(sample_along) - height).abs() < 0.0001, "{form:?}");
+                    assert!(road.proximity(x, z).is_none_or(|hit|
+                        hit.distance_squared >= ROAD_HALF_WIDTH * ROAD_HALF_WIDTH));
+                    *cell = (height * 30.0) as u8;
+                    occupied += 1;
+                }
+                assert!(occupied > 20, "{form:?} has too little projected geometry");
+                assert!(masks.insert(silhouette), "{form:?} duplicates a previous model");
+            }
+        }
+        assert_eq!(forms.len(), 30);
     }
 
     #[test]

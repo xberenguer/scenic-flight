@@ -3,6 +3,11 @@
 
 use crate::world::{Sample, Surface};
 
+mod farm;
+mod shore;
+use farm::FarmFeature;
+use shore::ShoreFeature;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(super) enum Feature {
     Ocotillo, YuccaRosette, JoshuaTree, HoneycombSandstone, VarnishedSlabs,
@@ -11,6 +16,8 @@ pub(super) enum Feature {
     GraniteTor, LichenBoulder, ScreeFan, CushionPlant, MoraineErratic,
     Driftwood, WrackWindrow, SeaThrift, MarramGrass, ShingleBerm,
     BogCotton, SkunkCabbage, TussockSedge, Horsetail, MudHummock,
+    Shore(ShoreFeature),
+    Farm(FarmFeature),
 }
 
 const DRYLAND: [Feature; 5] = [
@@ -43,7 +50,14 @@ impl Feature {
         let plants = match ground.surface {
             Surface::Desert | Surface::DryWash => &DRYLAND,
             Surface::DuneSand if ground.elevation > 10.0 => &DRYLAND,
-            Surface::Sand | Surface::DuneSand if ground.elevation >= 0.42 => &COAST,
+            Surface::Sand | Surface::DuneSand if ground.elevation >= 0.42 => {
+                if key >> 49 & 3 != 0 {
+                    if let Some(form) = ShoreFeature::choose(ground.elevation, key, region) {
+                        return Some(Self::Shore(form));
+                    }
+                }
+                &COAST
+            }
             Surface::Forest => &WOODLAND,
             Surface::Grass if ground.elevation < 55.0 => &MEADOW,
             Surface::Grass | Surface::Rock | Surface::AlpineMeadow | Surface::ScreeEdge
@@ -59,6 +73,14 @@ impl Feature {
         Some(plants[index as usize])
     }
 
+    pub(super) fn beside_crop(crop: Surface, key: u64, district: u64) -> Option<Self> {
+        match crop {
+            Surface::FieldGreen | Surface::FieldGold | Surface::FieldSoil =>
+                Some(Self::Farm(FarmFeature::choose(crop, key, district))),
+            _ => None,
+        }
+    }
+
     pub(super) fn draw(self, variant: u8, emit: impl FnMut([[f32; 3]; 3], [u8; 3])) {
         let yaw = f32::from(variant & 15) * (core::f32::consts::TAU / 16.0);
         let (sin, cos) = crate::math::sin_cos(yaw);
@@ -71,6 +93,8 @@ impl Feature {
         });
         use Feature::*;
         match self {
+            Shore(form) => form.draw(&mut model),
+            Farm(form) => form.draw(&mut model),
             Ocotillo => {
                 for [x, z, y] in [[-0.8, -0.4, 2.9], [-0.4, 0.8, 2.3], [0.3, -0.7, 2.5], [0.9, 0.5, 2.75], [0.1, 0.15, 3.35]] {
                     model.stalk([x * 0.12, 0.0, z * 0.12], [x, y, z], 0.10, [96, 119, 65]);
@@ -270,6 +294,60 @@ fn tint(color: [u8; 3], light: i16) -> [u8; 3] {
 struct Mesh<F>(F);
 
 impl<F: FnMut([[f32; 3]; 3], [u8; 3])> Mesh<F> {
+    fn quad(&mut self, [a, b, c, d]: [[f32; 3]; 4], color: [u8; 3]) {
+        (self.0)([a, b, c], color);
+        (self.0)([a, c, d], color);
+    }
+
+    fn block(&mut self, [x, y, z]: [f32; 3], [w, h, d]: [f32; 3], color: [u8; 3]) {
+        let floor = [[x-w, y, z-d], [x+w, y, z-d], [x+w, y, z+d], [x-w, y, z+d]];
+        let cap = floor.map(|[x, _, z]| [x, y+h, z]);
+        self.quad(cap, tint(color, 13));
+        for edge in 0..4 {
+            let next = (edge + 1) & 3;
+            self.quad([floor[edge], floor[next], cap[next], cap[edge]], tint(color, [0, -10, -22, -14][edge]));
+        }
+    }
+
+    fn drum(&mut self, base: [f32; 3], radius: f32, length: f32, color: [u8; 3], horizontal: bool) {
+        const RING: [[f32; 2]; 8] = [[1.0, 0.0], [0.707, 0.707], [0.0, 1.0], [-0.707, 0.707],
+            [-1.0, 0.0], [-0.707, -0.707], [0.0, -1.0], [0.707, -0.707]];
+        let ring = |end| RING.map(|[u, v]| {
+            let [x, y, z] = base;
+            if horizontal {
+                [x + radius * u, y + radius * (1.0 + v), z + end]
+            } else {
+                [x + radius * u, y + end, z + radius * v]
+            }
+        });
+        let (a, b) = if horizontal {
+            (ring(-length * 0.50), ring(length * 0.50))
+        } else {
+            (ring(0.0), ring(length))
+        };
+        for edge in 0..8 {
+            let next = (edge + 1) & 7;
+            let arc = [-13, 1, 12, 14, 3, -11, -23, -18][edge];
+            self.quad([a[edge], a[next], b[next], b[edge]], tint(color, arc));
+        }
+        for i in 1..7 {
+            (self.0)([b[0], b[i], b[i + 1]], tint(color, 15));
+            if horizontal {
+                (self.0)([a[0], a[i], a[i + 1]], tint(color, 7));
+            }
+        }
+    }
+
+    fn gable(&mut self, [x, y, z]: [f32; 3], [w, h, d]: [f32; 3], color: [u8; 3]) {
+        let [a,b,c,d] = [[x-w,y,z-d], [x+w,y,z-d], [x+w,y,z+d], [x-w,y,z+d]];
+        let near = [x,y+h,a[2]];
+        let far = [x,y+h,c[2]];
+        self.quad([a,d,far,near], tint(color, 11));
+        self.quad([b,c,far,near], tint(color, -13));
+        (self.0)([a,b,near], color);
+        (self.0)([c,d,far], tint(color, -20));
+    }
+
     fn stalk(&mut self, [x, y, z]: [f32; 3], top: [f32; 3], h: f32, color: [u8; 3]) {
         let waist = [(x + top[0]) * 0.5, (y + top[1]) * 0.5, (z + top[2]) * 0.5];
         (self.0)([[x, y, z], [waist[0] - h, waist[1], waist[2]], top], color);

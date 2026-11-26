@@ -332,7 +332,9 @@ mod tests {
                 for prop in props.props.into_iter().flatten() {
                     if let PropKind::Habitat(form) = prop.kind {
                         assert!(props.region.is_some());
-                        forms.insert(form);
+                        if !matches!(form, Feature::Shore(_)) {
+                            forms.insert(form);
+                        }
                     }
                 }
             }
@@ -348,6 +350,137 @@ mod tests {
         let sky = Sky::from_time(41, 0, 0.48);
         let mut silhouettes = HashSet::new();
         for form in seen {
+            for variant in 0..=u8::MAX {
+                let mut grounded = false;
+                form.draw(variant, |points, _| {
+                    for [x, y, z] in points {
+                        assert!(x.abs() <= HALF_SPAN && z.abs() <= HALF_SPAN, "{form:?}: {x}, {z}");
+                        assert!((0.0..=HEIGHT).contains(&y), "{form:?}: {y}");
+                        grounded |= y == 0.0;
+                    }
+                });
+                assert!(grounded, "{form:?}");
+            }
+            let mut pixels = [0; SIDE * SIDE];
+            let mut depth = [u16::MAX; SIDE * SIDE];
+            let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), view, &sky).unwrap();
+            form.draw(0, |points, _| mesh.triangle(points, [255; 3]));
+            let silhouette = pixels.map(|color| color != 0);
+            assert!(silhouette.contains(&true), "{form:?}");
+            assert!(silhouettes.insert(silhouette), "{form:?} duplicates another silhouette");
+        }
+    }
+
+    #[test]
+    fn coastal_features_spawn_on_natural_shores_and_have_distinct_meshes() {
+        use crate::world::World;
+        use std::collections::HashSet;
+
+        let mut forms = HashSet::new();
+        for seed in [1, 11, 19, 23, 41, 49, 79, 98, 112, 119, 29, 83, 14692] {
+            let world = World::new(seed);
+            let sample = |x, z| world.sample(x, z);
+            for row in -35..=35 {
+                for col in -35..=35 {
+                    let (x, z) = (col as f32 * 29.0, row as f32 * 29.0);
+                    let ground = sample(x, z);
+                    if ground.surface != Surface::Sand || ground.elevation < 0.42 {
+                        continue;
+                    }
+                    let camera = Camera {
+                        x, z: z - 5.0, altitude: 13.0, heading: 0.13, pitch: 0.54, bank: 0.0,
+                    };
+                    let scenery = DesertProps::gather_with_habitats(camera, (60, 60), seed, true, sample, sample);
+                    for prop in scenery.props.into_iter().flatten() {
+                        if let PropKind::Habitat(form @ Feature::Shore(_)) = prop.kind {
+                            let [x, _, z] = prop.origin;
+                            assert_eq!(sample(x, z).surface, Surface::Sand);
+                            forms.insert(form);
+                        }
+                    }
+                }
+            }
+            if forms.len() == 25 { break; }
+        }
+        assert_eq!(forms.len(), 25, "Natural coast catalog: {forms:?}");
+
+        const SIDE: usize = 60;
+        let view = Camera { x: -3.5, z: -7.0, altitude: 3.8, heading: 0.464, pitch: 0.30, bank: 0.0 };
+        let sky = Sky::from_time(41, 0, 0.48);
+        let mut silhouettes = HashSet::new();
+        for form in forms {
+            for variant in 0..=u8::MAX {
+                let mut grounded = false;
+                form.draw(variant, |points, _| {
+                    for [x, y, z] in points {
+                        assert!(x.abs() <= HALF_SPAN && z.abs() <= HALF_SPAN, "{form:?}: {x}, {z}");
+                        assert!((0.0..=HEIGHT).contains(&y), "{form:?}: {y}");
+                        grounded |= y == 0.0;
+                    }
+                });
+                assert!(grounded, "{form:?}");
+            }
+            let mut pixels = [0; SIDE * SIDE];
+            let mut depth = [u16::MAX; SIDE * SIDE];
+            let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), view, &sky).unwrap();
+            form.draw(0, |points, _| mesh.triangle(points, [255; 3]));
+            let silhouette = pixels.map(|color| color != 0);
+            assert!(silhouette.contains(&true), "{form:?}");
+            assert!(silhouettes.insert(silhouette), "{form:?} duplicates another silhouette");
+        }
+    }
+
+    #[test]
+    fn farm_details_cover_all_models_on_real_crop_margins() {
+        use crate::ground_details::GroundDetails;
+        use crate::world::World;
+        use std::collections::HashSet;
+
+        let mut forms = HashSet::new();
+        for seed in [1, 11, 19, 23, 29, 41, 47, 49, 67, 79, 83, 98, 112, 119, 14692] {
+            let world = World::new(seed);
+            let mut details = GroundDetails::new();
+            for center in [[0.0, 0.0], [-680.0, 0.0], [680.0, -480.0]] {
+                details.reset(&world, seed, center[0], center[1]);
+                let raw = |x, z| world.sample(x, z);
+                let ground = |x, z| {
+                    let sample = raw(x, z);
+                    Sample { surface: details.visible_material(x, z, sample), ..sample }
+                };
+                for row in -16..=16 {
+                    for col in -16..=16 {
+                        let [x, z] = [center[0] + col as f32 * 28.0, center[1] + row as f32 * 28.0];
+                        let base = ground(x, z);
+                        if !matches!(base.surface, Surface::Grass | Surface::FieldGold
+                            | Surface::FieldGreen | Surface::FieldSoil) { continue; }
+                        let camera = Camera {
+                            x, z: z - 8.0, altitude: base.elevation + 13.0,
+                            heading: 0.12, pitch: 0.54, bank: 0.0,
+                        };
+                        let props = DesertProps::gather_with_habitats(camera, (60, 60), seed, true, raw, ground);
+                        for prop in props.props.into_iter().flatten() {
+                            if let PropKind::Habitat(form @ Feature::Farm(_)) = prop.kind {
+                                let [x, _, z] = prop.origin;
+                                assert_eq!(ground(x, z).surface, Surface::Grass);
+                                let (sin, cos) = sin_cos(f32::from(prop.variant & 15) * core::f32::consts::TAU / 16.0);
+                                assert!(matches!(ground(x + sin * 8.2, z + cos * 8.2).surface,
+                                    Surface::FieldGold | Surface::FieldGreen | Surface::FieldSoil));
+                                forms.insert(form);
+                            }
+                        }
+                    }
+                }
+                if forms.len() == 25 { break; }
+            }
+            if forms.len() == 25 { break; }
+        }
+        assert_eq!(forms.len(), 25, "Seeded farmland catalog: {forms:?}");
+
+        const SIDE: usize = 60;
+        let view = Camera { x: -3.5, z: -7.0, altitude: 3.8, heading: 0.464, pitch: 0.30, bank: 0.0 };
+        let sky = Sky::from_time(41, 0, 0.48);
+        let mut silhouettes = HashSet::new();
+        for form in forms {
             for variant in 0..=u8::MAX {
                 let mut grounded = false;
                 form.draw(variant, |points, _| {
@@ -499,7 +632,9 @@ impl DesertProps {
                         | Surface::Desert | Surface::DryWash | Surface::DuneSand | Surface::Sand
                         | Surface::AlpineMeadow | Surface::ScreeEdge | Surface::ScreeFine
                         | Surface::ScreeCoarse | Surface::GlacierMoraine));
-                if !sand && !next_to_water && !new_candidate { continue; }
+                let farm_candidate = habitats && surface == Surface::Grass && key >> 45 & 3 <= 1
+                    && forward > 0.0;
+                if !sand && !next_to_water && !new_candidate && !farm_candidate { continue; }
                 let ground = sample(x, z);
                 let wet_plant = wetlands
                     && (matches!(ground.surface, Surface::WetMeadow | Surface::ReedMarsh)
@@ -507,18 +642,39 @@ impl DesertProps {
                 let mut size = 1.12 + ((key >> 16) & 7) as f32 * 0.12;
                 let district = (u64::from((tx >> 2) as u32) << 32) | u64::from((tz >> 2) as u32);
                 let district = crate::math::mix(seed ^ district ^ 0x6863_583d_6157_6cbc);
-                let feature = if new_candidate && (!matches!(ground.surface,
+                let mut feature = if new_candidate && (!matches!(ground.surface,
                     Surface::WetMeadow | Surface::ReedMarsh | Surface::RiverSilt) || wetlands)
                 {
                     Feature::on(ground, key, district)
                 } else {
                     None
                 };
+                let mut variant = (key >> 19) as u8;
+                // Farm features attach to nearby cultivated parcels. A wider
+                // grass margin leaves space for their entire footprint.
+                if farm_candidate && ground.surface == Surface::Grass {
+                    let directions = [[0.0, 8.2], [8.2, 0.0], [0.0, -8.2], [-8.2, 0.0]];
+                    for step in 0..4 {
+                        let heading = ((key >> 47) as usize + step) & 3;
+                        let [dx, dz] = directions[heading];
+                        let neighbor = sample(x + dx, z + dz);
+                        if (neighbor.elevation - ground.elevation).abs() > 1.35 { continue; }
+                        if let Some(farm) = Feature::beside_crop(neighbor.surface, key, district) {
+                            feature = Some(farm);
+                            variant = (variant & !15) | (heading as u8 * 4);
+                            break;
+                        }
+                    }
+                }
                 if !wet_plant && !matches!(ground.surface, Surface::Desert | Surface::DuneSand) && feature.is_none() {
                     continue;
                 }
-                if feature.is_some() {
-                    size *= 1.08;
+                if let Some(form) = feature {
+                    size *= match form {
+                        Feature::Shore(_) => 1.23,
+                        Feature::Farm(_) => 1.45,
+                        _ => 1.08,
+                    };
                 }
                 let opacity = ((REACH * REACH - distance) / 1500.0).clamp(0.0, 1.0)
                     * ((66.0 - camera.altitude + ground.elevation) / 18.0).clamp(0.0, 1.0)
@@ -529,13 +685,22 @@ impl DesertProps {
                               [x + HALF_SPAN * size, y + HEIGHT * size, z + HALF_SPAN * size]];
                 let Some(rect) = projection.bounds(bounds) else { continue; };
                 if feature.is_some() {
-                    let pad = size * 1.55;
+                    let farm = matches!(feature, Some(Feature::Farm(_)));
+                    let pad = size * if farm { 1.83 } else { 1.55 };
+                    let clear_edge = |[dx, dz]: [f32; 2]| {
+                        let edge = sample(x + dx, z + dz);
+                        let grade = (edge.elevation - ground.elevation).abs();
+                        if farm {
+                            grade <= 0.74 && edge.surface == Surface::Grass
+                        } else {
+                            grade <= 0.95 && Feature::on(edge, key, district).is_some()
+                        }
+                    };
                     let clear = [[-pad, 0.0], [pad, 0.0], [0.0, -pad], [0.0, pad]]
-                        .into_iter().all(|[dx, dz]| {
-                            let edge = sample(x + dx, z + dz);
-                            (edge.elevation - ground.elevation).abs() <= 0.95
-                                && Feature::on(edge, key, district).is_some()
-                        });
+                        .into_iter().all(clear_edge);
+                    let corner = pad * 0.7;
+                    let clear = clear && (!farm || [[-corner, -corner], [-corner, corner],
+                        [corner, -corner], [corner, corner]].into_iter().all(clear_edge));
                     if !clear {
                         continue;
                     }
@@ -569,7 +734,7 @@ impl DesertProps {
                         };
                         ((family << 6) | ((key >> 19) & 63)) as u8
                     } else {
-                        (key >> 19) as u8
+                        variant
                     },
                     opacity,
                 });
