@@ -6,31 +6,33 @@ A world seed determines where terrain, roads, cities, airfields and coastlines f
 
 ## City sizes
 
-The survey ran from the Racer's starting area in seeds **0–31** using the same terrain, street, waterway and settlement preparation as the flight renderer. It found **78 settlements** in 29 of those 32 starting areas. A settlement includes its core streets, subdivisions and outer boroughs. Distances are in engine world units.
+The survey ran from the Racer's starting area in seeds **0–255** using the same terrain, street, waterway and settlement preparation as the flight renderer. It found **531 settlements** in 190 of those 256 starting areas. A settlement includes its core streets, subdivisions and outer boroughs. Distances are in engine world units.
 
 | Measurement | Result |
 | --- | ---: |
-| Median longest side | 456 units |
-| Median streets, roofs, industrial sites and parks combined | 53,800 square units |
-| Largest measured footprint | 504 × 760 units |
-| Developed surface in the largest example | Approximately 117,000 square units |
+| Median longest side | 474 units |
+| Median streets, roofs, industrial sites and parks combined | 57,120 square units |
+| Longest measured settlement | 814 × 400 units |
+| Largest developed footprint | 123,116 square units within 616 × 552 units |
 | Road planning region | 1,024 × 1,024 units |
 | Spacing between intersections in the core street grid | 18 units |
 | Outer collector grid spacing | 36 or 54 units |
 
-The largest example covered about 31% of its bounding rectangle. This was a survey of generated starting areas. The dimensions of individual towns depend on the seed and buildable land. Open land between two settlements and the highway joining them are excluded from city coverage. Measurements use a 4-unit sampling grid, so narrow roads and small roofs introduce some measurement variation. [Raw measurements](assets/planning/settlement-sample.tsv)
+Developed surfaces covered about 36% of the largest measured footprint’s bounding rectangle. This was a survey of generated starting areas. The dimensions of individual towns depend on the seed and buildable land. Open land between two settlements and the highway joining them are excluded from city coverage. Measurements use a 2-unit sampling grid, so narrow roads and small roofs introduce some measurement variation. In the raw table, road end 0 is the start of the regional road and 1 is its far terminus. [Raw measurements](assets/planning/settlement-sample.tsv)
 
 ## Generated street maps
 
 Each map shows one 1,024-unit road planning region at the same scale. Cream and orange mark rooftops, tan marks streets, lavender marks industrial buildings, green marks civic green space and blue marks water. Seed and region coordinates identify the source. Regions can contain multiple settlements.
 
-| Seed 16 · region −3, −7 | Seed 15 · region 1, 0 |
+| Seed 149 · region −6, −4 | Seed 241 · region −2, −4 |
 | --- | --- |
-| ![Street map of the largest measured settlement and its surrounding hills](assets/planning/urban-16--3--7.png) | ![Street map of a wider town and its approach roads](assets/planning/urban-15-1-0.png) |
+| ![Street map of the largest measured developed footprint](assets/planning/urban-149--6--4.png) | ![Street map of the longest measured settlement](assets/planning/urban-241--2--4.png) |
 
 | Seed 21 · region 2, 2 | Seed 24 · region −1, 5 |
 | --- | --- |
 | ![Street map of a settlement with a tower cluster and peripheral districts](assets/planning/urban-21-2-2.png) | ![Street map of a settlement with shorter wings and a distinct approach](assets/planning/urban-24--1-5.png) |
+
+Two more examples show [a hillside settlement](assets/planning/urban-16--3--7.png) and [an open-grid town](assets/planning/urban-15-1-0.png).
 
 ## Roads, districts and buildings
 

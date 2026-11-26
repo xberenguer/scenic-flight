@@ -85,12 +85,12 @@ def render(entries, order):
     sections.extend((
         "## World generation",
         "Cities grow around road approaches and expand where the land allows. "
-        "The largest of 78 sampled settlements spanned **504 × 760 world units**.",
+        "The longest of 531 sampled settlements spanned **814 world units**.",
         grid([
-            ("Largest surveyed footprint · seed 16", preview(
-                "Map of generated streets and buildings", "docs/assets/planning/urban-16--3--7.png", width=320)),
-            ("Regional town and outskirts · seed 21", preview(
-                "Map of generated districts and approach roads", "docs/assets/planning/urban-21-2-2.png", width=320)),
+            ("Largest developed footprint · seed 149", preview(
+                "Map of generated streets and buildings", "docs/assets/planning/urban-149--6--4.png", width=320)),
+            ("Longest surveyed settlement · seed 241", preview(
+                "Map of generated districts and approach roads", "docs/assets/planning/urban-241--2--4.png", width=320)),
         ], columns=2),
         "[City dimensions, street grids, and placement rules](docs/WORLD-GENERATION.md)",
     ))

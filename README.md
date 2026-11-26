@@ -55,12 +55,12 @@ Select a preview to open the full-size clip or screenshot.
 
 ## World generation
 
-Cities grow around road approaches and expand where the land allows. The largest of 78 sampled settlements spanned **504 × 760 world units**.
+Cities grow around road approaches and expand where the land allows. The longest of 531 sampled settlements spanned **814 world units**.
 
 <table>
   <tr>
-    <td align="center"><a href="docs/assets/planning/urban-16--3--7.png"><img src="docs/assets/planning/urban-16--3--7.png" width="320" alt="Map of generated streets and buildings"></a><br>Largest surveyed footprint · seed 16</td>
-    <td align="center"><a href="docs/assets/planning/urban-21-2-2.png"><img src="docs/assets/planning/urban-21-2-2.png" width="320" alt="Map of generated districts and approach roads"></a><br>Regional town and outskirts · seed 21</td>
+    <td align="center"><a href="docs/assets/planning/urban-149--6--4.png"><img src="docs/assets/planning/urban-149--6--4.png" width="320" alt="Map of generated streets and buildings"></a><br>Largest developed footprint · seed 149</td>
+    <td align="center"><a href="docs/assets/planning/urban-241--2--4.png"><img src="docs/assets/planning/urban-241--2--4.png" width="320" alt="Map of generated districts and approach roads"></a><br>Longest surveyed settlement · seed 241</td>
   </tr>
 </table>
 
