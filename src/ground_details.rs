@@ -3,7 +3,9 @@
 use crate::math::{fraction, mix, smoothstep};
 use crate::world::{SEA_LEVEL, Sample, Surface, World};
 
+mod contour_profiles;
 mod field_profiles;
+pub use contour_profiles::ContourProfile;
 pub use field_profiles::FieldProfile;
 
 const SIDE: i32 = 19;
@@ -60,6 +62,9 @@ impl GroundTile {
             let axis = ((district >> 11) & 1) as u32;
             let reverse = ((state >> 7) & 1) as u32;
             (FieldLayout::PlantedPattern, index | (axis << 5) | (reverse << 6))
+        } else if matches!(layout, FieldLayout::ContourAcrossX | FieldLayout::ContourAcrossZ) {
+            let index = ((district >> 23) % ContourProfile::ALL.len() as u64) as u32;
+            (layout, index)
         } else {
             (layout, (state >> 24) as u32)
         };
@@ -129,23 +134,7 @@ impl GroundTile {
         let normalized = offset * (1.0 / 28.0);
         let contour = across + offset * (f32::from(self.alignment) * (1.0 / 64.0))
             + normalized * normalized * (f32::from(self.bend) * 0.125);
-        let headland = 5.0 + (self.pattern & 3) as f32;
-        if !(headland..TILE - headland).contains(&along) || !(6.0..58.0).contains(&contour) {
-            return Surface::Grass;
-        }
-
-        // Retain permanent grass bands between the cropped strips.
-        let lower = 20.0 + ((self.pattern >> 6) & 3) as f32;
-        let upper = 40.0 + ((self.pattern >> 8) & 3) as f32;
-        if (contour - lower).abs() < 1.85 || (contour - upper).abs() < 1.85 {
-            return Surface::Grass;
-        }
-        let strip = u32::from(contour > lower) + u32::from(contour > upper);
-        match (self.pattern >> (11 + strip * 3)) & 7 {
-            0 | 1 => Surface::FieldSoil,
-            2..=4 => Surface::FieldGold,
-            _ => Surface::FieldGreen,
-        }
+        ContourProfile::ALL[(self.pattern & 31) as usize].sample(along, contour)
     }
 }
 
@@ -260,6 +249,17 @@ impl GroundDetails {
         let tile = self.tiles[wrap(tz)][wrap(tx)];
         (tile.x == tx && tile.z == tz && tile.fields && matches!(tile.layout, FieldLayout::PlantedPattern))
             .then(|| FieldProfile::ALL[(tile.pattern & 31) as usize])
+    }
+
+    pub fn contour_profile_at(&self, x: f32, z: f32) -> Option<ContourProfile> {
+        let tx = grid_index(x, 1.0 / TILE);
+        let tz = grid_index(z, 1.0 / TILE);
+        let tile = self.tiles[wrap(tz)][wrap(tx)];
+        (tile.x == tx
+            && tile.z == tz
+            && tile.fields
+            && matches!(tile.layout, FieldLayout::ContourAcrossX | FieldLayout::ContourAcrossZ))
+            .then(|| ContourProfile::ALL[(tile.pattern & 31) as usize])
     }
 
     fn field(&self, x: f32, z: f32) -> Surface {

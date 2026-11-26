@@ -121,17 +121,6 @@
     "note": "A low pass over the outcrops and rubble on a seeded ridge."
   },
   {
-    "id": "snowfield-glider",
-    "title": "Glider over a snowfield",
-    "category": "Biomes",
-    "aircraft": "Glider",
-    "biome": "Alpine snowfield",
-    "format": "Video",
-    "poster": "assets/current/snowfield-glider.png",
-    "src": "assets/current/snowfield-glider.mp4",
-    "note": "Ice fins and exposed rock break up the snow along the slope."
-  },
-  {
     "id": "mountain-pass",
     "title": "Mountain pass",
     "category": "Biomes",
@@ -301,16 +290,6 @@
     "format": "Still",
     "poster": "assets/current/cliffside.png",
     "src": "assets/current/cliffside.png"
-  },
-  {
-    "id": "dusk-sky",
-    "title": "Moon over the city",
-    "category": "Sky & Weather",
-    "aircraft": "Sport Jet",
-    "biome": "",
-    "format": "Still",
-    "poster": "assets/current/dusk-sky.png",
-    "src": "assets/current/dusk-sky.png"
   },
   {
     "id": "bay-view",
@@ -677,17 +656,6 @@
     "poster": "assets/current/beach-umbrellas.png",
     "src": "assets/current/beach-umbrellas.png",
     "note": "Fabric canopies and towels on dry sand."
-  },
-  {
-    "id": "shower-rainbow",
-    "title": "Rainbow in a coastal shower",
-    "category": "Sky & Weather",
-    "aircraft": "",
-    "biome": "",
-    "format": "Still",
-    "poster": "assets/current/shower-rainbow.png",
-    "src": "assets/current/shower-rainbow.png",
-    "note": "Sunlight catches a distant, terrain-occluded rain shaft."
   },
   {
     "id": "riverside-town",
@@ -1442,14 +1410,14 @@
   },
   {
     "id": "lantern-causeway-skyline",
-    "title": "Racer approaching Lantern Causeway",
+    "title": "Racer approaching twin towers with a skybridge",
     "category": "Built World",
     "aircraft": "Racer",
     "biome": "City outskirts",
     "format": "Video",
     "poster": "assets/current/lantern-causeway-skyline.png",
     "src": "assets/current/lantern-causeway-skyline.mp4",
-    "note": "A guided approach to a landmark in a generated city."
+    "note": "Two towers joined by an elevated walkway."
   },
   {
     "id": "glass-hourglass-skyline",
@@ -2011,5 +1979,384 @@
     "poster": "assets/current/glacial-outwash-splay.png",
     "src": "assets/current/glacial-outwash-splay.mp4",
     "note": "A guided flight over relict meltwater channels below a mountain valley."
+  },
+  {
+    "id": "telescoping-lift-skyline",
+    "title": "Bush Plane above the Telescoping Lift Shaft",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "City outskirts",
+    "format": "Video",
+    "poster": "assets/current/telescoping-lift-skyline.png",
+    "src": "assets/current/telescoping-lift-skyline.mp4",
+    "note": "A guided approach to a landmark in a generated city."
+  },
+  {
+    "id": "hillcrest-city-forum-skyline",
+    "title": "Racer approaching Hillcrest City Forum",
+    "category": "Built World",
+    "aircraft": "Racer",
+    "biome": "City outskirts",
+    "format": "Video",
+    "poster": "assets/current/hillcrest-city-forum-skyline.png",
+    "src": "assets/current/hillcrest-city-forum-skyline.mp4",
+    "note": "A guided approach to a landmark in a generated city."
+  },
+  {
+    "id": "inclined-glass-belfry-skyline",
+    "title": "Glider past the Inclined Glass Belfry",
+    "category": "Built World",
+    "aircraft": "Glider",
+    "biome": "City outskirts",
+    "format": "Video",
+    "poster": "assets/current/inclined-glass-belfry-skyline.png",
+    "src": "assets/current/inclined-glass-belfry-skyline.mp4",
+    "note": "A guided approach to a landmark in a generated city."
+  },
+  {
+    "id": "lantern-bridge-hotel-skyline",
+    "title": "Ultralight approaching Lantern Bridge Hotel",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "City outskirts",
+    "format": "Video",
+    "poster": "assets/current/lantern-bridge-hotel-skyline.png",
+    "src": "assets/current/lantern-bridge-hotel-skyline.mp4",
+    "note": "A guided approach to a landmark in a generated city."
+  },
+  {
+    "id": "metro-greenbelt-fork",
+    "title": "Racer over the Greenbelt Fork",
+    "category": "Built World",
+    "aircraft": "Racer",
+    "biome": "Valley city",
+    "format": "Video",
+    "poster": "assets/current/metro-greenbelt-fork.png",
+    "src": "assets/current/metro-greenbelt-fork.mp4",
+    "note": "A guided approach over a surveyed outer neighborhood."
+  },
+  {
+    "id": "metro-asymmetric-fan",
+    "title": "Ultralight over the Asymmetric Fan",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coastal city",
+    "format": "Video",
+    "poster": "assets/current/metro-asymmetric-fan.png",
+    "src": "assets/current/metro-asymmetric-fan.mp4",
+    "note": "A guided approach over a surveyed outer neighborhood."
+  },
+  {
+    "id": "metro-pocket-valley",
+    "title": "Glider over Pocket-valley Edge",
+    "category": "Built World",
+    "aircraft": "Glider",
+    "biome": "Valley city",
+    "format": "Video",
+    "poster": "assets/current/metro-pocket-valley.png",
+    "src": "assets/current/metro-pocket-valley.mp4",
+    "note": "A guided approach over a surveyed outer neighborhood."
+  },
+  {
+    "id": "metro-green-inlet",
+    "title": "Bush Plane over Green Inlet Steps",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "Coastal city",
+    "format": "Video",
+    "poster": "assets/current/metro-green-inlet.png",
+    "src": "assets/current/metro-green-inlet.mp4",
+    "note": "A guided approach over a surveyed outer neighborhood."
+  },
+  {
+    "id": "badlands-boxhead",
+    "title": "Ultralight over a box-headed ravine",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Badlands",
+    "format": "Video",
+    "poster": "assets/current/badlands-boxhead.png",
+    "src": "assets/current/badlands-boxhead.mp4",
+    "note": "A guided flight over a surveyed dry wash and its eroded walls."
+  },
+  {
+    "id": "badlands-open-wash",
+    "title": "Bush Plane above an open wash mouth",
+    "category": "Biomes",
+    "aircraft": "Bush Plane",
+    "biome": "Badlands",
+    "format": "Video",
+    "poster": "assets/current/badlands-open-wash.png",
+    "src": "assets/current/badlands-open-wash.mp4",
+    "note": "A guided flight over a surveyed dry wash and its eroded walls."
+  },
+  {
+    "id": "badlands-hourglass",
+    "title": "Glider over the hourglass narrows",
+    "category": "Biomes",
+    "aircraft": "Glider",
+    "biome": "Badlands",
+    "format": "Video",
+    "poster": "assets/current/badlands-hourglass.png",
+    "src": "assets/current/badlands-hourglass.mp4",
+    "note": "A guided flight over a surveyed dry wash and its eroded walls."
+  },
+  {
+    "id": "badlands-terraced-cleft",
+    "title": "Bald Eagle over a terraced cleft",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Badlands",
+    "format": "Video",
+    "poster": "assets/current/badlands-terraced-cleft.png",
+    "src": "assets/current/badlands-terraced-cleft.mp4",
+    "note": "A guided flight over a surveyed dry wash and its eroded walls."
+  },
+  {
+    "id": "summit-trail-windward-shelter",
+    "title": "Bald Eagle beside a windward stone shelter",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Mountain ridge",
+    "format": "Video",
+    "poster": "assets/current/summit-trail-windward-shelter.png",
+    "src": "assets/current/summit-trail-windward-shelter.mp4",
+    "note": "A guided flight over a surveyed mountain trail and rest stop."
+  },
+  {
+    "id": "summit-trail-viewing-decks",
+    "title": "Glider over a trail with two-level viewing decks",
+    "category": "Biomes",
+    "aircraft": "Glider",
+    "biome": "Mountain ridge",
+    "format": "Video",
+    "poster": "assets/current/summit-trail-viewing-decks.png",
+    "src": "assets/current/summit-trail-viewing-decks.mp4",
+    "note": "A guided flight over a surveyed mountain trail and rest stop."
+  },
+  {
+    "id": "summit-trail-red-gable",
+    "title": "Ultralight passing a red gable information hut",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Alpine trail",
+    "format": "Video",
+    "poster": "assets/current/summit-trail-red-gable.png",
+    "src": "assets/current/summit-trail-red-gable.mp4",
+    "note": "A guided flight over a surveyed mountain trail and rest stop."
+  },
+  {
+    "id": "summit-trail-ridge-canopy",
+    "title": "Bush Plane over a leaning ridge canopy",
+    "category": "Biomes",
+    "aircraft": "Bush Plane",
+    "biome": "Alpine trail",
+    "format": "Video",
+    "poster": "assets/current/summit-trail-ridge-canopy.png",
+    "src": "assets/current/summit-trail-ridge-canopy.mp4",
+    "note": "A guided flight over a surveyed mountain trail and rest stop."
+  },
+  {
+    "id": "contour-hay-fallow-shelves",
+    "title": "Ultralight over hay and fallow shelves",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coastal farmland",
+    "format": "Video",
+    "poster": "assets/current/contour-hay-fallow-shelves.png",
+    "src": "assets/current/contour-hay-fallow-shelves.mp4",
+    "note": "A guided flyover of surveyed contour strips and grass buffers."
+  },
+  {
+    "id": "contour-oat-fan",
+    "title": "Sport Jet above a fan-shaped oat field",
+    "category": "Built World",
+    "aircraft": "Sport Jet",
+    "biome": "Foothill farmland",
+    "format": "Video",
+    "poster": "assets/current/contour-oat-fan.png",
+    "src": "assets/current/contour-oat-fan.mp4",
+    "note": "A guided flyover of surveyed contour strips and grass buffers."
+  },
+  {
+    "id": "contour-grass-spine",
+    "title": "Bush Plane along a grass spine and hay belts",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "Farmland outside a town",
+    "format": "Video",
+    "poster": "assets/current/contour-grass-spine.png",
+    "src": "assets/current/contour-grass-spine.mp4",
+    "note": "A guided flyover of surveyed contour strips and grass buffers."
+  },
+  {
+    "id": "contour-barley-steps",
+    "title": "Glider over three narrow barley steps",
+    "category": "Built World",
+    "aircraft": "Glider",
+    "biome": "Foothill farmland",
+    "format": "Video",
+    "poster": "assets/current/contour-barley-steps.png",
+    "src": "assets/current/contour-barley-steps.mp4",
+    "note": "A guided flyover of surveyed contour strips and grass buffers."
+  },
+  {
+    "id": "dusk-sky",
+    "title": "Moon over the city",
+    "category": "Sky & Weather",
+    "aircraft": "Sport Jet",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/dusk-sky.png",
+    "src": "assets/current/dusk-sky.png"
+  },
+  {
+    "id": "sky-weather-full",
+    "title": "Full Moon",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/sky-weather-full.png",
+    "src": "assets/current/sky-weather-full.png"
+  },
+  {
+    "id": "sky-weather-gibbous",
+    "title": "Gibbous Moon",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/sky-weather-gibbous.png",
+    "src": "assets/current/sky-weather-gibbous.png"
+  },
+  {
+    "id": "sky-weather-quarter",
+    "title": "Quarter Moon",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/sky-weather-quarter.png",
+    "src": "assets/current/sky-weather-quarter.png"
+  },
+  {
+    "id": "sky-weather-crescent",
+    "title": "Crescent Moon",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/sky-weather-crescent.png",
+    "src": "assets/current/sky-weather-crescent.png"
+  },
+  {
+    "id": "sky-weather-lunar-detail",
+    "title": "Moon phases up close",
+    "category": "Sky & Weather",
+    "aircraft": "",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/sky-weather-lunar-detail.png",
+    "src": "assets/current/sky-weather-lunar-detail.png",
+    "note": "Crescent, quarter, gibbous, and full, left to right. Crops of in-game frames."
+  },
+  {
+    "id": "sky-weather-meteor",
+    "title": "Shooting star on a clear night",
+    "category": "Sky & Weather",
+    "aircraft": "Sport Jet",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-meteor.png",
+    "src": "assets/current/sky-weather-meteor.mp4",
+    "note": "Rare."
+  },
+  {
+    "id": "sky-weather-stars",
+    "title": "Stars over a dark coastline",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/sky-weather-stars.png",
+    "src": "assets/current/sky-weather-stars.png"
+  },
+  {
+    "id": "sky-weather-sunset",
+    "title": "Sunset behind a mountain ridge",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-sunset.png",
+    "src": "assets/current/sky-weather-sunset.mp4",
+    "note": "Time-lapse."
+  },
+  {
+    "id": "sky-weather-sunrise",
+    "title": "Sunrise over the ocean",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-sunrise.png",
+    "src": "assets/current/sky-weather-sunrise.mp4",
+    "note": "Time-lapse."
+  },
+  {
+    "id": "snowfield-glider",
+    "title": "Glider over an alpine snowfield",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "Alpine snowfield",
+    "format": "Video",
+    "poster": "assets/current/snowfield-glider.png",
+    "src": "assets/current/snowfield-glider.mp4",
+    "note": "Snow cover at high elevation."
+  },
+  {
+    "id": "sky-weather-mist",
+    "title": "Valley mist at dawn",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-mist.png",
+    "src": "assets/current/sky-weather-mist.mp4",
+    "note": "Mist gathers low in valleys near sunrise."
+  },
+  {
+    "id": "shower-rainbow",
+    "title": "Rainbow in a coastal shower",
+    "category": "Sky & Weather",
+    "aircraft": "",
+    "biome": "",
+    "format": "Still",
+    "poster": "assets/current/shower-rainbow.png",
+    "src": "assets/current/shower-rainbow.png",
+    "note": "Sunlight catches a distant, terrain-occluded rain shaft."
+  },
+  {
+    "id": "sky-weather-rain",
+    "title": "Rain shaft over the coast",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-rain.png",
+    "src": "assets/current/sky-weather-rain.mp4",
+    "note": "Distant showers fade into local haze as aircraft approach."
+  },
+  {
+    "id": "sky-weather-clouds",
+    "title": "Drifting clouds above the coast",
+    "category": "Sky & Weather",
+    "aircraft": "Glider",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/sky-weather-clouds.png",
+    "src": "assets/current/sky-weather-clouds.mp4",
+    "note": "Clouds change in coverage, height, and drift with the air mass."
   }
 ]

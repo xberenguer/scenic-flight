@@ -20,7 +20,7 @@ const events = [
   ['Meteor', 'Rare', '0.75–1.4 s · 2 in 7 chance per 225 s · clear nights'],
 ];
 
-const categories = ['All', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Sky & Weather', 'Interface'];
+const categories = ['All', 'Sky & Weather', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Interface'];
 const featuredIds = ['bowed-blue-icefall', 'sedge-strand-tarn', 'linked-downtown', 'high-cruise', 'paired-mountain-gondolas'];
 const qs = selector => document.querySelector(selector);
 const cards = qs('#cards');
@@ -51,7 +51,7 @@ function encounter(item) {
   if (/sport jet.*coast/.test(title)) return events[4];
   if (/thermal/.test(title)) return events[5];
   if (/train follow/.test(title)) return events[6];
-  if (/meteor/.test(title)) return events[7];
+  if (/meteor|shooting star/.test(title)) return events[7];
   return null;
 }
 

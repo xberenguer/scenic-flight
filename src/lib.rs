@@ -72,7 +72,7 @@ pub mod sky_events;
 pub mod solar_sites;
 pub mod summit_sites;
 pub mod summit_stream;
-mod summit_trail;
+pub mod summit_trail;
 pub mod terrain_cache;
 pub mod train_art;
 pub mod train_follow;

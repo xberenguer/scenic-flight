@@ -840,7 +840,9 @@ mod tests {
         let mut selected = std::collections::HashSet::new();
         for (index, design) in tower_forms::landmarks::LANDMARKS.iter().enumerate() {
             let profile = (tower_forms::TOWER_DESIGN_COUNT + index) as u16;
-            selected.insert(tower_forms::select((index as u32) << 14, 1, 0));
+            for parcel in [1, 3 << 30] {
+                selected.insert(tower_forms::select((index as u32) << 14, parcel, 0));
+            }
             assert!(design.masses.iter().any(|mass| mass.top == 1.0), "{}", design.name);
             for mass in design.masses {
                 assert!(mass.bottom >= 0.0 && mass.top > mass.bottom && mass.top <= 1.0, "{}", design.name);

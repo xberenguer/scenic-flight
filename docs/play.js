@@ -62,8 +62,8 @@ class ButtonSignal {
 const signals = buttons.map(button => new ButtonSignal(button));
 const activeKeys = new Map();
 const shortcuts = new Map([
-  ["KeyA", 0], ["ArrowLeft", 0],
-  ["KeyF", 1], ["ArrowRight", 1], ["Enter", 1],
+  ["KeyA", 0], ["ArrowRight", 0],
+  ["KeyF", 1], ["ArrowLeft", 1], ["Enter", 1],
 ]);
 
 let runtime;

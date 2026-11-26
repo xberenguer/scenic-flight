@@ -317,6 +317,22 @@ const quarryNames = await fetch('assets/artwork/quarry-profiles.txt')
   .then(text => text.trim().split('\n'))
   .catch(() => []);
 
+const contourFieldNames = await fetch('assets/artwork/contour-fields.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const trailRestNames = await fetch('assets/artwork/summit-trail-rests.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const ravineNames = await fetch('assets/artwork/badlands-ravines.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const metroLayoutNames = await fetch('assets/artwork/metro-layouts.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
 const outwashNames = await fetch('assets/artwork/glacial-outwash.txt')
   .then(response => response.ok ? response.text() : '')
   .then(text => text.trim().split('\n'))
@@ -363,6 +379,14 @@ const apronNames = await fetch('assets/artwork/airfield-aprons.txt')
   .catch(() => []);
 
 const categories = [
+  { title: 'Contour fields', label: 'Contour field', atlas: 'contour-fields.png',
+    columns: 5, rows: 5, name: index => contourFieldNames[index], animation: 'contour-fields.gif' },
+  { title: 'Summit trail fixtures', label: 'Trail fixture', atlas: 'summit-trail-rests.png',
+    columns: 5, rows: 5, name: index => trailRestNames[index], animation: 'summit-trail-rests.gif' },
+  { title: 'Badlands ravines', label: 'Erosion profile', atlas: 'badlands-ravines.png',
+    columns: 5, rows: 5, name: index => ravineNames[index], animation: 'badlands-ravines.gif' },
+  { title: 'Metropolitan neighborhood plans', label: 'Neighborhood plan', atlas: 'metro-layouts.png',
+    columns: 5, rows: 5, name: index => metroLayoutNames[index] },
   { title: 'Glacial outwash fans', label: 'Outwash profile', atlas: 'glacial-outwash.png',
     columns: 5, rows: 5, name: index => outwashNames[index], animation: 'glacial-outwash.gif' },
   { title: 'Runway markings', label: 'Approach pattern', atlas: 'runway-markings.png',
@@ -480,7 +504,7 @@ const categories = [
   { title: 'Coastal details', label: 'Coastal detail', atlas: 'coastal-details.png', columns: 5, rows: 5,
     name: index => coastalNames[index], family: index => coastalGroups[Math.floor(index / 5)],
     animation: 'coastal-details.gif' },
-  { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 10, rows: 8, count: skylineNames.length,
+  { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 10, rows: 10, count: skylineNames.length,
     name: index => skylineNames[index], animation: 'skyline-landmarks.gif' },
   { title: 'Summit landmarks', label: 'Summit landmark', atlas: 'summit-landmarks.png', columns: 5, rows: 5,
     name: index => summitNames[index], family: index => summitFamilies[Math.floor(index / 5)],

@@ -139,7 +139,13 @@ pub(crate) fn select(layout: u32, parcel_key: u32, rank: u8) -> u16 {
     // Prominent sites draw from the landmark catalog. The center cluster still
     // includes conventional offices and apartments between landmarks.
     if rank == 0 || ((parcel_key >> 4) & 3 == 0 && rank < 3) {
-        let family = ((layout >> 14) as usize + usize::from(rank) * 7) % landmarks::LANDMARKS.len();
+        const EXISTING: usize = 75;
+        let hash = (layout >> 14) as usize + usize::from(rank) * 7;
+        let family = if parcel_key >> 30 == 3 {
+            EXISTING + hash % (landmarks::LANDMARKS.len() - EXISTING)
+        } else {
+            hash % EXISTING
+        };
         return (TOWER_DESIGN_COUNT + family) as u16;
     }
     select_regular(layout, parcel_key, rank)

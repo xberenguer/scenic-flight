@@ -200,9 +200,15 @@ impl SummitStream {
         mesh: &mut WorldMesh<'_>,
         ground: impl Fn(f32, f32) -> f32,
     ) {
-        for trail in self.visible_trails(camera) {
-            trail.draw(mesh, &ground);
-        }
+        mesh.with_landmark_reach(trail_reach(camera), |mesh| {
+            for trail in self.visible_trails(camera) {
+                trail.draw(mesh, &ground);
+            }
+        });
+    }
+
+    pub fn trail_at(&self, x: f32, z: f32) -> Option<&SummitTrail> {
+        self.tiles.at(x, z).and_then(Resident::active_trail)
     }
 
     pub fn obstruction(&self, x: f32, z: f32) -> f32 {
@@ -233,7 +239,7 @@ impl SummitStream {
         self.tiles
             .sites()
             .filter_map(Resident::active_trail)
-            .filter(move |trail| bounds_in_range(camera, trail.bounds(), 400.0))
+            .filter(move |trail| bounds_in_range(camera, trail.bounds(), trail_reach(camera)))
     }
 
     fn active(&self) -> impl Iterator<Item = &SummitSite> {
@@ -242,6 +248,10 @@ impl SummitStream {
             .filter(|site| site.state == NaturalReservation::Clear)
             .map(|site| &site.plan.site)
     }
+}
+
+fn trail_reach(camera: Camera) -> f32 {
+    landmark_reach(camera.altitude).min(760.0)
 }
 
 fn art(site: &SummitSite) -> LookoutArt {

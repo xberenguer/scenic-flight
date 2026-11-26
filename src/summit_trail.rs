@@ -5,6 +5,9 @@ use crate::summit_sites::SummitSite;
 use crate::world::World;
 use crate::world_mesh::WorldMesh;
 
+mod rest_designs;
+pub use rest_designs::TrailRestDesign;
+
 type Point = [f32; 3];
 type Area = [f32; 4];
 const WIDTH: f32 = 1.18;
@@ -18,7 +21,7 @@ pub struct SummitTrail {
     rest: Point,
     marker: Point,
     heading: [f32; 2],
-    wind_shelter: bool,
+    rest_design: u8,
 }
 
 impl SummitTrail {
@@ -82,7 +85,7 @@ impl SummitTrail {
                     rest,
                     marker,
                     heading,
-                    wind_shelter: (site.variant() >> 3) & 3 == 3,
+                    rest_design: TrailRestDesign::index_for(site.variant()),
                 };
                 if !trail.conflicts_with(&mut blocked) {
                     return Some(trail);
@@ -90,6 +93,14 @@ impl SummitTrail {
             }
         }
         None
+    }
+
+    pub fn rest_design(&self) -> &'static TrailRestDesign {
+        &TrailRestDesign::ALL[usize::from(self.rest_design)]
+    }
+
+    pub fn rest_location(&self) -> Point {
+        self.rest
     }
 
     pub fn conflicts_with(&self, mut blocked: impl FnMut(Area) -> bool) -> bool {
@@ -177,16 +188,7 @@ impl SummitTrail {
     }
 
     fn draw_props(&self, mesh: &mut WorldMesh<'_>) {
-        let mut rest = Art {
-            mesh,
-            point: self.rest,
-            front: self.heading,
-        };
-        if self.wind_shelter {
-            rest.draw_wind_shelter();
-        } else {
-            rest.draw_map_board();
-        }
+        self.rest_design().draw(mesh, self.rest, self.heading);
         let mut marker = Art {
             mesh,
             point: self.marker,
@@ -195,30 +197,6 @@ impl SummitTrail {
         marker.block([0.0, -1.10, 0.0], [1.54, 1.80, 1.37], [131, 139, 131]);
         marker.block([0.0, 0.70, 0.0], [1.11, 0.50, 1.02], [183, 176, 149]);
         marker.block([0.0, 1.20, 0.0], [0.63, 0.45, 0.60], [157, 149, 127]);
-    }
-}
-
-impl Art<'_, '_> {
-    fn draw_wind_shelter(&mut self) {
-        let stone = [154, 151, 139];
-        self.block([0.0, -1.35, -1.94], [5.40, 4.43, 0.62], stone);
-        for side in [-2.39, 2.39] {
-            self.block([side, -1.35, 0.01], [0.62, 4.43, 3.90], stone);
-        }
-        self.block([0.0, 0.44, -1.28], [4.08, 0.39, 0.71], [157, 110, 68]);
-        self.roof([0.0, 3.06, 0.0], 3.02, 2.51, 0.86, [164, 84, 52]);
-    }
-
-    fn draw_map_board(&mut self) {
-        self.block([-1.82, -1.48, 0.16], [0.24, 5.06, 0.32], [87, 78, 67]);
-        self.block([1.82, -1.48, 0.16], [0.24, 5.06, 0.32], [87, 78, 67]);
-        self.block([0.0, 1.27, 0.16], [3.86, 1.68, 0.27], [132, 96, 59]);
-        self.block([0.0, 1.52, 0.33], [3.40, 1.09, 0.11], [214, 186, 133]);
-        self.roof([0.0, 3.54, 0.19], 2.09, 0.82, 0.62, [79, 95, 94]);
-        // A separate stone-legged timber bench uses the small side clearing.
-        self.block([-1.30, -1.28, -2.6], [0.38, 2.04, 0.63], [130, 128, 116]);
-        self.block([1.30, -1.28, -2.6], [0.38, 2.04, 0.63], [130, 128, 116]);
-        self.block([0.0, 0.77, -2.6], [3.27, 0.25, 0.92], [163, 120, 77]);
     }
 }
 
@@ -396,7 +374,7 @@ mod tests {
         let world = World::new(204);
         let site = SummitSite::survey(&world, 204, [2, 0], |_| false, || {}).unwrap();
         let trail = SummitTrail::survey(&world, &site, |_| false, || {}).unwrap();
-        assert!(trail.wind_shelter);
+        assert_eq!(trail.rest_design, TrailRestDesign::index_for(site.variant()));
         assert_eq!(
             trail,
             SummitTrail::survey(&world, &site, |_| false, || {}).unwrap()

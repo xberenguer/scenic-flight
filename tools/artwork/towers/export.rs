@@ -30,11 +30,11 @@ fn main() -> io::Result<()> {
         .and_then(|angle| angle.parse::<f32>().ok())
         .unwrap_or(0.706);
     let (sin, cos) = heading.sin_cos();
-    let distance = if landmarks { 116.0 } else { 54.0 };
+    let distance = if landmarks { 84.0 } else { 54.0 };
     let camera = Camera {
         x: -distance * sin,
         z: -distance * cos,
-        altitude: if landmarks { 55.0 } else { 44.0 },
+        altitude: if landmarks { 51.0 } else { 44.0 },
         heading,
         pitch: if landmarks { 0.19 } else { 0.365 },
         bank: 0.0,
@@ -73,6 +73,12 @@ fn main() -> io::Result<()> {
             let roof = ring(top);
             for edge in 0..4 {
                 let next = (edge + 1) % 4;
+                let wall = if landmarks {
+                    let light = [-19, 8, 16, -8][edge];
+                    wall.map(|value| value.saturating_add_signed(light))
+                } else {
+                    wall
+                };
                 mesh.faded_quad(
                     [ground[edge], ground[next], roof[next], roof[edge]],
                     wall,

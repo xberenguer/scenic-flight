@@ -8,7 +8,9 @@ use crate::math::{fraction, mix, sin_cos, smoothstep};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
 mod alluvial;
+mod ravine_profiles;
 pub use alluvial::FanProfile;
+pub use ravine_profiles::RavineProfile;
 
 pub const DRY_LANDMARK_TILE: i32 = 512;
 pub(crate) const MAX_DRY_BASINS: usize = 4;
@@ -283,6 +285,11 @@ impl DryLandmark {
         Some(FanProfile::ALL[usize::from(fan.profile)])
     }
 
+    pub fn ravine_profile(&self) -> Option<&'static RavineProfile> {
+        let Shape::Badlands(ravine) = &self.shape else { return None };
+        Some(ravine.wall_profile())
+    }
+
     pub fn bluff_profile(&self) -> Option<BluffProfile> {
         let Shape::CoastalBluff(bluff) = self.shape else { return None };
         Some(bluff.profile())
@@ -552,6 +559,7 @@ struct Ravine {
     profile: [f32; 9],
     banks: [[u8; 2]; 9],
     layers: f32,
+    design: u8,
     tributary: Option<Gully>,
 }
 
@@ -613,6 +621,7 @@ impl Ravine {
                     profile,
                     banks,
                     layers: 0.5 + 2.7 * fraction(state.rotate_left(8)),
+                    design: (mix(state ^ 0xc5f3_0d46) % RavineProfile::ALL.len() as u64) as u8,
                     tributary: None,
                 };
                 if middle - ravine.floor(0.5) < 3.5 {
@@ -661,6 +670,10 @@ impl Ravine {
             }
         }
         None
+    }
+
+    fn wall_profile(&self) -> &'static RavineProfile {
+        &RavineProfile::ALL[usize::from(self.design)]
     }
 
     fn offset(&self, t: f32) -> f32 {
@@ -811,10 +824,10 @@ impl Ravine {
         }
         let surface = if relief < 1.05 {
             ground.surface
-        } else if cross.abs() < self.width * 0.26 && end_fade(t) > 0.48 {
+        } else if self.wall_profile().sides(t, cross * self.inverse_width) < 0.26 && end_fade(t) > 0.48 {
             Surface::DryWash
         } else {
-            let layer = ((elevation + self.layers) * 0.31) as i32;
+            let layer = ((elevation + self.layers) * self.wall_profile().layers) as i32;
             match layer.rem_euclid(5) {
                 0 => Surface::Gravel,
                 1 | 2 => Surface::DuneSand,
@@ -834,12 +847,11 @@ impl Ravine {
         let a = f32::from(self.banks[i][side]);
         let b = f32::from(self.banks[i + 1][side]);
         let taper = a + (b - a) * smoothstep(fraction);
-        let sides = (cross.abs() * self.inverse_width) * (1.01 + taper * (0.51 / 127.0));
+        let design = self.wall_profile();
+        let sides = design.sides(t, cross * self.inverse_width * (1.01 + taper * (0.51 / 127.0)));
         let fade = end_fade(t);
         let end = fade * (1.0 - 0.55 * sides.min(1.0) * (1.0 - fade));
-        let inner = smoothstep((0.48 - sides) * 3.1);
-        let outer = smoothstep((1.0 - sides) * 2.25);
-        let wash = (0.73 * inner + 0.27 * outer) * end;
+        let wash = design.cut(sides) * end;
         let elevation = ground - (ground - center_floor).clamp(0.0, 13.0) * wash;
         let Some(branch) = branch else {
             return elevation;

@@ -6,6 +6,7 @@ use crate::world::{World, SEA_LEVEL};
 use crate::world_mesh::{bounds_in_view, WorldMesh};
 
 mod neighborhoods;
+pub mod district_layouts;
 pub mod neighborhood_blocks;
 pub mod riverfront_buildings;
 mod building_forms;
@@ -310,6 +311,10 @@ impl Settlement {
                 form,
             }
         })
+    }
+
+    pub fn neighborhood_layout(&self) -> Option<&'static district_layouts::NeighborhoodLayout> {
+        self.neighborhoods.layout()
     }
 
     pub(crate) fn skyline_neighborhoods(&self) -> impl Iterator<Item = crate::skyline::SkylineTower> + '_ {

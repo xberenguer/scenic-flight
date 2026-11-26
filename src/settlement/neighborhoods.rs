@@ -3,8 +3,7 @@
 
 use super::*;
 
-const SIDE: usize = 19;
-const ROWS: usize = 17;
+use super::district_layouts::{NeighborhoodLayout, COLUMNS as SIDE, ROWS};
 const LEFT: i32 = -6;
 const NODES: usize = SIDE * ROWS;
 const BLOCKS: usize = (SIDE - 1) * (ROWS - 1);
@@ -92,6 +91,7 @@ impl Neighborhoods {
             return Self::EMPTY;
         }
         let mut district = Self { key, ..Self::EMPTY };
+        let layout = NeighborhoodLayout::for_town(key);
         let local = town.local;
         let rx = crate::scenery::region_axis(local.x, ROAD_REGION_SIZE);
         let rz = crate::scenery::region_axis(local.z, ROAD_REGION_SIZE);
@@ -171,7 +171,7 @@ impl Neighborhoods {
             if (0..COLS as i32 - 1).contains(&core_col) && row < REAR as usize {
                 continue;
             }
-            if district.block_frontages(block) == 0 {
+            if district.block_frontages(block) == 0 || !layout.allows_block(col, row) {
                 continue;
             }
             let lot = district.lot(block);
@@ -198,6 +198,10 @@ impl Neighborhoods {
         }
         district.roof_groups = groups.map(RoofGroup::finish);
         district
+    }
+
+    pub(super) fn layout(&self) -> Option<&'static NeighborhoodLayout> {
+        self.foundations.iter().any(|&base| base != 0).then(|| NeighborhoodLayout::for_town(self.key))
     }
 
     fn include(&mut self, col: usize, row: usize) {
@@ -552,6 +556,8 @@ mod tests {
                     let Some(block) = district.block(index) else {
                         continue;
                     };
+                    let plan = district.layout().unwrap();
+                    assert!(plan.allows_block(index % (SIDE - 1), index / (SIDE - 1)));
                     if let Some((open, surface)) = block.open() {
                         match (block.count, surface) {
                             (2, SettlementSurface::Park) => courtyards += 1,
