@@ -141,6 +141,8 @@ fn cover_airfield(piece: AirfieldSample, ground: Sample) -> Sample {
         AirfieldMaterial::GrassRunway => Surface::GrassRunway,
         AirfieldMaterial::PavedRunway | AirfieldMaterial::Taxiway | AirfieldMaterial::AccessRoad => Surface::Pavement,
         AirfieldMaterial::Apron => Surface::Gravel,
+        AirfieldMaterial::ApronStand => Surface::Pavement,
+        AirfieldMaterial::ApronMarking => Surface::AirfieldGuide,
         AirfieldMaterial::RunwayMarking => Surface::RunwayMarking,
         AirfieldMaterial::EdgeLight => Surface::RunwayLight,
         AirfieldMaterial::HangarRoof => Surface::FlatRoof,

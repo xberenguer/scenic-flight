@@ -788,6 +788,9 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             |x, z| horizon.backdrop(x, z));
         let skyline_region = distant_skyline.bounds();
         let bridge_region = rivers.bridge_region(view, dimensions);
+        let water_tower_region = facilities.water_towers()
+            .filter_map(|tower| tower.screen_bounds(view, dimensions))
+            .reduce(ScreenRect::union);
         let waterfall_region = natural.waterfall_region(view, dimensions);
         let summit_region = summits.region(view, dimensions);
         let route_region = routes.depth_region(view, dimensions);
@@ -833,6 +836,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             .chain(coastal_bridge_region)
             .chain(distant_bridges.bounds())
             .chain(distant_airfields.depth_region())
+            .chain(water_tower_region)
             .chain(waterfall_region)
             .chain(summit_region)
             .chain(mist.depth_region())
@@ -918,6 +922,13 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             }
             if bridge_region.is_some() {
                 rivers.draw_fading(view, &mut mesh, |bridge| distant_bridges.detail_opacity(bridge));
+            }
+            if water_tower_region.is_some() {
+                for tower in facilities.water_towers()
+                    .filter(|tower| tower.screen_bounds(view, dimensions).is_some())
+                {
+                    tower.draw(&mut mesh);
+                }
             }
             if waterfall_region.is_some() {
                 natural.draw_waterfalls(view, flight.ticks, &mut mesh);

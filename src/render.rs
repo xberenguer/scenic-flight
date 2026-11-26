@@ -2001,6 +2001,7 @@ fn ground_color(
         Surface::SolarGlass => ([39.0, 80.0, 135.0], false),
         Surface::GrassRunway => ([139.0, 158.0, 105.0], false),
         Surface::RunwayMarking => ([211.0, 215.0, 201.0], false),
+        Surface::AirfieldGuide => ([216.0, 180.0, 72.0], false),
         Surface::RunwayLight => ([120.0, 142.0, 154.0], false),
         Surface::TarnWater => ([38.0, 96.0, 133.0], true),
         Surface::TarnShallows => ([62.0, 126.0, 137.0], true),

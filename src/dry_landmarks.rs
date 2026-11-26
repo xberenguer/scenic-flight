@@ -2,10 +2,12 @@
 
 use crate::coastal_bluffs::{BluffSampler, CoastalBluff};
 use crate::cove_dunes::CoveDune;
+pub use crate::cove_dunes::CoveDuneProfile;
 use crate::math::{fraction, mix, sin_cos, smoothstep};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
 mod alluvial;
+pub use alluvial::FanProfile;
 
 pub const DRY_LANDMARK_TILE: i32 = 512;
 pub(crate) const MAX_DRY_BASINS: usize = 4;
@@ -275,6 +277,11 @@ impl DryLandmark {
         self.floor
     }
 
+    pub fn fan_profile(&self) -> Option<FanProfile> {
+        let Shape::AlluvialFan(fan) = self.shape else { return None };
+        Some(FanProfile::ALL[usize::from(fan.profile)])
+    }
+
     /// Direction from the head of a ravine or fan towards its dry outlet.
     pub fn downhill(&self) -> Option<[f32; 2]> {
         match self.shape {
@@ -282,6 +289,11 @@ impl DryLandmark {
             Shape::AlluvialFan(fan) => Some(fan.axis),
             _ => None,
         }
+    }
+
+    pub fn dune_profile(&self) -> Option<&'static CoveDuneProfile> {
+        let Shape::CoastalDune(dune) = self.shape else { return None };
+        Some(dune.profile())
     }
 
     /// Direction from a coastal landmark towards the open water.

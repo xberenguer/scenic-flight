@@ -33,6 +33,12 @@ pub struct SkylineTower {
     pub(crate) profile: u16,
 }
 
+impl SkylineTower {
+    pub fn landmark_name(&self) -> Option<&'static str> {
+        tower_forms::landmark(self.profile).map(|landmark| landmark.name)
+    }
+}
+
 pub(crate) mod tower_forms;
 
 #[derive(Clone, Copy)]
@@ -447,6 +453,16 @@ impl Glyph {
                     coverage.max(overlap(u, center - half, center + half) * overlap(v, -self.height * mass.top, 0.0))
                 })
             }
+            Form::Neighborhood if self.profile >= crate::quayside::QUAYSIDE_PROFILE => {
+                let Some((design, mirror)) = crate::quayside::silhouette_profile(self.profile) else {
+                    return 0.0;
+                };
+                design.masses.iter().fold(0.0_f32, |coverage, mass| {
+                    let half = self.tier_halves[0] * mass.half[0] + self.tier_halves[1] * mass.half[1];
+                    let center = self.tier_centers[0] * mass.center[0] * mirror + self.tier_centers[1] * mass.center[1];
+                    coverage.max(overlap(u, center - half, center + half) * overlap(v, -self.height * mass.top, 0.0))
+                })
+            }
             Form::Neighborhood if (COTTAGE_GROUP..=SHOP_GROUP + BOROUGH_ALT_OFFSET).contains(&self.profile) => {
                 borough_roof_coverage(u, v, self.half, self.height, self.profile)
             }
@@ -684,7 +700,9 @@ impl Projection {
         let x_width = x_signed.abs();
         let z_width = z_signed.abs();
         let half = x_width + z_width;
-        let (tier_halves, tier_centers) = if landmark.is_some() || form == Form::TownLandmark {
+        let quay = (form == Form::Neighborhood)
+            .then(|| crate::quayside::silhouette_profile(tower.profile)).flatten();
+        let (tier_halves, tier_centers) = if landmark.is_some() || form == Form::TownLandmark || quay.is_some() {
             ([x_width, z_width], [x_signed, z_signed])
         } else if form == Form::Tower {
             let [_, shaft, crown] = tower_forms::design(tower.profile).tiers;
@@ -721,6 +739,8 @@ impl Projection {
             }),
             Form::Hall | Form::TownLandmark => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
             Form::Gable => [46.0 + 115.0 * dusk, 42.0 + 86.0 * dusk, 49.0 + 66.0 * dusk],
+            Form::Neighborhood if quay.is_some_and(|(design, _)| design.commercial) =>
+                [49.0 + 111.0 * dusk, 45.0 + 98.0 * dusk, 51.0 + 90.0 * dusk],
             Form::Neighborhood => [48.0 + 103.0 * dusk, 48.0 + 97.0 * dusk, 54.0 + 91.0 * dusk],
         };
         let visibility =

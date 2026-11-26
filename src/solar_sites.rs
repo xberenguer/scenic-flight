@@ -2,7 +2,7 @@
 
 use crate::ground_details::ParcelSurvey;
 use crate::math::{fraction, mix, smoothstep};
-use crate::roads::{RoadNetwork, ROAD_REGION_SIZE};
+use crate::roads::{ROAD_REGION_SIZE, RoadNetwork};
 use crate::world::{Sample, Surface, World};
 
 const PANEL_WIDTH: f32 = 16.5;
@@ -14,6 +14,137 @@ const SPUR_WIDTH: f32 = 3.0;
 const SPUR_SHOULDER: f32 = 4.3;
 
 #[derive(Clone, Copy, Debug)]
+pub struct SolarLayout {
+    pub name: &'static str,
+    rack_rows: [u8; 6],
+}
+
+impl SolarLayout {
+    pub const ALL: [Self; 25] = [
+        Self {
+            name: "Full rack",
+            rack_rows: [0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111],
+        },
+        Self {
+            name: "Service cross",
+            rack_rows: [0b11011, 0b11011, 0b11100, 0b00000, 0b11011, 0b11011],
+        },
+        Self {
+            name: "Center lane",
+            rack_rows: [0b11011, 0b11011, 0b11011, 0b11011, 0b11011, 0b11011],
+        },
+        Self {
+            name: "Cross lane",
+            rack_rows: [0b11111, 0b11111, 0b00000, 0b00000, 0b11111, 0b11111],
+        },
+        Self {
+            name: "Gate courtyard",
+            rack_rows: [0b11011, 0b11011, 0b11011, 0b11111, 0b11111, 0b11111],
+        },
+        Self {
+            name: "Rear courtyard",
+            rack_rows: [0b11111, 0b11111, 0b11111, 0b11011, 0b11011, 0b11011],
+        },
+        Self {
+            name: "Left setback",
+            rack_rows: [0b00111, 0b00111, 0b00111, 0b11111, 0b11111, 0b11111],
+        },
+        Self {
+            name: "Right setback",
+            rack_rows: [0b11100, 0b11100, 0b11100, 0b11111, 0b11111, 0b11111],
+        },
+        Self {
+            name: "Left taper",
+            rack_rows: [0b11111, 0b11111, 0b11111, 0b11111, 0b11110, 0b11100],
+        },
+        Self {
+            name: "Right taper",
+            rack_rows: [0b11111, 0b11111, 0b11111, 0b11111, 0b01111, 0b00111],
+        },
+        Self {
+            name: "Fan field",
+            rack_rows: [0b00100, 0b01110, 0b01110, 0b11111, 0b11111, 0b11111],
+        },
+        Self {
+            name: "Funnel field",
+            rack_rows: [0b11111, 0b11111, 0b11111, 0b01110, 0b01110, 0b00100],
+        },
+        Self {
+            name: "Diamond field",
+            rack_rows: [0b00100, 0b01110, 0b11111, 0b11111, 0b01110, 0b00100],
+        },
+        Self {
+            name: "Double pavilion",
+            rack_rows: [0b01110, 0b11111, 0b11111, 0b11111, 0b11111, 0b11011],
+        },
+        Self {
+            name: "Diagonal west",
+            rack_rows: [0b11110, 0b11110, 0b11100, 0b01110, 0b01111, 0b01111],
+        },
+        Self {
+            name: "Diagonal east",
+            rack_rows: [0b01111, 0b01111, 0b00111, 0b01110, 0b11110, 0b11110],
+        },
+        Self {
+            name: "Offset west banks",
+            rack_rows: [0b11111, 0b11111, 0b11011, 0b01111, 0b00111, 0b00111],
+        },
+        Self {
+            name: "Offset east banks",
+            rack_rows: [0b11111, 0b11111, 0b11011, 0b11110, 0b11100, 0b11100],
+        },
+        Self {
+            name: "Bilateral pockets",
+            rack_rows: [0b11111, 0b11111, 0b00100, 0b00100, 0b11111, 0b11111],
+        },
+        Self {
+            name: "Single west block",
+            rack_rows: [0b11110, 0b11110, 0b11110, 0b11110, 0b11110, 0b11110],
+        },
+        Self {
+            name: "Single east block",
+            rack_rows: [0b01111, 0b01111, 0b01111, 0b01111, 0b01111, 0b01111],
+        },
+        Self {
+            name: "Center block",
+            rack_rows: [0b11111, 0b01110, 0b01110, 0b01110, 0b01110, 0b01110],
+        },
+        Self {
+            name: "Three islands",
+            rack_rows: [0b11011, 0b11011, 0b11011, 0b00100, 0b01110, 0b01110],
+        },
+        Self {
+            name: "Fork field",
+            rack_rows: [0b00100, 0b01110, 0b11111, 0b11011, 0b11011, 0b11011],
+        },
+        Self {
+            name: "Striped field",
+            rack_rows: [0b11111, 0b00000, 0b00000, 0b11111, 0b00000, 0b11111],
+        },
+    ];
+
+    pub fn rows(self, cols: u8, rows: u8) -> [u8; 6] {
+        let source_cols: &[u8] = match cols {
+            3 => &[0, 2, 4],
+            4 => &[0, 1, 2, 4],
+            _ => &[0, 1, 2, 3, 4],
+        };
+        let source_rows: &[usize] = match rows {
+            4 => &[0, 2, 3, 5],
+            5 => &[0, 1, 2, 4, 5],
+            _ => &[0, 1, 2, 3, 4, 5],
+        };
+        let mut masks = [0; 6];
+        for (row, &source) in source_rows.iter().enumerate() {
+            for (col, &bit) in source_cols.iter().enumerate() {
+                masks[row] |= ((self.rack_rows[source] >> (4 - bit)) & 1) << col;
+            }
+        }
+        masks
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct SolarSite {
     trunk: [f32; 3],
     gate: [f32; 3],
@@ -21,7 +152,8 @@ pub struct SolarSite {
     length: f32,
     cols: u8,
     rows: u8,
-    skip: u8,
+    layout: u8,
+    racks: [u8; 6],
     bounds: [f32; 4],
 }
 
@@ -122,6 +254,8 @@ impl SolarSite {
                         return None;
                     }
                     rigorous += 1;
+                    let design =
+                        (mix(layout ^ 0x5cd6_f4a5_b7c0_01ee) % SolarLayout::ALL.len() as u64) as u8;
                     let site = Self {
                         trunk,
                         gate,
@@ -129,7 +263,8 @@ impl SolarSite {
                         length,
                         cols,
                         rows,
-                        skip: (layout >> 48) as u8 % 4,
+                        layout: design,
+                        racks: SolarLayout::ALL[usize::from(design)].rows(cols, rows),
                         bounds: [left, near, right, far],
                     };
                     if site.prove(world, seed, road, &mut blocked, &mut parcels, &mut pulse) {
@@ -139,6 +274,21 @@ impl SolarSite {
             }
         }
         None
+    }
+
+    /// An isolated full-size parcel for the artwork gallery.
+    pub fn artwork(layout: usize) -> Self {
+        Self {
+            trunk: [0.0, 10.0, -56.0],
+            gate: [0.0, 10.0, 0.0],
+            axis: [0.0, 1.0],
+            length: 56.0,
+            cols: 5,
+            rows: 6,
+            layout: layout as u8,
+            racks: SolarLayout::ALL[layout].rows(5, 6),
+            bounds: [-58.0, -57.0, 58.0, 86.0],
+        }
     }
 
     pub fn bounds(&self) -> [f32; 4] {
@@ -152,6 +302,9 @@ impl SolarSite {
     }
     pub fn rows(&self) -> (u8, u8) {
         (self.cols, self.rows)
+    }
+    pub fn design(&self) -> usize {
+        usize::from(self.layout)
     }
     pub fn direction(&self) -> [f32; 2] {
         self.axis
@@ -233,7 +386,8 @@ impl SolarSite {
     }
 
     pub fn cover(&self, x: f32, z: f32, raw: Sample, developed: Sample) -> Sample {
-        self.sample(x, z, raw).map_or(developed, |piece| cover_sample(piece, developed))
+        self.sample(x, z, raw)
+            .map_or(developed, |piece| cover_sample(piece, developed))
     }
 
     /// Return the actual planted footprint without querying the world.
@@ -285,8 +439,9 @@ impl SolarSite {
         let row = array_z as u8;
         let dx = ((array_x - f32::from(col)) - 0.5) * COLUMN_STEP;
         let dz = ((array_z - f32::from(row)) - 0.5) * ROW_STEP;
-        let trimmed = self.skip != 0 && row + 1 == self.rows && col + 1 == self.cols;
-        if !trimmed && dx.abs() <= PANEL_WIDTH * 0.5 && dz.abs() <= PANEL_DEPTH * 0.5 {
+        let row_mask = *self.racks.get(usize::from(row))?;
+        let occupied = row_mask & (1 << col) != 0;
+        if occupied && dx.abs() <= PANEL_WIDTH * 0.5 && dz.abs() <= PANEL_DEPTH * 0.5 {
             let edge = dx.abs() > PANEL_WIDTH * 0.5 - 0.65 || dz.abs() > PANEL_DEPTH * 0.5 - 0.65;
             return Some(Sample {
                 elevation: raw.elevation + 1.45 + 0.24 * dz,
@@ -297,7 +452,9 @@ impl SolarSite {
                 },
             });
         }
-        if (COLUMN_STEP * 0.5 - dx.abs() < 1.4 && col > 0) || row == self.rows / 2 && dz > 4.4 {
+        let cross_lane = row_mask == 0 && dz.abs() <= 2.5;
+        let center_lane = row_mask & (1 << (self.cols / 2)) == 0 && u.abs() <= 2.5;
+        if cross_lane || center_lane || (COLUMN_STEP * 0.5 - dx.abs() < 1.4 && col > 0) {
             return Some(Sample {
                 surface: Surface::Gravel,
                 ..raw
@@ -327,8 +484,38 @@ fn root(value: f32) -> f32 {
 
 pub(crate) fn cover_sample(piece: Sample, developed: Sample) -> Sample {
     if piece.surface == Surface::Gravel && developed.surface == Surface::Pavement {
-        Sample { surface: Surface::Pavement, ..piece }
+        Sample {
+            surface: Surface::Pavement,
+            ..piece
+        }
     } else {
         piece
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SolarLayout;
+
+    #[test]
+    fn every_layout_stays_distinct_and_populated_on_every_parcel_size() {
+        for cols in 3..=5 {
+            for rows in 4..=6 {
+                let masks = SolarLayout::ALL.map(|layout| layout.rows(cols, rows));
+                for (index, mask) in masks.iter().enumerate() {
+                    let panels: u32 = mask.iter().map(|row| row.count_ones()).sum();
+                    assert!(
+                        panels >= 6,
+                        "{} leaves too few panels",
+                        SolarLayout::ALL[index].name
+                    );
+                    assert!(
+                        !masks[..index].contains(mask),
+                        "{} loses its shape on {cols}×{rows}",
+                        SolarLayout::ALL[index].name
+                    );
+                }
+            }
+        }
     }
 }

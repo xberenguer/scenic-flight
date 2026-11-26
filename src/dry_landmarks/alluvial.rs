@@ -1,8 +1,11 @@
 //! Dry alluvial aprons where a confined mountain drainage meets a gentler valley.
 
-use super::{in_dry_tile, DryLandmark, Shape, RAVINE_AXES};
+use super::{DryLandmark, RAVINE_AXES, Shape, in_dry_tile};
 use crate::math::{fraction, mix, smoothstep};
-use crate::world::{Sample, Surface, World, SEA_LEVEL};
+use crate::world::{SEA_LEVEL, Sample, Surface, World};
+
+mod profiles;
+pub use profiles::FanProfile;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Fan {
@@ -11,6 +14,8 @@ pub(super) struct Fan {
     inverse_length: f32,
     spread: f32,
     bend: f32,
+    flare: f32,
+    pub(super) profile: u8,
     branches: [Wash; 3],
 }
 
@@ -64,41 +69,15 @@ impl Fan {
             let length = 89.0 + 38.0 * fraction(mix(state ^ 0x9c12));
             let spread = 34.0 + 16.0 * fraction(mix(state ^ 0x781a));
             let bend = (fraction(mix(state ^ 0x47c3)) - 0.5) * 14.0;
-            let first = fraction(mix(state ^ 0x542d));
-            let last = fraction(mix(state ^ 0xc831));
+            let profile_id =
+                (mix(key ^ 0xd3bc_1d7a_59ca_3310) % FanProfile::ALL.len() as u64) as u8;
+            let profile = FanProfile::ALL[usize::from(profile_id)];
             for n in 0..8 {
                 pulse();
                 let axis = RAVINE_AXES[(n + (state & 7) as usize) & 7];
-                let fan = Self {
-                    axis,
-                    length,
-                    inverse_length: 1.0 / length,
-                    spread,
-                    bend,
-                    branches: [
-                        Wash {
-                            split: 0.08 + first * 0.11,
-                            toe: 0.74 + first * 0.14,
-                            direction: -0.70 - first * 0.19,
-                            bend: 45.0 * last - 27.0,
-                            inverse_width: 1.0 / (3.7 + first * 1.2),
-                        },
-                        Wash {
-                            split: 0.0,
-                            toe: 0.91 + last * 0.09,
-                            direction: -0.14 + first * 0.33,
-                            bend: 24.0 - last * 55.0,
-                            inverse_width: 1.0 / (4.5 + last * 1.1),
-                        },
-                        Wash {
-                            split: 0.16 + last * 0.18,
-                            toe: 0.81 + last * 0.15,
-                            direction: 0.66 + last * 0.28,
-                            bend: 16.0 + first * 29.0,
-                            inverse_width: 1.0 / (3.2 + last * 2.1),
-                        },
-                    ],
-                };
+                let fan = Self::new(axis, length, spread, bend, profile_id, profile);
+                let length = fan.length;
+                let bend = fan.bend;
                 let bounds = fan.bounds(apex);
                 if !in_dry_tile(origin, bounds) {
                     continue;
@@ -149,6 +128,34 @@ impl Fan {
         None
     }
 
+    fn new(
+        axis: [f32; 2],
+        length: f32,
+        spread: f32,
+        bend: f32,
+        profile_id: u8,
+        profile: FanProfile,
+    ) -> Self {
+        let length = length * profile.aspect[0];
+        let spread = spread * profile.aspect[1];
+        Self {
+            axis,
+            length,
+            inverse_length: 1.0 / length,
+            spread,
+            bend: bend + spread * profile.bend,
+            flare: profile.flare,
+            profile: profile_id,
+            branches: profile.streams.map(|channel| Wash {
+                split: channel.split,
+                toe: channel.toe,
+                direction: channel.direction,
+                bend: channel.bend,
+                inverse_width: 1.0 / channel.width,
+            }),
+        }
+    }
+
     fn prove(self, world: &World, apex: [f32; 2], head: f32, pulse: &mut impl FnMut()) -> bool {
         let mut previous = [head; 3];
         for step in 1..=16 {
@@ -191,7 +198,12 @@ impl Fan {
             return ground;
         }
         let margin = smoothstep((width - across.abs()) * 0.17);
-        let apron = margin * smoothstep(t * 16.0) * smoothstep((1.0 - t) * 9.0);
+        let edge = across / width;
+        let toe = 1.0 - (0.09 + 0.16 * self.flare) * edge * edge;
+        let apron = margin * smoothstep(t * 16.0) * smoothstep((toe - t) * 9.0);
+        if apron == 0.0 {
+            return ground;
+        }
         let [left, middle, right] = self.branches.map(|wash| wash.score(t, across, self.spread));
         let amount = apron * left.max(middle).max(right);
         let surface = if amount > 0.24 {
@@ -208,7 +220,7 @@ impl Fan {
     }
 
     fn half_width(self, t: f32) -> f32 {
-        5.8 + self.spread * t * (1.46 - 0.46 * t)
+        5.8 + self.spread * t * (1.0 + self.flare * (1.0 - t))
     }
 
     fn point(self, apex: [f32; 2], along: f32, across: f32) -> [f32; 2] {
@@ -245,14 +257,42 @@ mod tests {
     use crate::facility_stream::FacilityStream;
     use crate::highway_stream::HighwayStream;
     use crate::land_stream::LandStream;
-    use crate::local_routes::{route_reservation, LocalRouteStream};
+    use crate::local_routes::{LocalRouteStream, route_reservation};
     use crate::natural_stream::{
-        highway_reservation_with_nature, scenery_reservation_with_highways, NaturalBudget,
-        NaturalReservation, NaturalStream,
+        NaturalBudget, NaturalReservation, NaturalStream, highway_reservation_with_nature,
+        scenery_reservation_with_highways,
     };
     use crate::render::Camera;
     use crate::river_stream::RiverStream;
     use crate::watershed::WatershedWork;
+
+    #[test]
+    fn fan_profiles_have_distinct_footprints_and_channels() {
+        let mut footprints = std::collections::HashSet::new();
+        for profile in FanProfile::ALL {
+            let mut footprint = std::vec::Vec::new();
+            for z in (0..132).step_by(3) {
+                for x in (-75..75).step_by(3) {
+                    let sample = profile.study(x as f32, z as f32);
+                    footprint.push(sample.map(|sample| sample.surface as u8));
+                }
+            }
+            assert!(
+                footprint
+                    .iter()
+                    .filter(|&&surface| surface == Some(Surface::DryWash as u8))
+                    .count()
+                    >= 25,
+                "{} has no readable network",
+                profile.name,
+            );
+            assert!(
+                footprints.insert(footprint),
+                "{} duplicates a profile",
+                profile.name
+            );
+        }
+    }
 
     #[test]
     fn a_seeded_alluvial_fan_keeps_the_washes_dry_and_off_reserved_land() {
@@ -328,7 +368,9 @@ mod tests {
         let sampler = nature.sampler();
         for wash in fan.branches {
             let mut previous = placed.rim;
-            for t in [0.30, 0.42, 0.56, 0.63] {
+            let end = 0.63_f32.min(wash.toe - 0.16);
+            for fraction in [0.0, 0.35, 0.70, 1.0] {
+                let t = 0.27 + (end - 0.27) * fraction;
                 let cross = fan.bend * t * t + wash.lateral(t, fan.spread);
                 let [x, z] = fan.point(apex, t * fan.length, cross);
                 let raw = world.sample(x, z);
@@ -359,8 +401,10 @@ mod tests {
                 reserve(bounds)
             }
         });
-        assert!(blocked
-            .dry_landmarks()
-            .all(|site| site.bounds() != expected.bounds()));
+        assert!(
+            blocked
+                .dry_landmarks()
+                .all(|site| site.bounds() != expected.bounds())
+        );
     }
 }

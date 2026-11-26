@@ -3,6 +3,9 @@
 use crate::math::{fraction, mix, smoothstep};
 use crate::world::{SEA_LEVEL, Sample, Surface, World};
 
+mod field_profiles;
+pub use field_profiles::FieldProfile;
+
 const SIDE: i32 = 19;
 const TILE: f32 = 64.0;
 const TREE_TILE: f32 = 5.5;
@@ -14,6 +17,7 @@ const FARM_DISTRICT_TILES: i32 = 5;
 #[repr(u8)]
 enum FieldLayout {
     Blocks,
+    PlantedPattern,
     ContourAcrossX,
     ContourAcrossZ,
 }
@@ -38,8 +42,8 @@ impl GroundTile {
     fn prepare(world: &World, seed: u64, x: i32, z: i32) -> Self {
         let state = key(seed, x, z);
         let [district_x, district_z] = [x, z].map(|tile| tile.div_euclid(FARM_DISTRICT_TILES));
-        let layout = key(seed ^ 0x17da_e34d_8f0b_2671, district_x, district_z);
-        let district_alignment = ((layout >> 42) & 31) as i8 - 16;
+        let district = key(seed ^ 0x17da_e34d_8f0b_2671, district_x, district_z);
+        let district_alignment = ((district >> 42) & 31) as i8 - 16;
         let survey = if farm_density(seed, x, z) > 0.32 && state & 15 != 0 {
             survey_farm(world, x, z)
         } else {
@@ -49,11 +53,21 @@ impl GroundTile {
             .map_or((FieldLayout::Blocks, district_alignment, 0), |profile| {
                 fit_field_rows(profile, district_alignment)
             });
+        let (layout, pattern) = if survey.is_some()
+            && matches!(layout, FieldLayout::Blocks) && (district >> 17) & 3 == 0
+        {
+            let index = ((district >> 21) % FieldProfile::ALL.len() as u64) as u32;
+            let axis = ((district >> 11) & 1) as u32;
+            let reverse = ((state >> 7) & 1) as u32;
+            (FieldLayout::PlantedPattern, index | (axis << 5) | (reverse << 6))
+        } else {
+            (layout, (state >> 24) as u32)
+        };
         Self {
             x,
             z,
             fields: survey.is_some(),
-            pattern: (state >> 24) as u32,
+            pattern,
             alignment,
             layout,
             bend,
@@ -68,8 +82,10 @@ impl GroundTile {
             return Surface::Grass;
         }
         let shape = self.pattern;
-        if !matches!(self.layout, FieldLayout::Blocks) {
-            return self.contour_surface(u, v);
+        match self.layout {
+            FieldLayout::Blocks => {}
+            FieldLayout::PlantedPattern => return self.planted_surface(u, v),
+            _ => return self.contour_surface(u, v),
         }
         let grade = self.alignment as f32 * 0.022;
         let a = u + (v - TILE * 0.5) * grade;
@@ -94,6 +110,13 @@ impl GroundTile {
             2 => Surface::Grass,
             _ => Surface::FieldGreen,
         }
+    }
+
+    fn planted_surface(self, u: f32, v: f32) -> Surface {
+        let (a, b) = if self.pattern & 32 == 0 { (u, v) } else { (v, u) };
+        let shift = (b - TILE * 0.5) * f32::from(self.alignment) * 0.017;
+        let across = if self.pattern & 64 == 0 { a + shift } else { TILE - a - shift };
+        FieldProfile::ALL[(self.pattern & 31) as usize].sample(across, b)
     }
 
     fn contour_surface(self, u: f32, v: f32) -> Surface {
@@ -228,6 +251,15 @@ impl GroundDetails {
                 GroundTile::prepare(world, seed, column, row).fields.then_some(bounds)
             })
         })
+    }
+
+    /// Inspect the cultivated profile in the same cache used to shade the terrain.
+    pub fn field_profile_at(&self, x: f32, z: f32) -> Option<FieldProfile> {
+        let tx = grid_index(x, 1.0 / TILE);
+        let tz = grid_index(z, 1.0 / TILE);
+        let tile = self.tiles[wrap(tz)][wrap(tx)];
+        (tile.x == tx && tile.z == tz && tile.fields && matches!(tile.layout, FieldLayout::PlantedPattern))
+            .then(|| FieldProfile::ALL[(tile.pattern & 31) as usize])
     }
 
     fn field(&self, x: f32, z: f32) -> Surface {

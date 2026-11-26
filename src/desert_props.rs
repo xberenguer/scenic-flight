@@ -491,6 +491,7 @@ mod tests {
         let landforms = inland.map(|tile| (0, tile)).into_iter().chain([
             (1, [3, 9]), (1, [11, 12]), (2, [-6, 4]), (1, [3, -11]),
             (1, [6, -5]), (2, [-7, -8]), (1, [-14, -11]), (1, [-13, 17]),
+            (1, [-18, 6]),
         ]);
         for (seed, tile) in landforms {
             survey(seed, Some(tile), &mut forms);

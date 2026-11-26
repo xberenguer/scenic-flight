@@ -1,8 +1,8 @@
 //! Sparse, seeded airfields fitted to the existing terrain and roads.
 
 use crate::math::{fraction, mix, sin_cos};
-use crate::roads::{RoadNetwork, RoadPoint, ROAD_REGION_SIZE};
-use crate::world::{Surface, World, SEA_LEVEL};
+use crate::roads::{ROAD_REGION_SIZE, RoadNetwork, RoadPoint};
+use crate::world::{SEA_LEVEL, Surface, World};
 use core::f32::consts::{FRAC_PI_2, PI};
 
 pub const AIRFIELD_TILE_SIZE: i32 = ROAD_REGION_SIZE;
@@ -11,7 +11,9 @@ const REGIONAL_GRADE: f32 = 0.038;
 const CLEARANCE: f32 = SEA_LEVEL + 4.0;
 const ACCESS_HALF_WIDTH: f32 = 1.65;
 
+mod aprons;
 mod buildings;
+pub use aprons::ApronProfile;
 const BUILDING_SLOTS: usize = 4;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,6 +35,8 @@ pub enum AirfieldMaterial {
     HangarRoof,
     PitchedHangarRoof,
     GlazedAirfieldRoof,
+    ApronStand,
+    ApronMarking,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,6 +56,7 @@ pub struct AirfieldSite {
     buildings: [Option<Building>; BUILDING_SLOTS],
     access: [Option<AccessLeg>; 2],
     bounds: Bounds,
+    apron_profile: u8,
 }
 
 impl AirfieldSite {
@@ -223,6 +228,15 @@ impl AirfieldSite {
         })
     }
 
+    pub fn apron_profile(&self) -> ApronProfile {
+        ApronProfile::ALL[usize::from(self.apron_profile)]
+    }
+
+    pub fn apron_center(&self) -> [f32; 2] {
+        let point = self.local.world(self.apron.along, self.apron.across);
+        [point.x, point.z]
+    }
+
     pub fn road_contact(&self) -> Option<(f32, f32)> {
         self.access[0].map(|leg| (leg.start.x, leg.start.z))
     }
@@ -240,7 +254,10 @@ impl AirfieldSite {
             return Some(mark_ground(AirfieldMaterial::Taxiway));
         }
         if self.apron.contains(along, across) {
-            return Some(mark_ground(AirfieldMaterial::Apron));
+            let u = (along - self.apron.along) / self.apron.half_length;
+            let v =
+                (across - self.apron.across) * self.apron.across.signum() / self.apron.half_width;
+            return Some(mark_ground(self.apron_profile().sample(u, v)));
         }
         for building in self.buildings.iter().flatten() {
             if building.area.contains(along, across) {
@@ -796,6 +813,8 @@ impl Layout {
             buildings,
             access,
             bounds,
+            apron_profile: (mix(key ^ 0x292e_b327_291c_fda1) % ApronProfile::ALL.len() as u64)
+                as u8,
         })
     }
 }
@@ -977,28 +996,32 @@ mod tests {
                         prior = ground;
                     }
                 }
-                assert!(footprint(
-                    &world,
-                    site.local,
-                    site.taxiway,
-                    0.082,
-                    0.093,
-                    false,
-                    |_| true,
-                    &mut || {},
-                )
-                .is_some());
-                assert!(footprint(
-                    &world,
-                    site.local,
-                    site.apron,
-                    0.058,
-                    0.066,
-                    false,
-                    |_| true,
-                    &mut || {}
-                )
-                .is_some());
+                assert!(
+                    footprint(
+                        &world,
+                        site.local,
+                        site.taxiway,
+                        0.082,
+                        0.093,
+                        false,
+                        |_| true,
+                        &mut || {},
+                    )
+                    .is_some()
+                );
+                assert!(
+                    footprint(
+                        &world,
+                        site.local,
+                        site.apron,
+                        0.058,
+                        0.066,
+                        false,
+                        |_| true,
+                        &mut || {}
+                    )
+                    .is_some()
+                );
             }
         }
     }
@@ -1059,18 +1082,23 @@ mod tests {
                 let Some(building) = building else {
                     continue;
                 };
-                assert!([site.runway, site.taxiway, site.apron]
-                    .into_iter()
-                    .all(|paved| !intersects(paved, building.area)));
-                assert!(site
-                    .access
-                    .iter()
-                    .flatten()
-                    .all(|leg| !leg.intersects(site.local, building.area)));
-                assert!(site.buildings[slot + 1..]
-                    .iter()
-                    .flatten()
-                    .all(|other| !intersects(other.area, building.area)));
+                assert!(
+                    [site.runway, site.taxiway, site.apron]
+                        .into_iter()
+                        .all(|paved| !intersects(paved, building.area))
+                );
+                assert!(
+                    site.access
+                        .iter()
+                        .flatten()
+                        .all(|leg| !leg.intersects(site.local, building.area))
+                );
+                assert!(
+                    site.buildings[slot + 1..]
+                        .iter()
+                        .flatten()
+                        .all(|other| !intersects(other.area, building.area))
+                );
                 let mut sampled_roof = false;
                 for row in 0..=8 {
                     for col in 0..=8 {
@@ -1127,7 +1155,12 @@ mod tests {
                     .world(site.taxiway.along, site.apron.across * i as f32 / 27.0);
                 let tag = site.sample(local.x, local.z).unwrap().material;
                 met_taxiway |= tag == AirfieldMaterial::Taxiway;
-                met_apron |= tag == AirfieldMaterial::Apron;
+                met_apron |= matches!(
+                    tag,
+                    AirfieldMaterial::Apron
+                        | AirfieldMaterial::ApronStand
+                        | AirfieldMaterial::ApronMarking
+                );
             }
             assert!(met_taxiway && met_apron);
             for leg in site.access.iter().flatten() {
@@ -1138,7 +1171,10 @@ mod tests {
                         .offset(leg.direction, leg.length * i as f32 / 30.0, 0.0);
                     assert!(matches!(
                         site.sample(at.x, at.z).unwrap().material,
-                        AirfieldMaterial::AccessRoad | AirfieldMaterial::Apron
+                        AirfieldMaterial::AccessRoad
+                            | AirfieldMaterial::Apron
+                            | AirfieldMaterial::ApronStand
+                            | AirfieldMaterial::ApronMarking
                     ));
                 }
             }

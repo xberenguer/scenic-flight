@@ -1,10 +1,13 @@
 //! Road-served open cuts on hillsides and dry gravel terraces.
 
 use crate::ground_details::ParcelSurvey;
-use crate::lighthouses::{Lighthouse, LIGHTHOUSE_TILE};
+use crate::lighthouses::{LIGHTHOUSE_TILE, Lighthouse};
 use crate::math::{fraction, mix, smoothstep};
-use crate::roads::{RoadNetwork, ROAD_HALF_WIDTH, ROAD_REGION_SIZE};
+use crate::roads::{ROAD_HALF_WIDTH, ROAD_REGION_SIZE, RoadNetwork};
 use crate::world::{Sample, Surface, World};
+
+mod profiles;
+pub use profiles::QuarryProfile;
 
 const SPUR_HALF: f32 = 3.05;
 const SPUR_SHOULDER: f32 = 4.65;
@@ -29,6 +32,7 @@ pub struct Quarry {
     bench: f32,
     bounds: [f32; 4],
     form: QuarryForm,
+    profile: u8,
 }
 
 impl Quarry {
@@ -114,6 +118,9 @@ impl Quarry {
                         bench: (face_relief * 0.25).clamp(5.2, 7.2),
                         bounds: combined_bounds(j, yard, axis, width, depth),
                         form: QuarryForm::Hillside,
+                        profile: (mix(state ^ 0x7318_2a5d_93e4_461b)
+                            % QuarryProfile::ALL.len() as u64)
+                            as u8,
                     };
                     if !(0..2).all(|axis| {
                         plan.bounds[axis] >= origin[axis] + 4.0
@@ -173,7 +180,10 @@ impl Quarry {
             for side in [side, -side] {
                 for skew in [0.0, -0.33, 0.33] {
                     let norm = 1.0 / root(1.0 + skew * skew);
-                    let axis = [(-tz * side + tx * skew) * norm, (tx * side + tz * skew) * norm];
+                    let axis = [
+                        (-tz * side + tx * skew) * norm,
+                        (tx * side + tz * skew) * norm,
+                    ];
                     let length = 47.0 + 13.0 * fraction(mix(state ^ 0x44dc));
                     let width = 23.0 + 5.0 * fraction(mix(state ^ 0xbc05));
                     let depth = 44.0 + 8.0 * fraction(mix(state ^ 0x52d7));
@@ -185,17 +195,22 @@ impl Quarry {
                         continue;
                     }
                     let floor = ground.elevation - 2.55 - 0.5 * fraction(mix(state ^ 0x880b));
-                    if floor < 4.8 || floor > start + 0.4 || start - floor > length * MAX_SPUR_GRADE {
+                    if floor < 4.8 || floor > start + 0.4 || start - floor > length * MAX_SPUR_GRADE
+                    {
                         continue;
                     }
                     // A broad, continuous terrace must remain dry around and behind the cut.
-                    if [(depth * 0.42, -width * 0.8), (depth * 0.42, width * 0.8), (depth, 0.0)]
-                        .into_iter().any(|(forward, side)| {
-                            let [x, z] = offset(yard, axis, forward, side);
-                            let h = world.elevation(x, z);
-                            !(ground.elevation - 1.6..=ground.elevation + 3.8).contains(&h)
-                        })
-                    {
+                    if [
+                        (depth * 0.42, -width * 0.8),
+                        (depth * 0.42, width * 0.8),
+                        (depth, 0.0),
+                    ]
+                    .into_iter()
+                    .any(|(forward, side)| {
+                        let [x, z] = offset(yard, axis, forward, side);
+                        let h = world.elevation(x, z);
+                        !(ground.elevation - 1.6..=ground.elevation + 3.8).contains(&h)
+                    }) {
                         continue;
                     }
                     let plan = Self {
@@ -210,10 +225,12 @@ impl Quarry {
                         bench: 1.0,
                         bounds: combined_bounds(j, yard, axis, width, depth),
                         form: QuarryForm::GravelPit,
+                        profile: 0,
                     };
-                    if !(0..2).all(|axis| plan.bounds[axis] >= origin[axis] + 4.0
-                        && plan.bounds[axis + 2] < origin[axis] + ROAD_REGION_SIZE as f32 - 4.0)
-                    {
+                    if !(0..2).all(|axis| {
+                        plan.bounds[axis] >= origin[axis] + 4.0
+                            && plan.bounds[axis + 2] < origin[axis] + ROAD_REGION_SIZE as f32 - 4.0
+                    }) {
                         continue;
                     }
                     if attempts == 12 {
@@ -253,21 +270,47 @@ impl Quarry {
         (side, h)
     }
 
+    pub fn profile(&self) -> Option<&'static QuarryProfile> {
+        (self.form == QuarryForm::Hillside).then(|| &QuarryProfile::ALL[usize::from(self.profile)])
+    }
+
     fn excavation(&self, forward: f32, transverse: f32) -> Option<(f32, f32)> {
+        self.excavation_profile(forward, transverse, self.profile())
+    }
+
+    fn excavation_profile(
+        &self,
+        forward: f32,
+        transverse: f32,
+        profile: Option<&QuarryProfile>,
+    ) -> Option<(f32, f32)> {
         let u = transverse * self.inverse_width;
         let v = forward * self.inverse_depth;
-        let back = v + 0.24 * u * u;
-        let edge = smoothstep((1.0 - u.abs()) * 4.8)
-            * smoothstep((1.0 - back) * 7.0)
-            * smoothstep((v + 0.16) * 7.0);
-        if edge <= 0.0 || v > 1.0 || u.abs() >= 1.0 {
+        if !(-0.16..=1.0).contains(&v) || u.abs() >= 1.0 {
             return None;
         }
-        let rise = match self.form {
-            QuarryForm::Hillside => smoothstep((back - 0.22) * 23.0)
-                + smoothstep((back - 0.45) * 26.0)
-                + smoothstep((back - 0.71) * 26.0),
-            QuarryForm::GravelPit => smoothstep((back - 0.66) * 10.0),
+        let (back, wing) = if let Some(plan) = profile {
+            let advance = v.max(0.0);
+            let slip = u - plan.drift * advance * advance;
+            let opening = 1.0 - plan.throat * (1.0 - advance) * (1.0 - advance);
+            let back = v + plan.flank * slip * slip + plan.skew * slip * advance;
+            (back, (slip.abs() / opening).max(u.abs()))
+        } else {
+            (v + 0.24 * u * u, u.abs())
+        };
+        let edge = smoothstep((1.0 - wing) * 4.8)
+            * smoothstep((1.0 - back) * 7.0)
+            * smoothstep((v + 0.16) * 7.0);
+        if edge <= 0.0 {
+            return None;
+        }
+        let rise = if let Some(plan) = profile {
+            let [lower, middle, top] = plan.terraces;
+            smoothstep((back - lower) * 23.0)
+                + smoothstep((back - middle) * 26.0)
+                + smoothstep((back - top) * 26.0)
+        } else {
+            smoothstep((back - 0.66) * 10.0)
         };
         Some((
             self.yard[1] + 0.65 * back.max(0.0) + self.bench * rise,
@@ -371,7 +414,12 @@ impl Quarry {
                 working += usize::from(weight > 0.78 && g.elevation - h > 2.0);
             }
         }
-        working > if self.form == QuarryForm::GravelPit { 88 } else { 140 }
+        working
+            > if self.form == QuarryForm::GravelPit {
+                88
+            } else {
+                140
+            }
     }
 
     fn clears_navigation(&self, world: &World, seed: u64, pulse: &mut impl FnMut()) -> bool {
@@ -413,8 +461,18 @@ impl Quarry {
             || self.excavation(along - self.length, across).is_some()
     }
 
-    pub(crate) fn overlay_developed(&self, x: f32, z: f32, raw: Sample, developed: Sample) -> Sample {
-        let ground = if developed.surface.is_tree_canopy() { raw } else { developed };
+    pub(crate) fn overlay_developed(
+        &self,
+        x: f32,
+        z: f32,
+        raw: Sample,
+        developed: Sample,
+    ) -> Sample {
+        let ground = if developed.surface.is_tree_canopy() {
+            raw
+        } else {
+            developed
+        };
         let placed = self.overlay(x, z, ground);
         if placed == ground { developed } else { placed }
     }
@@ -540,9 +598,10 @@ mod tests {
             )
             .unwrap();
             let [jx, _, jz] = site.junction();
-            assert!(road
-                .proximity(jx, jz)
-                .is_some_and(|point| point.distance_squared < 0.001));
+            assert!(
+                road.proximity(jx, jz)
+                    .is_some_and(|point| point.distance_squared < 0.001)
+            );
             let mut prev: Option<[f32; 3]> = None;
             let mut max_grade = 0.0_f32;
             for i in 0..=240 {
@@ -580,7 +639,10 @@ mod tests {
                     }
                 }
             }
-            assert!(deepest > 4.8 && deepest <= 24.0 && cuts > 500, "{region:?}: {deepest} {cuts}");
+            assert!(
+                deepest > 4.8 && deepest <= 24.0 && cuts > 500,
+                "{region:?}: {deepest} {cuts}"
+            );
         }
     }
 }

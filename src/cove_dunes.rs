@@ -1,10 +1,13 @@
 //! Foredunes on surveyed crescent coves with existing shallow water and sheltered forest.
 
-use crate::beach::{BeachSite, BEACH_TILE_SIZE};
+use crate::beach::{BEACH_TILE_SIZE, BeachSite};
 use crate::ground_details::ParcelSurvey;
-use crate::lighthouses::{Lighthouse, LIGHTHOUSE_TILE};
+use crate::lighthouses::{LIGHTHOUSE_TILE, Lighthouse};
 use crate::math::{fraction, mix, smoothstep};
-use crate::world::{Sample, Surface, World, SEA_LEVEL};
+use crate::world::{SEA_LEVEL, Sample, Surface, World};
+
+mod profiles;
+pub use profiles::CoveDuneProfile;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct CoveDune {
@@ -15,7 +18,7 @@ pub(crate) struct CoveDune {
     bow: f32,
     tilt: f32,
     relief: f32,
-    scallop: f32,
+    profile: u8,
 }
 
 impl CoveDune {
@@ -109,7 +112,7 @@ impl CoveDune {
                 bow: bow / width,
                 tilt: tilt / width,
                 relief: 2.50 + fraction(mix(design ^ 0x680f)) * 0.92,
-                scallop: (fraction(mix(design ^ 0x761f)) - 0.5) * 1.04,
+                profile: (mix(design ^ 0x761f) % CoveDuneProfile::ALL.len() as u64) as u8,
             };
             let bounds = plan.bounds(center);
             if !(0..2).all(|i| bounds[i] > origin[i] + 2.0 && bounds[i + 2] < origin[i] + 510.0) {
@@ -177,6 +180,15 @@ impl CoveDune {
     }
 
     pub(crate) fn overlay(self, offset: [f32; 2], ground: Sample) -> Sample {
+        self.overlay_profile(offset, ground, self.profile())
+    }
+
+    fn overlay_profile(
+        self,
+        offset: [f32; 2],
+        ground: Sample,
+        profile: &CoveDuneProfile,
+    ) -> Sample {
         if ground.elevation < SEA_LEVEL + 0.65
             || ground.elevation > SEA_LEVEL + 7.1
             || !matches!(
@@ -196,24 +208,29 @@ impl CoveDune {
         if v.abs() >= 1.0 {
             return ground;
         }
-        let from_crest = v + 0.36 - 0.13 * u * u;
+        let [lean, height] = profile.crest(u);
+        let from_crest = (v + 0.36 - 0.13 * u * u - lean) * profile.breadth;
         let face = 1.0 - (1.22 * from_crest).max(-1.75 * from_crest);
-        let scallop = 1.0 - 0.31 * smoothstep((0.25 - (u - self.scallop).abs()) * 4.0);
-        let crest = smoothstep(face) * scallop;
-        let foredune = smoothstep((v - 0.06) * 2.85) * smoothstep((1.0 - v) * 2.4);
+        let crest = smoothstep(face) * height;
+        let foredune = smoothstep((v - profile.crest_gap) * 2.85) * smoothstep((1.0 - v) * 2.4);
         let ends = smoothstep((1.0 - u.abs()) * 2.3);
         let support = smoothstep((ground.elevation - (SEA_LEVEL + 0.65)) * 1.55)
-            * smoothstep((SEA_LEVEL + 7.1 - ground.elevation) * 0.55);
+            * smoothstep((SEA_LEVEL + 7.1 - ground.elevation) * 0.55)
+            * smoothstep((1.0 - v.abs()) * 6.0);
         let primary = self.relief * ends * support * crest;
-        let rise = primary + 0.82 * foredune * ends * ends * support;
+        let rise = (primary + profile.apron * foredune * ends * ends * support).min(3.75);
         Sample {
             elevation: ground.elevation + rise,
-            surface: if primary > 1.42 && face > 0.73 {
+            surface: if primary > 1.30 && face > 0.68 {
                 Surface::DuneSand
             } else {
                 ground.surface
             },
         }
+    }
+
+    pub(crate) fn profile(self) -> &'static CoveDuneProfile {
+        &CoveDuneProfile::ALL[usize::from(self.profile)]
     }
 
     pub(crate) fn seaward(self) -> [f32; 2] {
@@ -280,4 +297,34 @@ pub(crate) fn clears_fixed_sites(
         }
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cove_profiles_have_distinct_sand_crests_and_stay_below_the_relief_cap() {
+        let mut signatures = std::collections::HashSet::new();
+        for profile in CoveDuneProfile::ALL {
+            let mut signature = std::vec::Vec::new();
+            for z in (-22..31).step_by(2) {
+                for x in (-50..51).step_by(2) {
+                    let sample = profile.study([x as f32, z as f32]);
+                    assert!(sample.is_none_or(|grade| (3.4..=7.151).contains(&grade.elevation)));
+                    signature.push(sample.map(|grade| grade.surface == Surface::DuneSand));
+                }
+            }
+            assert!(
+                signature.iter().filter(|&&bit| bit == Some(true)).count() > 20,
+                "{}",
+                profile.name
+            );
+            assert!(
+                signatures.insert(signature),
+                "{} duplicates a dune",
+                profile.name
+            );
+        }
+    }
 }

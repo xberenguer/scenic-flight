@@ -276,7 +276,72 @@ const moraineNames = await fetch('assets/artwork/moraines.txt')
   .catch(() => []);
 const moraineFamilies = ['Terminal arcs', 'Asymmetric banks', 'Recessional ridges', 'Debris aprons', 'Scalloped ridges'];
 
+const waterTowerNames = await fetch('assets/artwork/water-towers.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const waterTowerFamilies = ['Pedestal', 'Steel frame', 'Masonry', 'Twin pier', 'Portal'];
+
+const solarLayoutNames = await fetch('assets/artwork/solar-layouts.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const alluvialNames = await fetch('assets/artwork/alluvial-fans.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const headwallNames = await fetch('assets/artwork/columnar-headwalls.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const cultivatedNames = await fetch('assets/artwork/cultivated-fields.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const coveDuneNames = await fetch('assets/artwork/cove-dunes.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const quayWorkshopNames = await fetch('assets/artwork/quay-workshops.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const quarryNames = await fetch('assets/artwork/quarry-profiles.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const apronNames = await fetch('assets/artwork/airfield-aprons.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
 const categories = [
+  { title: 'Airfield aprons', label: 'Apron layout', atlas: 'airfield-aprons.png',
+    columns: 5, rows: 5, name: index => apronNames[index], animation: 'airfield-aprons.gif' },
+  { title: 'Hillside quarries', label: 'Quarry', atlas: 'quarry-profiles.png',
+    columns: 5, rows: 5, name: index => quarryNames[index], animation: 'quarry-profiles.gif' },
+  { title: 'Quayside workshops', label: 'Waterfront building', atlas: 'quay-workshops.png',
+    columns: 5, rows: 5, name: index => quayWorkshopNames[index], animation: 'quay-workshops.gif' },
+  { title: 'Sheltered cove dunes', label: 'Cove dune', atlas: 'cove-dunes.png',
+    columns: 5, rows: 5, name: index => coveDuneNames[index], animation: 'cove-dunes.gif' },
+  { title: 'Cultivated fields', label: 'Field layout', atlas: 'cultivated-fields.png',
+    columns: 5, rows: 5, name: index => cultivatedNames[index], animation: 'cultivated-fields.gif' },
+  { title: 'Columnar rock faces', label: 'Rock face', atlas: 'columnar-headwalls.png',
+    columns: 5, rows: 5, name: index => headwallNames[index], animation: 'columnar-headwalls.gif' },
+  { title: 'Desert alluvial fans', label: 'Alluvial fan', atlas: 'alluvial-fans.png',
+    columns: 5, rows: 5, name: index => alluvialNames[index], animation: 'alluvial-fans.gif' },
+  { title: 'Solar array layouts', label: 'Solar array', atlas: 'solar-layouts.png',
+    columns: 5, rows: 5, name: index => solarLayoutNames[index], animation: 'solar-layouts.gif' },
+  { title: 'Municipal water towers', label: 'Water tower', atlas: 'water-towers.png',
+    columns: 5, rows: 5, name: index => waterTowerNames[index],
+    family: index => waterTowerFamilies[Math.floor(index / 5)], animation: 'water-towers.gif' },
   { title: 'Glacial moraines', label: 'Moraine', atlas: 'moraines.png',
     columns: 5, rows: 5, name: index => moraineNames[index],
     family: index => moraineFamilies[Math.floor(index / 5)], animation: 'moraines.gif' },
@@ -355,7 +420,7 @@ const categories = [
   { title: 'Coastal details', label: 'Coastal detail', atlas: 'coastal-details.png', columns: 5, rows: 5,
     name: index => coastalNames[index], family: index => coastalGroups[Math.floor(index / 5)],
     animation: 'coastal-details.gif' },
-  { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 10, rows: 5,
+  { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 10, rows: 8, count: skylineNames.length,
     name: index => skylineNames[index], animation: 'skyline-landmarks.gif' },
   { title: 'Summit landmarks', label: 'Summit landmark', atlas: 'summit-landmarks.png', columns: 5, rows: 5,
     name: index => summitNames[index], family: index => summitFamilies[Math.floor(index / 5)],

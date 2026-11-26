@@ -441,6 +441,9 @@ impl Scene {
             std::array::from_fn(|_| approaches.next())
         };
         let ribbons = || inland_ribbons.iter().chain(coast_ribbons.iter()).flatten();
+        let water_tower_region = self.facilities.water_towers()
+            .filter_map(|tower| tower.screen_bounds(view, DIMENSIONS))
+            .reduce(ScreenRect::union);
         let waterfall_region = self.natural.waterfall_region(view, DIMENSIONS);
         let summit_region = self.summits.region(view, DIMENSIONS);
         let route_region = self.routes.depth_region(view, DIMENSIONS);
@@ -545,6 +548,7 @@ impl Scene {
                 .chain(far_airfields.depth_region())
                 .chain(self.distant_roads.bounds())
                 .chain(ribbons().map(HighwayRibbon::depth_region))
+                .chain(water_tower_region)
                 .chain(waterfall_region)
                 .chain(summit_region)
                 .chain(route_region)
@@ -608,6 +612,13 @@ impl Scene {
             if bridge_region.is_some() {
                 self.rivers
                     .draw_fading(view, &mut mesh, |bridge| far_bridges.detail_opacity(bridge));
+            }
+            if water_tower_region.is_some() {
+                for tower in self.facilities.water_towers()
+                    .filter(|tower| tower.screen_bounds(view, DIMENSIONS).is_some())
+                {
+                    tower.draw(&mut mesh);
+                }
             }
             if waterfall_region.is_some() {
                 self.natural.draw_waterfalls(view, flight.ticks, &mut mesh);

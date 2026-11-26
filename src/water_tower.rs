@@ -1,10 +1,15 @@
 //! A municipal water tank connected to a surveyed settlement street.
 
 use crate::math::{mix, sin_cos, smoothstep};
-use crate::roads::{RoadNetwork, RoadPoint, ROAD_HALF_WIDTH, ROAD_REGION_SIZE};
+use crate::render::{Camera, ScreenRect, screen_region};
+use crate::roads::{ROAD_HALF_WIDTH, ROAD_REGION_SIZE, RoadNetwork, RoadPoint};
 use crate::settlement::{Settlement, SettlementRoadExit, SettlementSurface};
 use crate::world::{Sample, Surface, World};
-use crate::world_mesh::WorldMesh;
+use crate::world_mesh::{WorldMesh, bounds_in_range, landmark_reach};
+
+mod designs;
+use designs::Support;
+pub use designs::WaterTowerDesign;
 
 type Point = [f32; 3];
 type Color = [u8; 3];
@@ -20,7 +25,7 @@ pub struct WaterTower {
     road: [RoadPoint; 3],
     axis: [f32; 2],
     bounds: [f32; 4],
-    style: u32,
+    design: WaterTowerDesign,
 }
 
 impl WaterTower {
@@ -78,8 +83,9 @@ impl WaterTower {
                         continue;
                     }
                     let turn = if key & 0x80 == 0 { 0.31 } else { -0.31 };
-                    let mut plans = [turn, -turn]
-                        .map(|angle| Self::at_exit(world, exit, angle, (key >> 32) as u32));
+                    let design = WaterTowerDesign::select(mix(key ^ 0x2c7b));
+                    let mut plans =
+                        [turn, -turn].map(|angle| Self::at_exit(world, exit, angle, design));
                     if plans[1].road[2].elevation > plans[0].road[2].elevation {
                         plans.swap(0, 1);
                     }
@@ -103,7 +109,12 @@ impl WaterTower {
         None
     }
 
-    fn at_exit(world: &World, exit: SettlementRoadExit, turn: f32, style: u32) -> Self {
+    fn at_exit(
+        world: &World,
+        exit: SettlementRoadExit,
+        turn: f32,
+        design: WaterTowerDesign,
+    ) -> Self {
         let [x, z] = exit.outward;
         let (sin, cos) = sin_cos(turn);
         let axis = [x * cos + z * sin, z * cos - x * sin];
@@ -118,7 +129,7 @@ impl WaterTower {
         Self {
             road: [exit.point, bend, center],
             axis,
-            style,
+            design,
             bounds,
         }
     }
@@ -190,6 +201,25 @@ impl WaterTower {
         true
     }
 
+    pub fn design(&self) -> WaterTowerDesign {
+        self.design
+    }
+
+    /// Render the same geometry above an even foundation for the artwork atlas.
+    pub fn artwork(design: WaterTowerDesign) -> Self {
+        let center = RoadPoint {
+            x: 0.0,
+            elevation: 0.0,
+            z: 0.0,
+        };
+        Self {
+            road: [center; 3],
+            axis: [0.0, 1.0],
+            bounds: [-8.0, -8.0, 8.0, 8.0],
+            design,
+        }
+    }
+
     pub fn access_road(&self) -> &[RoadPoint; 3] {
         &self.road
     }
@@ -243,6 +273,12 @@ impl WaterTower {
         ]
     }
 
+    pub fn screen_bounds(&self, camera: Camera, dimensions: (usize, usize)) -> Option<ScreenRect> {
+        bounds_in_range(camera, self.bounds, landmark_reach(camera.altitude))
+            .then(|| screen_region(camera, dimensions, self.mesh_bounds()))
+            .flatten()
+    }
+
     pub fn obstruction(&self, x: f32, z: f32) -> f32 {
         let center = self.road[2];
         let (dx, dz) = (x - center.x, z - center.z);
@@ -272,44 +308,92 @@ impl WaterTower {
     }
 
     fn height(&self) -> f32 {
-        28.0 + ((self.style >> 5) & 7) as f32 * 0.7
+        self.design.spec().height
     }
 
     fn faces(&self, mut emit: impl FnMut([Point; 3], Color)) {
-        let (tank, band, steel) = match self.style % 3 {
-            0 => ([208, 217, 219], [106, 145, 166], [153, 161, 158]),
-            1 => ([229, 219, 189], [174, 125, 77], [155, 148, 124]),
-            _ => ([154, 191, 202], [98, 135, 148], [145, 154, 158]),
-        };
+        let spec = self.design.spec();
+        let [tank, band, steel] = spec.paint;
         let concrete = [144, 139, 125];
-        let crown = self.height();
-        let pedestal = self.style & 8 != 0;
-        let neck = if pedestal {
-            let foot = ring_tank(-FOUNDATION_DEPTH, 3.51);
-            let apron = ring_tank(0.72, 3.51);
-            let shoulder = ring_tank(4.9, 2.28);
-            let stem = ring_tank(crown - 9.5, 2.28);
-            shell(&mut emit, foot, apron, concrete);
-            shell(&mut emit, apron, shoulder, steel);
-            shell(&mut emit, shoulder, stem, steel);
-            2.28
-        } else {
-            self.steel_frame(&mut emit, crown, steel, concrete);
-            1.33
-        };
-        let levels = [
-            (crown - 9.5, neck, steel),
-            (crown - 7.2, 5.82, tank),
-            (crown - 5.6, 7.56, tank),
-            (crown - 4.8, 7.62, band),
-            (crown - 2.8, 7.56, tank),
-            (crown - 1.7, 6.24, tank),
-            (crown, 2.24, tank),
-        ];
-        let mut lower = ring_tank(levels[0].0, levels[0].1);
-        for &(y, radius, color) in &levels[1..] {
-            let upper = ring_tank(y, radius);
-            shell(&mut emit, lower, upper, color);
+        let bottom = spec.height - spec.depth;
+        let first_radius = spec.radius * spec.profile[0];
+        match spec.support {
+            Support::Pedestal => {
+                let neck = first_radius.min(2.45);
+                let foot = ring_tank(-FOUNDATION_DEPTH, 3.60, false);
+                let apron = ring_tank(0.68, 3.60, false);
+                let shoulder = ring_tank(4.3, neck, false);
+                let stem = ring_tank(bottom, neck, spec.angular);
+                shell(&mut emit, foot, apron, concrete);
+                shell(&mut emit, apron, shoulder, steel);
+                shell(&mut emit, shoulder, stem, steel);
+            }
+            Support::Frame => self.steel_frame(&mut emit, bottom, steel, concrete),
+            Support::Masonry => {
+                let shaft = first_radius.clamp(2.2, 4.9);
+                for (a, b, lo, hi, paint) in [
+                    (-FOUNDATION_DEPTH, 0.7, shaft + 0.54, shaft + 0.54, concrete),
+                    (0.7, 4.1, shaft + 0.54, shaft, steel),
+                    (4.1, bottom - 1.1, shaft, shaft * 0.94, steel),
+                    (bottom - 1.1, bottom, shaft * 0.94, first_radius, band),
+                ] {
+                    shell(
+                        &mut emit,
+                        ring_tank(a, lo, spec.angular),
+                        ring_tank(b, hi, spec.angular),
+                        paint,
+                    );
+                }
+            }
+            Support::Twin | Support::Portal => {
+                let portal = spec.support == Support::Portal;
+                let head = if portal { 2.20 } else { 1.70 };
+                let width = if portal { 3.38 } else { 1.99 };
+                let centers: [f32; 2] = if portal && spec.angular {
+                    [-width, width]
+                } else {
+                    [-width * 0.88, width]
+                };
+                for ground_x in centers {
+                    let up = ground_x.signum() * head;
+                    shell(
+                        &mut emit,
+                        ring_square([ground_x, -FOUNDATION_DEPTH, 0.0], 1.02),
+                        ring_square([ground_x, 0.72, 0.0], 1.02),
+                        concrete,
+                    );
+                    shell(
+                        &mut emit,
+                        ring_square([ground_x, 0.72, 0.0], 0.85),
+                        ring_square([up, bottom, 0.0], 0.88),
+                        steel,
+                    );
+                }
+                let lintel = if portal { 3.0 } else { 2.42 };
+                let rectangle = |y| {
+                    [
+                        [-lintel, y, -1.17],
+                        [lintel, y, -1.17],
+                        [lintel, y, 1.17],
+                        [-lintel, y, 1.17],
+                    ]
+                };
+                shell(&mut emit, rectangle(bottom - 1.1), rectangle(bottom), band);
+            }
+        }
+        let mut lower = ring_tank(bottom, first_radius, spec.angular);
+        // Keep the bottom closed where a flared head sits on narrow legs.
+        for i in 1..lower.len() - 1 {
+            emit([lower[0], lower[i], lower[i + 1]], tank);
+        }
+        for (i, &fraction) in spec.profile.iter().enumerate().skip(1) {
+            let y = if i == spec.profile.len() - 1 {
+                spec.height
+            } else {
+                bottom + spec.depth * (i as f32 * 0.20)
+            };
+            let upper = ring_tank(y, spec.radius * fraction, spec.angular);
+            shell(&mut emit, lower, upper, if i == 3 { band } else { tank });
             lower = upper;
         }
         for i in 1..lower.len() - 1 {
@@ -320,16 +404,16 @@ impl WaterTower {
     fn steel_frame(
         &self,
         emit: &mut impl FnMut([Point; 3], Color),
-        crown: f32,
+        bottom: f32,
         steel: Color,
         concrete: Color,
     ) {
         let base = ring_square([0.0, 0.72, 0.0], 4.8);
-        let collar = ring_square([0.0, crown - 7.2, 0.0], 3.65);
+        let collar = ring_square([0.0, bottom + 0.38, 0.0], 3.65);
         shell(
             emit,
             ring_square([0.0, -FOUNDATION_DEPTH, 0.0], 0.54),
-            ring_square([0.0, crown - 9.4, 0.0], 0.54),
+            ring_square([0.0, bottom - 0.02, 0.0], 0.54),
             steel,
         );
         for ([x, y, z], top) in base.into_iter().zip(collar) {
@@ -345,6 +429,12 @@ impl WaterTower {
                 steel,
             );
         }
+        shell(
+            emit,
+            ring_square([0.0, bottom - 0.18, 0.0], 4.0),
+            ring_square([0.0, bottom + 0.38, 0.0], 4.0),
+            steel,
+        );
         for side in 0..4 {
             let next = (side + 1) % 4;
             let at = |along, up| {
@@ -399,7 +489,7 @@ fn ring_square([x, y, z]: Point, half: f32) -> [Point; 4] {
     ]
 }
 
-fn ring_tank(y: f32, r: f32) -> [Point; 12] {
+fn ring_tank(y: f32, r: f32, angular: bool) -> [Point; 12] {
     const RING: [[f32; 2]; 12] = [
         [1.0, 0.0],
         [0.866_025_4, 0.5],
@@ -414,7 +504,22 @@ fn ring_tank(y: f32, r: f32) -> [Point; 12] {
         [0.5, -0.866_025_4],
         [0.866_025_4, -0.5],
     ];
-    RING.map(|[x, z]| [x * r, y, z * r])
+    const SQUARE: [[f32; 2]; 12] = [
+        [0.707_106_77, 0.0],
+        [0.707_106_77, 0.43],
+        [0.707_106_77, 0.707_106_77],
+        [0.0, 0.707_106_77],
+        [-0.43, 0.707_106_77],
+        [-0.707_106_77, 0.707_106_77],
+        [-0.707_106_77, 0.0],
+        [-0.707_106_77, -0.43],
+        [-0.707_106_77, -0.707_106_77],
+        [0.0, -0.707_106_77],
+        [0.43, -0.707_106_77],
+        [0.707_106_77, -0.707_106_77],
+    ];
+    let outline = if angular { SQUARE } else { RING };
+    outline.map(|[x, z]| [x * r, y, z * r])
 }
 
 fn shell<const N: usize>(
@@ -443,14 +548,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn both_support_styles_fit_their_draw_bounds_and_clearance() {
+    fn every_tower_fits_its_draw_bounds_and_clearance() {
         let world = World::new(31);
         let exit = SettlementRoadExit {
             point: road_point(&world, 1374.0, 1758.0),
             outward: [0.0, 1.0],
         };
-        for (style, expected_faces) in [(0, 250), (8, 226)] {
-            let tower = WaterTower::at_exit(&world, exit, -0.31, style);
+        for index in 0..WaterTowerDesign::COUNT {
+            let design = WaterTowerDesign::from_index(index).unwrap();
+            let tower = WaterTower::at_exit(&world, exit, -0.31, design);
             let mut triangles = 0;
             tower.faces(|points, _| {
                 triangles += 1;
@@ -459,7 +565,7 @@ mod tests {
                     assert!((-FOUNDATION_DEPTH..=tower.height()).contains(&y));
                 }
             });
-            assert_eq!(triangles, expected_faces);
+            assert!((120..320).contains(&triangles));
             let center = tower.access_road()[2];
             assert!(tower.obstruction(center.x, center.z) > tower.mesh_bounds()[1][1]);
             assert_eq!(tower.obstruction(center.x + 20.0, center.z), 0.0);

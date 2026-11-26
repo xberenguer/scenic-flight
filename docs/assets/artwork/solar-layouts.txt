@@ -1,0 +1,25 @@
+Full rack
+Service cross
+Center lane
+Cross lane
+Gate courtyard
+Rear courtyard
+Left setback
+Right setback
+Left taper
+Right taper
+Fan field
+Funnel field
+Diamond field
+Double pavilion
+Diagonal west
+Diagonal east
+Offset west banks
+Offset east banks
+Bilateral pockets
+Single west block
+Single east block
+Center block
+Three islands
+Fork field
+Striped field

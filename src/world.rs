@@ -67,6 +67,7 @@ pub enum Surface {
     MesaCap,
     MesaCliff,
     MesaApron,
+    AirfieldGuide,
 }
 
 impl Surface {

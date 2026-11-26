@@ -30,13 +30,13 @@ fn main() -> io::Result<()> {
         .and_then(|angle| angle.parse::<f32>().ok())
         .unwrap_or(0.706);
     let (sin, cos) = heading.sin_cos();
-    let distance = if landmarks { 79.0 } else { 54.0 };
+    let distance = if landmarks { 116.0 } else { 54.0 };
     let camera = Camera {
         x: -distance * sin,
         z: -distance * cos,
-        altitude: if landmarks { 45.0 } else { 44.0 },
+        altitude: if landmarks { 55.0 } else { 44.0 },
         heading,
-        pitch: if landmarks { 0.29 } else { 0.365 },
+        pitch: if landmarks { 0.19 } else { 0.365 },
         bank: 0.0,
     };
     let sky = Sky::from_time(49, 0, 0.46);
@@ -91,6 +91,14 @@ fn main() -> io::Result<()> {
         let (x, y) = (index % columns * TILE, index / columns * TILE);
         for (pixel_index, pixel) in pixels.into_iter().enumerate() {
             if pixel != 0 {
+                if landmarks {
+                    let (px, py) = (pixel_index % TILE, pixel_index / TILE);
+                    assert!(
+                        (1..TILE - 1).contains(&px) && (1..TILE - 1).contains(&py),
+                        "clipped landmark {}",
+                        tower_forms::landmarks::LANDMARKS[index].name
+                    );
+                }
                 sheet[(y + pixel_index / TILE) * width + x + pixel_index % TILE] = [
                     ((pixel >> 11) * 255 / 31) as u8,
                     (((pixel >> 5) & 63) * 255 / 63) as u8,

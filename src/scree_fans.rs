@@ -5,7 +5,9 @@ use crate::math::{fraction, mix, smoothstep};
 use crate::world::{Sample, Surface, World};
 
 mod columnar;
+mod columnar_profiles;
 pub use columnar::ColumnarHeadwall;
+pub use columnar_profiles::HeadwallProfile;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScreeFan {
