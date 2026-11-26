@@ -1131,7 +1131,9 @@ fn main() -> ! {
             land.service(camera, LandBudget {
                 expansions: 8,
                 terrain_samples: 32,
-                settlement_jobs: u8::from(frame % 16 == 0),
+                // Town foundations are surveyed on the main core. Offset that
+                // work from the transport survey commits on every fourth frame.
+                settlement_jobs: u8::from(frame % 16 == 2),
             });
         }
         #[cfg(feature = "streamed-land")]
@@ -1178,7 +1180,7 @@ fn main() -> ! {
         let has_towers = tower_region.is_some();
         #[cfg(feature = "distant-skyline")]
         let distant_skyline = skyline.prepare(land, camera, ticks, &sky, (LOGICAL_SIDE, LOGICAL_SIDE),
-            |x, z| horizon.sample(x, z));
+            |x, z| horizon.backdrop(x, z));
         #[cfg(feature = "distant-skyline")]
         let tower_region = tower_region.into_iter().chain(distant_skyline.bounds())
             .reduce(scenic_flight::render::ScreenRect::union);
@@ -1287,7 +1289,8 @@ fn main() -> ! {
         };
         #[cfg(feature = "distant-roads")]
         let highway_region = {
-            distant_roads.prepare(land, highways, camera, ticks, (LOGICAL_SIDE, LOGICAL_SIDE));
+            distant_roads.prepare(land, highways, camera, ticks, (LOGICAL_SIDE, LOGICAL_SIDE),
+                |x, z| horizon.backdrop(x, z));
             highway_region.into_iter().chain(distant_roads.bounds())
                 .reduce(scenic_flight::render::ScreenRect::union)
         };
@@ -1301,7 +1304,7 @@ fn main() -> ! {
         #[cfg(feature = "distant-bridges")]
         let distant_bridges = bridge_silhouettes.prepare(camera, ticks, &sky, (LOGICAL_SIDE, LOGICAL_SIDE),
             rivers.bridges().chain(highways.coastal_links().map(|(_, link)| link.bridge())),
-            |x, z| horizon.sample(x, z));
+            |x, z| horizon.backdrop(x, z));
         #[cfg(feature = "distant-bridges")]
         let distant_bridge_region = distant_bridges.bounds();
         #[cfg(all(feature = "coastal-mesh", not(feature = "distant-bridges")))]
@@ -1484,7 +1487,7 @@ fn main() -> ! {
                     render_layers(
                         (&sample, material),
                         #[cfg(feature = "far-horizon")]
-                        |x, z| horizon.sample(x, z),
+                        |x, z| horizon.backdrop(x, z),
                         camera, &sky, image, terrain_work, depth, (LOGICAL_SIDE, LOGICAL_SIDE),
                         checkpoint, ready_sky_tile,
                     )
@@ -1528,7 +1531,7 @@ fn main() -> ! {
                 scenic_flight::render::render_with_packed_terrain_fork(
                     &mut display, &sample, material, worker_sample, worker_material,
                     camera, &sky, image, terrain_work, depth, checkpoint,
-                    ready_sky_tile, |x, z| horizon.sample(x, z),
+                    ready_sky_tile, |x, z| horizon.backdrop(x, z),
                 )
             } else {
                 serial_terrain!()

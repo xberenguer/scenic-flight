@@ -6,7 +6,7 @@ A Rust flight simulator for the round Waveshare ESP32-S3-Touch-AMOLED-1.75C. Pic
 
 The [gameplay showcase and artwork gallery](https://xberenguer.github.io/scenic-flight/) collects current gameplay clips, aircraft turntables, picker screens, and rare encounters.
 
-Run the gallery locally from the repository root.
+[Play in your browser](https://xberenguer.github.io/scenic-flight/play.html), or run the gallery locally from the repository root.
 
 ```sh
 python3 -m http.server 8775 --bind 127.0.0.1 --directory docs

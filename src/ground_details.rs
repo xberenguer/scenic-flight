@@ -201,46 +201,119 @@ impl TreeSampler {
 struct TreeCrown {
     tile: (i32, i32),
     center: [f32; 2],
-    span: f32,
+    inverse_span: [f32; 2],
     height: f32,
-    crown: u8,
+    form: CrownForm,
+}
+
+#[derive(Clone, Copy)]
+enum CrownForm {
+    Bare,
+    Rounded,
+    Pointed,
+    Leaning,
+    Forked,
+    Spire,
+    Umbrella,
+    Vase,
+    Fan,
+    Cluster,
+    Crescent,
+    Tiered,
+    WindSwept,
+    ThreeLobed,
+    CutCrown,
+    SplitRidge,
+    Cushion,
 }
 
 impl TreeCrown {
     fn survey(seed: u64, tx: i32, tz: i32) -> Self {
         let state = key(seed, tx, tz);
         if state & 15 < 4 {
-            return Self { tile: (tx, tz), center: [0.0; 2], span: 0.0, height: 0.0, crown: 0 };
+            return Self {
+                tile: (tx, tz), center: [0.0; 2], inverse_span: [0.0; 2],
+                height: 0.0, form: CrownForm::Bare,
+            };
         }
-        let crown = ((state >> 19) % 25) as u8;
-        let radius = 1.15 + f32::from(crown % 5) * 0.11;
+        let center = [
+            (tx as f32 + 0.36 + fraction(state) * 0.28) * TREE_TILE,
+            (tz as f32 + 0.36 + fraction(state.rotate_left(11)) * 0.28) * TREE_TILE,
+        ];
+        Self::with_variant((tx, tz), center, (state >> 20) as u8)
+    }
+
+    fn with_variant(tile: (i32, i32), center: [f32; 2], variant: u8) -> Self {
+        // Four footprint proportions and four height levels for each
+        // silhouette. A crown's edge fades before it reaches its tile seam.
+        const SPAN: [[f32; 2]; 4] = [
+            [1.0 / 1.30, 1.0 / 1.30],
+            [1.0 / 1.70, 1.0 / 1.20],
+            [1.0 / 1.20, 1.0 / 1.69],
+            [1.0 / 1.71, 1.0 / 1.66],
+        ];
+        const HEIGHT: [f32; 4] = [0.64, 0.86, 1.11, 1.38];
+        const FORM: [CrownForm; 16] = [
+            CrownForm::Rounded,
+            CrownForm::Pointed,
+            CrownForm::Leaning,
+            CrownForm::Forked,
+            CrownForm::Spire,
+            CrownForm::Umbrella,
+            CrownForm::Vase,
+            CrownForm::Fan,
+            CrownForm::Cluster,
+            CrownForm::Crescent,
+            CrownForm::Tiered,
+            CrownForm::WindSwept,
+            CrownForm::ThreeLobed,
+            CrownForm::CutCrown,
+            CrownForm::SplitRidge,
+            CrownForm::Cushion,
+        ];
+        let variant = usize::from(variant);
         Self {
-            tile: (tx, tz),
-            center: [
-                (tx as f32 + 0.36 + fraction(state) * 0.28) * TREE_TILE,
-                (tz as f32 + 0.36 + fraction(state.rotate_left(11)) * 0.28) * TREE_TILE,
-            ],
-            span: radius * radius,
-            height: 0.62 + fraction(state.rotate_left(36)) * 0.77,
-            crown: crown / 5,
+            tile,
+            center,
+            inverse_span: SPAN[(variant >> 4) & 3],
+            height: HEIGHT[variant >> 6],
+            form: FORM[variant & 15],
         }
     }
 
     fn overlay(self, x: f32, z: f32, ground: Sample) -> Sample {
-        let dx = x - self.center[0];
-        let dz = z - self.center[1];
-        let square = |x: f32| x * x;
-        let squared = match self.crown {
-            0 => dx * dx + dz * dz,
-            1 => dx * dx * 1.72 + dz * dz * 0.78,
-            2 => dx * dx * 0.78 + dz * dz * 1.72,
-            3 => square(dx.abs() - 0.32) * 1.45 + dz * dz * 1.32,
-            _ => square(dx - dz * 0.32) * 1.20 + dz * dz,
-        };
-        if squared >= self.span * 0.95 {
+        let u = (x - self.center[0]) * self.inverse_span[0];
+        let v = (z - self.center[1]) * self.inverse_span[1];
+        let (a, b) = (u.abs(), v.abs());
+        if a >= 1.12 || b >= 1.12 {
             return ground;
         }
-        let shape = 1.0 - squared / self.span;
+        let square = |value: f32| value * value;
+        let squared = match self.form {
+            CrownForm::Bare => return ground,
+            CrownForm::Rounded => square(u) + square(v),
+            CrownForm::Pointed => square(a + b),
+            CrownForm::Leaning => square(u - v * 0.30) + square(v),
+            CrownForm::Forked => square((a - 0.40) * (1.0 / 0.60)) + square(v),
+            CrownForm::Spire => (a * 1.15 + b * 0.9).max(square(u * 1.25) + square(v * 0.90)),
+            CrownForm::Umbrella => square(square(u)) + square(square(v * 1.09)),
+            CrownForm::Vase => (square(u * 1.23) + square(v)) * if v < 0.0 { 1.3 } else { 0.7 },
+            CrownForm::Fan => square(u * (1.2 - 0.35 * v)) + square(v * 1.03),
+            CrownForm::Cluster => (square((u + 0.32) * 1.55) + square(v + 0.13)).min(square((u - 0.38) * 1.8) + square((v - 0.27) * 1.28)),
+            CrownForm::Crescent => (square(a * 0.96) + square(v)).max(1.4 - (square(u * 1.4) + square((v - 0.75) * 2.4))),
+            CrownForm::Tiered => (square(u) + square(v * 1.05)).max((a * 0.85 + b * 0.75) * 0.68),
+            CrownForm::WindSwept => square(u * 1.02 - v * 0.38) + square(v * 1.26) + a * 0.2,
+            CrownForm::ThreeLobed => (square(u * 1.28) + square((v + 0.36) * 1.58)).min(square((a - 0.43) * 1.83) + square((v - 0.31) * 1.57)),
+            CrownForm::CutCrown => square(u * 0.94) + square(v) + (a + v - 0.75).max(0.0) * 1.5,
+            CrownForm::SplitRidge => square(u * 1.13) + square((b - 0.38) * 1.52),
+            CrownForm::Cushion => (a * 1.05).max(b * 1.05) * 0.78 + (square(u) + square(v)) * 0.12,
+        };
+        let border = (a.max(b) - 1.03).max(0.0) * (0.95 / 0.09);
+        let squared = squared.max(border);
+        if squared >= 0.95 {
+            return ground;
+        }
+        let shape = 1.0 - squared;
         Sample {
             elevation: ground.elevation + self.height * shape * shape * (3.0 - 2.0 * shape),
             surface: Surface::TreeCanopy,
@@ -293,6 +366,68 @@ fn wrap(index: i32) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
+
+    const FLAT_FOREST: Sample = Sample { elevation: 0.0, surface: Surface::Forest };
+
+    #[test]
+    fn all_256_crowns_have_distinct_sampled_geometry() {
+        let mut signatures = HashSet::new();
+        for variant in u8::MIN..=u8::MAX {
+            let crown = TreeCrown::with_variant((0, 0), [0.0; 2], variant);
+            let mut signature = [0; 17 * 17];
+            for (index, cell) in signature.iter_mut().enumerate() {
+                let x = (index % 17) as f32 * 0.25 - 2.0;
+                let z = (index / 17) as f32 * 0.25 - 2.0;
+                let sample = crown.overlay(x, z, FLAT_FOREST);
+                if sample.surface == Surface::TreeCanopy {
+                    *cell = 1 + (sample.elevation / 0.12) as u8;
+                }
+            }
+            assert!(signatures.insert(signature), "repeated crown geometry for variant {variant}");
+        }
+    }
+
+    #[test]
+    fn seeded_signed_tiles_produce_every_crown_variant() {
+        let mut geometries = HashSet::new();
+        for seed in [11, 162, 4329, 7911] {
+            for tx in -23..=23 {
+                for tz in -23..=23 {
+                    let crown = TreeCrown::survey(seed, tx, tz);
+                    if !matches!(crown.form, CrownForm::Bare) {
+                        geometries.insert((crown.form as u8, crown.inverse_span.map(f32::to_bits), crown.height.to_bits()));
+                    }
+                }
+            }
+        }
+        assert_eq!(geometries.len(), 256);
+    }
+
+    #[test]
+    fn widest_crowns_leave_clearance_at_signed_tile_seams() {
+        for tx in [-4621, -1, 0, 4621] {
+            for tz in [-4621, -1, 0, 4621] {
+                let x = tx as f32 * TREE_TILE;
+                let z = tz as f32 * TREE_TILE;
+                for cx in [0.36, 0.64] {
+                    for cz in [0.36, 0.64] {
+                        let center = [x + TREE_TILE * cx, z + TREE_TILE * cz];
+                        for form in 0..16 {
+                            let crown = TreeCrown::with_variant((tx, tz), center, 240 + form);
+                            for step in 0..=22 {
+                                let offset = step as f32 * 0.25;
+                                for seam in [0.0, TREE_TILE] {
+                                    assert_eq!(crown.overlay(x + seam, z + offset, FLAT_FOREST), FLAT_FOREST);
+                                    assert_eq!(crown.overlay(x + offset, z + seam, FLAT_FOREST), FLAT_FOREST);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn crown_cache_matches_uncached_geometry_across_tile_edges() {

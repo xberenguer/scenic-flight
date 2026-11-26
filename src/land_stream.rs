@@ -2,7 +2,7 @@
 //! terrain sampling, and a region first becomes visible as a complete unit.
 
 use crate::math::sin_cos;
-use crate::render::{view_distance, Camera};
+use crate::render::{CITY_HORIZON, SCENERY_HORIZON, view_distance, Camera};
 use crate::roads::{RoadNetwork, RoadPaintCache, RoadPlanner, RoadProgress, ROAD_REGION_SIZE};
 use crate::scenery::DistrictRegion;
 use crate::settlement::{Settlement, Terminus};
@@ -17,6 +17,7 @@ const SCENERY_MARGIN: f32 = 96.0;
 const SCENERY_HALF: f32 = REGION_HALF - SCENERY_MARGIN;
 const SIDE: usize = 8;
 const SCAN: i32 = 3;
+const SKYLINE_PRIORITY: u8 = 3;
 const EMPTY: u8 = 254;
 const UNKNOWN: u8 = 255;
 
@@ -86,6 +87,9 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
             resident.published = true;
         }
         while let Some(key) = self.next_missing(view, !ahead) {
+            if view.rank(key).is_some_and(|rank| rank.0 == SKYLINE_PRIORITY) {
+                break;
+            }
             let Some(road) = RoadNetwork::generate(&self.world, key.x, key.z) else {
                 self.set(key, EMPTY);
                 continue;
@@ -250,7 +254,14 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
         let outdated = self
             .pending
             .as_ref()
-            .is_some_and(|pending| view.rank(pending.key()).is_none());
+            .is_some_and(|pending| {
+                let key = pending.key();
+                match view.rank(key) {
+                    None => true,
+                    Some((SKYLINE_PRIORITY, _)) => self.available_slot(view, key).is_none(),
+                    _ => false,
+                }
+            });
         let must_prioritize_visible = self.tick & 7 == 0
             && matches!(&self.pending, Some(Pending::Road { key, .. }) if !view.visible(*key))
             && self.next_missing(view, true).is_some();
@@ -388,6 +399,9 @@ impl<const ACTIVE: usize> LandStream<ACTIVE> {
         for key in view.keys() {
             let Some(rank) = view.rank(key) else { continue };
             if visible_only && rank.0 != 0 || self.get(key) != UNKNOWN {
+                continue;
+            }
+            if rank.0 == SKYLINE_PRIORITY && self.available_slot(view, key).is_none() {
                 continue;
             }
             if candidate.is_none_or(|(_, best)| rank < best) {
@@ -602,7 +616,7 @@ impl Window {
 
     fn keep(self, key: Key) -> bool {
         let reach = self.horizon * 1.24 + 112.0;
-        self.visible(key) || self.distance_squared(key) <= reach * reach
+        self.intersects(self.projected(key), SCENERY_HORIZON) || self.distance_squared(key) <= reach * reach
     }
 
     fn rank(self, key: Key) -> Option<(u8, f32)> {
@@ -610,12 +624,16 @@ impl Window {
         if self.intersects(projected, self.horizon) {
             return Some((0, self.distance_squared(key)));
         }
-        if self.intersects(projected, self.horizon + LOOKAHEAD) {
+        if self.intersects(projected, SCENERY_HORIZON.max(self.horizon + LOOKAHEAD)) {
             let entry = (projected.0 - self.padding).max(0.0);
             let across = (projected.1 - self.padding).max(0.0);
             return Some((1, entry + across * 0.48));
         }
-        self.keep(key).then(|| (2, self.distance_squared(key)))
+        if self.keep(key) {
+            return Some((2, self.distance_squared(key)));
+        }
+        self.intersects(projected, CITY_HORIZON)
+            .then(|| (SKYLINE_PRIORITY, self.distance_squared(key)))
     }
 }
 
@@ -638,6 +656,23 @@ mod tests {
             heading,
             pitch: 0.19,
             bank: 0.0,
+        }
+    }
+
+    #[test]
+    fn outer_scenery_is_planned_for_low_and_high_aircraft() {
+        let distant = Key { x: 0, z: 2 };
+        let skyline = Key { x: 0, z: 3 };
+        let beyond = Key { x: 0, z: 4 };
+        for altitude in [22.0, 320.0] {
+            let window = Window::new(camera(512.0, 900.0, altitude, 0.0)).unwrap();
+            assert!(!window.visible(distant));
+            assert_eq!(window.rank(distant).map(|rank| rank.0), Some(1));
+            assert!(window.keep(distant));
+            assert_eq!(window.rank(skyline).map(|rank| rank.0), Some(SKYLINE_PRIORITY));
+            assert!(!window.keep(skyline));
+            assert_eq!(window.rank(beyond), None);
+            assert_eq!(crate::render::horizon_distance(altitude), SCENERY_HORIZON);
         }
     }
 

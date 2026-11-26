@@ -3,7 +3,8 @@
 use crate::land_stream::LandStream;
 use crate::math::{sin_cos, smoothstep};
 use crate::render::{
-    clear_cruise_visibility, encoded_depth, horizon_distance, view_distance, Camera, ScreenRect,
+    CITY_HORIZON, Camera, ScreenRect, backdrop_curvature_squared, clear_cruise_visibility,
+    encoded_depth, horizon_distance, view_distance,
 };
 use crate::sky::Sky;
 
@@ -117,7 +118,7 @@ impl Skyline {
             for town in district.towns() {
                 for tower in town.skyline_towers() {
                     if view.potential(tower.center) {
-                        retain(&mut self.retained, tower, Form::Tower);
+                        retain(&mut self.retained, tower, Form::Tower, view.outer(tower.center));
                     }
                 }
                 for roof in town.skyline_roofs() {
@@ -127,12 +128,12 @@ impl Skyline {
                         } else {
                             Form::Hall
                         };
-                        retain(&mut self.roofs, roof.building, form);
+                        retain(&mut self.roofs, roof.building, form, false);
                     }
                 }
                 for group in town.skyline_neighborhoods() {
-                    if view.roof_potential(group.center) {
-                        retain(&mut self.neighborhoods, group, Form::Neighborhood);
+                    if view.potential(group.center) || view.roof_potential(group.center) {
+                        retain(&mut self.neighborhoods, group, Form::Neighborhood, view.outer(group.center));
                     }
                 }
             }
@@ -182,21 +183,27 @@ impl Skyline {
     }
 }
 
-fn retain(slots: &mut [Option<Retained>], tower: SkylineTower, form: Form) {
+fn retain(slots: &mut [Option<Retained>], tower: SkylineTower, form: Form, outer: bool) {
     if let Some(existing) = slots
         .iter_mut()
         .flatten()
         .find(|entry| entry.tower == tower)
     {
         existing.seen = true;
-    } else if let Some(slot) = slots.iter_mut().find(|slot| slot.is_none()) {
-        *slot = Some(Retained {
-            tower,
-            form,
-            fade: 0,
-            seen: true,
-            fresh: true,
-        });
+    } else {
+        // Reserve capacity for closer districts when distant towns arrive first.
+        if outer && slots.iter().filter(|slot| slot.is_none()).take(5).count() < 5 {
+            return;
+        }
+        if let Some(slot) = slots.iter_mut().find(|slot| slot.is_none()) {
+            *slot = Some(Retained {
+                tower,
+                form,
+                fade: 0,
+                seen: true,
+                fresh: true,
+            });
+        }
     }
 }
 
@@ -337,7 +344,7 @@ fn footing(glyph: &Glyph, roll: [f32; 2], width: usize, depth: &[u16]) -> f32 {
         for (sx, wx) in [(ix, 1.0 - fx), (ix + 1, fx)] {
             if (rect.left..rect.right).contains(&sx)
                 && (rect.top..rect.bottom).contains(&sy)
-                && depth[sy * width + sx] <= glyph.z.saturating_add(1024).min(u16::MAX - 1)
+                && depth[sy * width + sx] <= glyph.support_depth
             {
                 support += wx * wy;
             }
@@ -357,6 +364,7 @@ struct Glyph {
     height: f32,
     alpha: f32,
     z: u16,
+    support_depth: u16,
     color: u16,
     rect: [u16; 4],
 }
@@ -440,7 +448,7 @@ impl Projection {
             pitch: sin_cos(camera.pitch.clamp(-1.3, 1.3)).into(),
             roll: sin_cos(-camera.bank).into(),
             near,
-            far: near + (horizon_distance(camera.altitude) - near) * 0.83,
+            far: horizon_distance(camera.altitude),
             curve: (near - 512.0) * (0.000040 / 384.0),
             dimensions,
             focal: dimensions.0.min(dimensions.1) as f32 * 0.73,
@@ -460,14 +468,14 @@ impl Projection {
         let [side, along] = self.relative([(b[0] + b[2]) * 0.5, (b[1] + b[3]) * 0.5]);
         let radius = (b[2] - b[0] + b[3] - b[1]) * 0.5;
         along + radius > self.near * 0.69
-            && along - radius < self.far + 80.0
+            && along - radius < CITY_HORIZON + 80.0
             && side.abs() - radius < (along + radius) * 0.82 + 80.0
     }
 
     fn potential(&self, center: [f32; 2]) -> bool {
         let [side, forward] = self.relative(center);
         forward > self.near * 0.69
-            && forward < self.far + 80.0
+            && forward < CITY_HORIZON + 80.0
             && side.abs() < forward * 0.82 + 80.0
     }
 
@@ -476,6 +484,10 @@ impl Projection {
         forward > self.near * 0.58
             && forward < self.far + 80.0
             && side.abs() < forward * 0.82 + 32.0
+    }
+
+    fn outer(&self, center: [f32; 2]) -> bool {
+        self.relative(center)[1] > self.far
     }
 
     fn glyph(
@@ -498,14 +510,21 @@ impl Projection {
         } else {
             smoothstep((along - self.near * 0.65) / (self.near * 0.24))
         };
-        let fade = appearance
-            * near_fade
-            * (1.0 - smoothstep((along - self.far * 0.80) / (self.far * 0.20)));
+        let reach = if matches!(form, Form::Tower | Form::Neighborhood) {
+            CITY_HORIZON
+        } else {
+            self.far
+        };
+        let fade = appearance * near_fade
+            * (1.0 - smoothstep((along - reach * 0.72) / (reach * 0.28)));
         if fade < 0.015 || side.abs() > along * 0.82 + 12.0 {
             return None;
         }
         let [x, z] = tower.center;
         let coarse = ground(x, z).max(0.0);
+        if along > self.far && coarse <= 0.5 {
+            return None;
+        }
         let gap = (tower.base - coarse).abs();
         let shape = if form == Form::Tower {
             1.0 - smoothstep((gap - 10.0) / 18.0)
@@ -533,7 +552,7 @@ impl Projection {
             } else {
                 adjustment.min(0.0)
             } * shift;
-        let curve = self.curve * (side * side + along * along);
+        let curve = self.curve * backdrop_curvature_squared(along, side);
         let relief = base - self.camera.altitude - curve;
         let camera_z = along * self.pitch[1] - relief * self.pitch[0];
         let projection = self.focal / camera_z;
@@ -598,7 +617,8 @@ impl Projection {
             half,
             height: h,
             alpha,
-            z: encoded_depth(depth).min(u16::MAX - 1),
+            z: encoded_depth(depth),
+            support_depth: encoded_depth(depth + 32.0),
             color,
             rect: [
                 rect.left as u16,
@@ -884,6 +904,70 @@ mod tests {
         pixels = baseline;
         frame.draw(&mut pixels, &[encoded_depth(120.0); 3600]);
         assert_eq!(pixels, baseline);
+    }
+
+    #[test]
+    fn streamed_city_beyond_the_old_horizon_appears_at_low_and_cruise_altitudes() {
+        use crate::land_stream::LandBudget;
+        use crate::render::render_terrain_layer_region_with_horizon;
+        use crate::terrain_cache::TerrainCache;
+
+        const RASTER: (usize, usize) = (60, 60);
+        const AREA: usize = 60 * 60;
+        let world = World::new(1);
+        let owner = (-1, 0);
+        for (altitude, pitch) in [(36.0, 0.15), (335.6, 0.23)] {
+            let view = camera(-1526.7035, -1563.4604, altitude, 0.5235988, pitch);
+            let sky = sky_at(view);
+            let projection = Projection::new(view, RASTER);
+            let mut land = std::boxed::Box::new(LandStream::<8>::new());
+            land.reset(world);
+            assert!(land.preflight(view, false));
+            assert!(!land.district_published(owner));
+            for frame in 0..450 {
+                land.service(view, LandBudget {
+                    expansions: 8,
+                    terrain_samples: 32,
+                    settlement_jobs: u8::from(frame % 16 == 2),
+                });
+                if land.district_published(owner) {
+                    break;
+                }
+            }
+            assert!(land.district_published(owner));
+
+            let mut horizon = HorizonCache::new();
+            horizon.reset(world, view.x, view.z);
+            let far = |x, z| horizon.backdrop(x, z);
+            let mut skyline = Skyline::new();
+            for tick in 0..36 {
+                skyline.prepare(&land, view, tick, &sky, RASTER, far);
+            }
+            let mut frame = skyline.prepare(&land, view, 36, &sky, RASTER, far);
+            for entry in &mut frame.glyphs {
+                if entry.is_some_and(|glyph| !projection.outer(glyph.center)) {
+                    *entry = None;
+                }
+            }
+            assert!(frame.len() > 0);
+
+            let mut terrain = TerrainCache::new();
+            terrain.reset_for_altitude(world, view.x, view.z, view.altitude);
+            let mut pixels = [0; AREA];
+            let mut scratch = [0; AREA];
+            let mut depth = [u16::MAX; AREA];
+            render_terrain_layer_region_with_horizon(
+                (|x, z| land.overlay(x, z, terrain.sample(x, z)), |_, _, p| p.surface),
+                far, view, &sky, &mut pixels, &mut scratch,
+                Some((&mut depth, ScreenRect::full(RASTER))), RASTER, |_| {}, |_| None,
+            ).unwrap();
+            let baseline = pixels;
+            frame.draw(&mut pixels, &depth);
+            assert!(pixels != baseline, "the extended city was obscured at altitude {altitude}");
+            pixels = baseline;
+            frame.draw(&mut pixels, &[encoded_depth(1_800.0); AREA]);
+            assert_eq!(pixels, baseline);
+        }
     }
 
     #[test]

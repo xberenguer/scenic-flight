@@ -15,6 +15,13 @@ const RUBBER: Paint = [40, 46, 49];
 const PALE: Paint = [220, 226, 220];
 const BLACKBIRD_ENGINE_X: f32 = 2.10;
 const BLACKBIRD_NOZZLE: [f32; 4] = [-3.52, 0.34, 0.10, -0.23];
+const BUSH_WINGTIP: [Point; 2] = [[3.75, 0.86, 0.54], [3.75, 0.86, -0.72]];
+const RACER_WINGTIP: [Point; 2] = [[3.02, 0.06, 0.27], [3.13, 0.03, -0.60]];
+const SPORT_JET_WINGTIP: [Point; 2] = [[3.71, 0.19, -0.65], [3.72, 0.18, -1.45]];
+const FIGHTER_WINGTIP: [Point; 2] = [[3.58, 0.07, -0.45], [3.49, 0.05, -1.57]];
+const BLACKBIRD_WINGTIP: [Point; 2] = [[4.14, 0.06, -1.47], [4.39, 0.01, -2.43]];
+const WINGMATE_WINGTIP: [Point; 2] = [[3.52, 0.10, -0.51], [3.39, 0.08, -1.61]];
+const TANKER_WINGTIP: [Point; 2] = [[8.6, 0.38, -2.35], [8.7, 0.35, -4.58]];
 
 /// A writable surface with the composed scenery already behind the aircraft.
 pub trait AircraftCanvas {
@@ -116,6 +123,7 @@ pub fn draw_flight_scene_on(
             let side = (projection.origin[0] - player.origin[0]).signum();
             let gain = (0.91 + 0.08 * side * sun_right) * (0.52 + sky.daylight * 0.48);
             paint_model(projection, canvas, w, h, |p| wingmate_mesh(p, index, gain, warm));
+            paint_position_lights(projection, WINGMATE_WINGTIP, None, sky.daylight, canvas, (w, h));
         }
     }
     paint_chase_aircraft(flight, player, sky.daylight, canvas, w, h);
@@ -140,6 +148,82 @@ fn paint_chase_aircraft(
         }
     }
     paint_aircraft(flight.aircraft, flight.ticks as u32, projection, canvas, w, h);
+    let (tip, tail) = match flight.aircraft {
+        Aircraft::BushPlane => (BUSH_WINGTIP, Some([0.0, 0.14, -2.71])),
+        Aircraft::Racer => (RACER_WINGTIP, Some([0.0, 0.18, -2.47])),
+        Aircraft::SportJet => (SPORT_JET_WINGTIP, Some([0.0, 0.12, -3.19])),
+        Aircraft::Fighter => (FIGHTER_WINGTIP, None),
+        Aircraft::Blackbird => (BLACKBIRD_WINGTIP, Some([0.0, 0.06, -3.69])),
+        Aircraft::Trike | Aircraft::Glider | Aircraft::BaldEagle => return,
+    };
+    paint_position_lights(projection, tip, tail, daylight, canvas, (w, h));
+}
+
+const PORT_LIGHT: u16 = rgb565(252, 56, 60);
+const STARBOARD_LIGHT: u16 = rgb565(70, 248, 139);
+const TAIL_LIGHT: u16 = rgb565(242, 238, 222);
+
+fn wingtip_lamp(tip: [Point; 2]) -> Point {
+    core::array::from_fn(|axis| (tip[0][axis] + tip[1][axis]) * 0.5)
+}
+
+fn paint_position_lights(
+    projection: Projection,
+    wingtip: [Point; 2],
+    tail: Option<Point>,
+    daylight: f32,
+    canvas: &mut impl AircraftCanvas,
+    size: (usize, usize),
+) {
+    if daylight >= 0.72 {
+        return;
+    }
+    let brightness = smoothstep((0.72 - daylight) * 2.0);
+    let [x, y, z] = wingtip_lamp(wingtip);
+    for (anchor, color, strength) in [
+        (Some([-x, y, z]), PORT_LIGHT, 0.95),
+        (Some([x, y, z]), STARBOARD_LIGHT, 0.95),
+        (tail, TAIL_LIGHT, 0.73),
+    ] {
+        let Some((point, depth)) = anchor.and_then(|point| projection.screen_point(point)) else {
+            continue;
+        };
+        // A soft footprint preserves the lamp as the wing crosses pixel boundaries.
+        // Use a smaller footprint for the farther formation and tanker lights.
+        let radius = (projection.focal * 0.11 / depth).clamp(0.80, 1.65);
+        paint_lamp(canvas, size, point, radius, color, brightness * strength);
+    }
+}
+
+fn paint_lamp(
+    canvas: &mut impl AircraftCanvas,
+    (w, h): (usize, usize),
+    [cx, cy]: [f32; 2],
+    radius: f32,
+    color: u16,
+    brightness: f32,
+) {
+    let x0 = ((cx - radius) as i32).max(0);
+    let y0 = ((cy - radius) as i32).max(0);
+    let x1 = ((cx + radius) as i32).min(w as i32 - 1);
+    let y1 = ((cy + radius) as i32).min(h as i32 - 1);
+    let aperture = (w.min(h) * w.min(h)) as i32;
+    let inverse_radius_squared = 1.0 / (radius * radius);
+    for y in y0..=y1 {
+        let dy = 2 * y + 1 - h as i32;
+        for x in x0..=x1 {
+            let dx = 2 * x + 1 - w as i32;
+            if dx * dx + dy * dy > aperture {
+                continue;
+            }
+            let (u, v) = (x as f32 - cx, y as f32 - cy);
+            let coverage = 1.0 - (u * u + v * v) * inverse_radius_squared;
+            let alpha = (coverage * brightness * 32.0 + 0.5) as u16;
+            if alpha != 0 {
+                glow_over(canvas.pixel(x as usize, y as usize), color, alpha);
+            }
+        }
+    }
 }
 
 fn chase_projection(flight: &Flight, w: usize, h: usize) -> Projection {
@@ -506,6 +590,81 @@ mod tests {
                 }
             }
             assert!(image.into_iter().all(|pixel| pixel == 0), "detached pixel at tick {tick}");
+        }
+    }
+
+    #[test]
+    fn steady_position_lights_follow_the_projected_wingtips_at_night() {
+        const SIDE: usize = 156;
+        let world = World::new(439);
+        for (aircraft, tip) in [
+            (Aircraft::BushPlane, BUSH_WINGTIP),
+            (Aircraft::Racer, RACER_WINGTIP),
+            (Aircraft::SportJet, SPORT_JET_WINGTIP),
+            (Aircraft::Fighter, FIGHTER_WINGTIP),
+            (Aircraft::Blackbird, BLACKBIRD_WINGTIP),
+        ] {
+            let mut flight = Flight::start(&world, 439, aircraft);
+            let mut sky = Sky::from_time(439, 0, 0.0);
+            for bank in [-0.42, 0.0, 0.39] {
+                flight.ticks = 0;
+                flight.bank = bank;
+                flight.view.bank = bank * 0.28;
+                let level = rgb565(46, 55, 68);
+                let mut day = [level; SIDE * SIDE];
+                let mut dusk = day;
+                let mut night = day;
+                let mut next = day;
+                for (image, daylight) in [(&mut day, 1.0), (&mut dusk, 0.57), (&mut night, 0.0)] {
+                    sky.daylight = daylight;
+                    draw_flight_scene(&flight, 439, &sky, image, SIDE, SIDE);
+                }
+                flight.ticks = 13;
+                draw_flight_scene(&flight, 439, &sky, &mut next, SIDE, SIDE);
+                assert_eq!(night, next, "{aircraft:?}, bank {bank}: the lamps must not pulse");
+                let pose = chase_projection(&flight, SIDE, SIDE);
+                let [x, y, z] = wingtip_lamp(tip);
+                for (hand, red) in [(-1.0, true), (1.0, false)] {
+                    let ([sx, sy], _) = pose.screen_point([hand * x, y, z]).unwrap();
+                    let mut dusk_delta = 0;
+                    let mut night_delta = 0;
+                    for iy in (sy as usize - 1)..=(sy as usize + 2) {
+                        for ix in (sx as usize - 1)..=(sx as usize + 2) {
+                            let i = iy * SIDE + ix;
+                            if night[i] == day[i] {
+                                continue;
+                            }
+                            let channels = |pixel: u16| [2 * (pixel >> 11), (pixel >> 5) & 63, 2 * (pixel & 31)];
+                            let [r, g, b] = channels(night[i]);
+                            if if red { r > g + 6 && r > b + 6 } else { g > r + 6 && g > b + 6 } {
+                                let distance = |pixel| channels(pixel).into_iter().zip(channels(day[i]))
+                                    .map(|(a, b)| a.abs_diff(b)).sum::<u16>();
+                                dusk_delta += distance(dusk[i]);
+                                night_delta += distance(night[i]);
+                            }
+                        }
+                    }
+                    assert!(night_delta > dusk_delta && dusk_delta > 0,
+                        "{aircraft:?}, bank {bank}, hand {hand}: midnight {night_delta}, dusk {dusk_delta}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn glider_eagle_and_open_trike_keep_their_unlit_airframes() {
+        const SIDE: usize = 156;
+        let world = World::new(439);
+        let mut sky = Sky::from_time(439, 0, 0.0);
+        for aircraft in [Aircraft::Glider, Aircraft::BaldEagle, Aircraft::Trike] {
+            let flight = Flight::start(&world, 439, aircraft);
+            let mut day = [0; SIDE * SIDE];
+            let mut night = day;
+            sky.daylight = 1.0;
+            draw_flight_scene(&flight, 439, &sky, &mut day, SIDE, SIDE);
+            sky.daylight = 0.0;
+            draw_flight_scene(&flight, 439, &sky, &mut night, SIDE, SIDE);
+            assert_eq!(day, night, "{aircraft:?}");
         }
     }
 
@@ -974,7 +1133,7 @@ fn bush_plane(p: &mut Painter) {
     wing(
         p,
         [[0.16, 0.73, 0.95], [0.16, 0.73, -0.83]],
-        [[3.75, 0.86, 0.54], [3.75, 0.86, -0.72]],
+        BUSH_WINGTIP,
         ochre,
         [191, 62, 48],
     );
@@ -1017,7 +1176,7 @@ fn racer(p: &mut Painter) {
     wing(
         p,
         [[0.18, -0.17, 0.9], [0.18, -0.19, -0.95]],
-        [[3.02, 0.06, 0.27], [3.13, 0.03, -0.60]],
+        RACER_WINGTIP,
         PALE,
         crimson,
     );
@@ -1051,7 +1210,7 @@ fn sport_jet(p: &mut Painter) {
     wing(
         p,
         [[0.14, -0.18, 0.9], [0.14, -0.18, -1.32]],
-        [[3.71, 0.19, -0.65], [3.72, 0.18, -1.45]],
+        SPORT_JET_WINGTIP,
         pearl,
         blue,
     );
@@ -1184,7 +1343,7 @@ fn fighter(p: &mut Painter) {
     wing(
         p,
         [[0.20, 0.08, 1.66], [0.42, 0.03, -1.80]],
-        [[3.58, 0.07, -0.45], [3.49, 0.05, -1.57]],
+        FIGHTER_WINGTIP,
         silver,
         dark,
     );
@@ -1232,8 +1391,8 @@ fn wingmate_mesh(p: &mut Painter, index: usize, gain: f32, warm: f32) {
     for side in [-1.0, 1.0] {
         p.quad(
             [side * 0.24, 0.10, 1.62],
-            [side * 3.52, 0.10, -0.51],
-            [side * 3.39, 0.08, -1.61],
+            [side * WINGMATE_WINGTIP[0][0], WINGMATE_WINGTIP[0][1], WINGMATE_WINGTIP[0][2]],
+            [side * WINGMATE_WINGTIP[1][0], WINGMATE_WINGTIP[1][1], WINGMATE_WINGTIP[1][2]],
             [side * 0.59, 0.02, -1.96],
             skin,
         );
@@ -1300,6 +1459,8 @@ fn draw_tanker(
         * (1.0 - smoothstep((event.progress - 0.65) / 0.12));
     if visible_wingmate(&tanker, width, height) {
         paint_model(tanker, canvas, width, height, |p| tanker_mesh(p, daylight, boom));
+        paint_position_lights(tanker, TANKER_WINGTIP, Some([0.0, 0.15, -6.42]),
+            daylight, canvas, (width, height));
     }
 }
 
@@ -1313,7 +1474,7 @@ fn tanker_mesh(p: &mut Painter, light: f32, boom: f32) {
         [-3.6, 0.91, 0.92, -0.80], [-6.4, 0.27, 0.35, -0.27],
     ], 0.0, 0.0, skin);
     solid_wing(p, [[0.50, 0.22, 2.45], [0.64, 0.21, -2.80]],
-        [[8.6, 0.38, -2.35], [8.7, 0.35, -4.58]], 0.56, skin, edge);
+        TANKER_WINGTIP, 0.56, skin, edge);
     wing(p, [[0.19, 0.19, -4.8], [0.20, 0.22, -6.6]],
         [[3.25, 0.32, -6.52], [3.25, 0.34, -7.0]], skin, edge);
     solid_fin(p,
@@ -1354,7 +1515,7 @@ fn blackbird(p: &mut Painter) {
         obsidian,
     );
     solid_wing(p, [[0.1, 0.22, 2.63], [0.21, -0.05, -3.42]],
-        [[4.14, 0.06, -1.47], [4.39, 0.01, -2.43]], 0.24, obsidian, edge);
+        BLACKBIRD_WINGTIP, 0.24, obsidian, edge);
     for side in [-1.0, 1.0] {
         let x = side * BLACKBIRD_ENGINE_X;
         shell(

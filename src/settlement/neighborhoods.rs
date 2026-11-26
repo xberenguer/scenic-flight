@@ -104,6 +104,7 @@ impl Neighborhoods {
         let mut queue = [0_u16; NODES];
         let mut tail = 0;
         let mut visited = [false; NODES];
+        let mut rejected = [0_u8; NODES];
         for row in 0..super::ROWS {
             for col in 0..COLS {
                 if town.streets[row * COLS + col] == 0
@@ -137,11 +138,16 @@ impl Neighborhoods {
                     continue;
                 }
                 let next = r as usize * SIDE + (c - LEFT) as usize;
-                if district.streets[node] & flag != 0
+                if (district.streets[node] | rejected[node]) & flag != 0
                     || core_node(c, r) && !visited[next]
                     || !inside_region(c as f32 * SPACING, r as f32 * SPACING)
-                    || !street_fits(world, local, x, z, dc, dr)
                 {
+                    continue;
+                }
+                if !street_fits(world, local, x, z, dc, dr) {
+                    // The grade check samples the same bands in either direction.
+                    rejected[node] |= flag;
+                    rejected[next] |= reverse;
                     continue;
                 }
                 district.streets[node] |= flag;
@@ -412,6 +418,30 @@ fn core_node(col: i32, row: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn neighborhood_grades_are_independent_of_traversal_direction() {
+        for (seed, rx, rz) in [(1, -1, 0), (11, -1, 0), (119, -5, 0)] {
+            let world = World::new(seed);
+            let road = RoadNetwork::generate(&world, rx, rz).unwrap();
+            let town = Settlement::generate(&world, &road, Terminus::Start).unwrap();
+            for row in 0..ROWS as i32 {
+                for col in LEFT..LEFT + SIDE as i32 {
+                    for (dc, dr) in [(1, 0), (0, 1)] {
+                        let (c, r) = (col + dc, row + dr);
+                        if c >= LEFT + SIDE as i32 || r >= ROWS as i32 {
+                            continue;
+                        }
+                        assert_eq!(
+                            street_fits(&world, town.local, col as f32 * SPACING, row as f32 * SPACING, dc, dr),
+                            street_fits(&world, town.local, c as f32 * SPACING, r as f32 * SPACING, -dc, -dr),
+                            "seed {seed}, edge ({col}, {row}) to ({c}, {r})",
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn large_districts_have_dry_blocks_on_connected_streets() {

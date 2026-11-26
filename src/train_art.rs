@@ -8,6 +8,9 @@ use crate::render::{Camera, ScreenProjection, ScreenRect};
 use crate::train_follow::TrainMotion;
 use crate::world_mesh::WorldMesh;
 
+mod wagons;
+use wagons::tint;
+
 pub const TRAIN_REACH: f32 = 224.0;
 const OPAQUE_REACH: f32 = 174.0;
 const CAR_LENGTH: f32 = 13.6;
@@ -41,7 +44,7 @@ enum Vehicle {
     Passenger { cab: bool },
     RegionalPassenger { cab: bool, express: bool },
     Engine,
-    Container([u8; 3]),
+    Wagon { color: [u8; 3], variant: u8 },
 }
 
 fn express_alignment(line: &RailCorridor) -> bool {
@@ -216,7 +219,11 @@ impl Train {
                 },
                 TrainService::Freight if end => Vehicle::Engine,
                 TrainService::Freight => {
-                    Vehicle::Container(livery(key.rotate_left((index * 11) as u32), true))
+                    let cargo = key.rotate_left((index * 11) as u32);
+                    Vehicle::Wagon {
+                        color: livery(cargo, true),
+                        variant: (mix(cargo ^ 0x3f32_a93e_42f8_51a7) % 25) as u8,
+                    }
                 }
             };
             *slot = Some(Car {
@@ -375,24 +382,29 @@ impl Car {
             Vehicle::RegionalPassenger { express: true, .. } => ([228, 233, 231], stripe, [83, 101, 123], BODY_TOP - 0.43),
             Vehicle::RegionalPassenger { .. } => ([148, 189, 196], stripe, [48, 70, 87], BODY_TOP - 0.17),
             Vehicle::Engine => ([175, 89, 56], [55, 70, 73], [117, 122, 115], BODY_TOP),
-            Vehicle::Container(color) => (color, [65, 68, 67], tint(color, 0.84), 3.54),
+            Vehicle::Wagon { color, variant } => {
+                return wagons::draw(
+                    |t, side, height| self.point(t, side, height),
+                    |corners, color| quad_triangles(mesh, corners, color, self.opacity, 0.0),
+                    color, variant, self.detail,
+                );
+            }
         };
         let point = |t, side, h| self.point(t, side, h);
         let mut face =
             |quad, color, emission| quad_triangles(mesh, quad, color, self.opacity, emission);
-        let container = matches!(self.vehicle, Vehicle::Container(_));
         let regional = matches!(self.vehicle, Vehicle::RegionalPassenger { .. });
-        let inset = if container { 0.055 } else { 0.014 };
+        let inset = 0.014;
         let [roof_start, roof_end] = match self.vehicle {
             Vehicle::RegionalPassenger { cab: true, express } if first => [inset + if express { 0.23 } else { 0.14 }, 1.0 - inset],
             Vehicle::RegionalPassenger { cab: true, express } => [inset, 1.0 - inset - if express { 0.23 } else { 0.14 }],
             _ => [inset, 1.0 - inset],
         };
-        let wall_top = cap - if container { 0.16 } else { 0.52 };
-        let wall_base: f32 = if container { 1.10 } else { 0.94 };
+        let wall_top = cap - 0.52;
+        let wall_base: f32 = 0.94;
         let left = -HALF_WIDTH;
         let right = HALF_WIDTH;
-        let inner = HALF_WIDTH * if container { 0.91 } else { 0.63 };
+        let inner = HALF_WIDTH * 0.63;
         face(
             [
                 point(roof_start, -inner, cap),
@@ -547,10 +559,6 @@ impl Car {
             }
         }
     }
-}
-
-fn tint(color: [u8; 3], strength: f32) -> [u8; 3] {
-    color.map(|channel| (f32::from(channel) * strength + 0.5) as u8)
 }
 
 fn quad_triangles(

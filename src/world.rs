@@ -51,6 +51,7 @@ pub enum Surface {
     ScreeEdge,
     ScreeFine,
     ScreeCoarse,
+    DryWash,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

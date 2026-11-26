@@ -6,14 +6,14 @@ use crate::highway_links::{HighwayContact, HighwayLink, HighwaySurvey};
 use crate::land_stream::LandStream;
 use crate::local_routes::LocalRouteStream;
 use crate::math::sin_cos;
-use crate::render::{view_distance, Camera, ScreenRect};
+use crate::render::{CITY_HORIZON, view_distance, Camera, ScreenRect};
 use crate::river_district::RiverDistrict;
 use crate::river_stream::RiverStream;
 use crate::roads::{RoadPoint, ROAD_HALF_WIDTH, ROAD_REGION_SIZE};
 use crate::scenery::overlay_highway_link;
 use crate::settlement::{Settlement, SettlementSurface, Terminus};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
-use crate::world_mesh::{bounds_in_view, WorldMesh};
+use crate::world_mesh::{bounds_in_range, bounds_in_view, WorldMesh};
 
 type RegionKey = (i32, i32);
 type Area = [f32; 4];
@@ -588,6 +588,7 @@ impl<const ACTIVE: usize> HighwayStream<ACTIVE> {
 
     fn refresh<const LAND: usize>(&mut self, land: &LandStream<LAND>, camera: Camera) -> bool {
         let mut changed = false;
+        let mut retained_far_crossing = false;
         for queued in &mut self.awaiting_coast {
             if queued.is_some_and(|pair| pair.0.into_iter().any(|key| land.planned(key).flatten().is_none())) {
                 *queued = None;
@@ -605,7 +606,15 @@ impl<const ACTIVE: usize> HighwayStream<ACTIVE> {
             if !held {
                 let retain = matches!(&record.state, State::Published(link)
                     if !outside(camera, link.bounds(), view_distance(camera.altitude) * 1.25 + RETAIN));
-                if !retain {
+                // A distant bridge can outlast its town tiles. Keep one such
+                // link in view and leave the other slots for current surveys.
+                let retain_far = !retain && !retained_far_crossing && matches!(
+                    &record.state, State::Published(HighwayConnection::Coastal(link))
+                        if crate::bridge_silhouette::has_extended_range(link.bridge())
+                            && bounds_in_range(camera, link.bridge().bounds(), CITY_HORIZON)
+                );
+                retained_far_crossing |= retain_far;
+                if !retain && !retain_far {
                     *slot = None;
                 }
                 continue;
@@ -1237,7 +1246,56 @@ mod tests {
         assert!(matches!(stream.planned(pair), Some(Some(HighwayConnection::Coastal(_)))));
         let beyond = Camera { x: look.x + 3_500.0, ..look };
         stream.service_with_reservations(&land, beyond, false, reserve);
+        let bridge = *stream.coastal_links().find(|(key, _)| *key == pair).unwrap().1.bridge();
+
+        // At cruise altitude this real span should survive beyond its town
+        // tiles, and its pixels should still respect the terrain depth.
+        let cruise = Camera {
+            x: -7_305.035_6, z: -6_958.678_7, altitude: 335.0, heading: 2.913_061_6,
+            pitch: 0.189, bank: 0.04,
+        };
+        land.reset(world);
+        assert!(!bounds_in_view(cruise, bridge.bounds()));
+        stream.service_with_reservations(&land, cruise, false, |_, _| panic!());
         assert!(stream.coastal_links().any(|(key, _)| key == pair));
+
+        use crate::bridge_silhouette::BridgeSilhouettes;
+        use crate::horizon_cache::HorizonCache;
+        use crate::render::{ScreenRect, encoded_depth, render_terrain_layer_region_with_horizon};
+        use crate::sky::Sky;
+        use crate::terrain_cache::TerrainCache;
+
+        const RASTER: (usize, usize) = (60, 60);
+        const AREA: usize = RASTER.0 * RASTER.1;
+        let mut horizon = HorizonCache::new();
+        horizon.reset(world, cruise.x, cruise.z);
+        let backdrop = |x, z| horizon.backdrop(x, z);
+        let sky = Sky::from_time_at_position(seed, 0, 0.34, [cruise.x, cruise.altitude, cruise.z]);
+        let spans = || stream.coastal_links().map(|(_, link)| link.bridge());
+        let mut silhouettes = BridgeSilhouettes::new();
+        assert!(silhouettes.prepare(cruise, 0, &sky, RASTER, spans(), backdrop).is_empty());
+        for tick in 1..=32 {
+            silhouettes.prepare(cruise, tick, &sky, RASTER, spans(), backdrop);
+        }
+        let frame = silhouettes.prepare(cruise, 33, &sky, RASTER, spans(), backdrop);
+        assert_eq!(frame.len(), 1);
+
+        let mut terrain = TerrainCache::new();
+        terrain.reset_for_altitude(world, cruise.x, cruise.z, cruise.altitude);
+        let mut pixels = [0; AREA];
+        let mut depth = [u16::MAX; AREA];
+        let mut scratch = [0; AREA];
+        render_terrain_layer_region_with_horizon(
+            (|x, z| terrain.sample(x, z), |_, _, sample| sample.surface),
+            backdrop, cruise, &sky, &mut pixels, &mut scratch,
+            Some((&mut depth, ScreenRect::full(RASTER))), RASTER, |_| {}, |_| None,
+        ).unwrap();
+        let clear = pixels;
+        frame.draw(&mut pixels, &depth);
+        assert!(pixels != clear);
+        pixels = clear;
+        frame.draw(&mut pixels, &[encoded_depth(1_800.0); AREA]);
+        assert_eq!(pixels, clear);
     }
 
     #[test]

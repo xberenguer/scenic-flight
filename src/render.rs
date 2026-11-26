@@ -106,13 +106,18 @@ impl ScreenProjection {
         })
     }
 
-    pub(crate) fn point(&self, [x, y, z]: [f32; 3]) -> Option<[f32; 3]> {
+    pub(crate) fn backdrop_point(&self, [x, y, z]: [f32; 3]) -> Option<[f32; 3]> {
         let view = &self.view;
         let dx = x - self.eye[0];
         let dz = z - self.eye[2];
-        let relief = y - self.eye[1] - view.high_cruise * 0.000040 * (dx * dx + dz * dz);
         let forward = dx * view.heading_sin + dz * view.heading_cos;
         let right = dx * view.heading_cos - dz * view.heading_sin;
+        let squared = if forward > SCENERY_HORIZON {
+            backdrop_curvature_squared(forward, right)
+        } else {
+            dx * dx + dz * dz
+        };
+        let relief = y - self.eye[1] - view.high_cruise * 0.000040 * squared;
         let down = -view.pitch_sin * forward - view.pitch_cos * relief;
         let depth = view.pitch_cos * forward - view.pitch_sin * relief;
         if depth < 0.8 || !depth.is_finite() {
@@ -175,10 +180,21 @@ const MAX_SIDE: usize = 512;
 const MAX_BANDS: usize = MAX_SIDE;
 pub const LOW_VIEW_DISTANCE: f32 = 512.0;
 pub const HIGH_VIEW_DISTANCE: f32 = 896.0;
+/// Shared outer distance for terrain silhouettes and distant scenery.
+pub const SCENERY_HORIZON: f32 = 1920.0;
+/// Maximum reach of compact, streamed city silhouettes.
+pub const CITY_HORIZON: f32 = 2880.0;
+/// Maximum reach of the coarse, terrain-only background.
+pub const TERRAIN_BACKDROP_DISTANCE: f32 = 10.0 * SCENERY_HORIZON;
 type Color = [f32; 3];
 
 pub(crate) fn encoded_depth(depth: f32) -> u16 {
-    (depth * 32.0 + 0.5) as u16
+    let units = if depth <= SCENERY_HORIZON {
+        depth * 32.0
+    } else {
+        SCENERY_HORIZON * 32.0 + (depth - SCENERY_HORIZON) * 0.20
+    };
+    ((units + 0.5) as u16).min(u16::MAX - 1)
 }
 
 pub fn view_distance(altitude: f32) -> f32 {
@@ -397,8 +413,29 @@ pub fn render_terrain_layer_region_with_horizon(
     )
 }
 
-pub fn horizon_distance(altitude: f32) -> f32 {
-    1120.0 + 768.0 * high_cruise(altitude)
+pub fn horizon_distance(_altitude: f32) -> f32 {
+    SCENERY_HORIZON
+}
+
+pub(crate) fn backdrop_curve_distance_squared(forward: f32) -> f32 {
+    // Continue the foreground curve into the backdrop, easing its slope.
+    let beyond = forward - SCENERY_HORIZON;
+    if beyond <= 0.0 {
+        forward * forward
+    } else {
+        SCENERY_HORIZON * SCENERY_HORIZON
+            + 2.0 * SCENERY_HORIZON * beyond / (1.0 + beyond / 900.0)
+    }
+}
+
+/// Match a far landmark to the curve used by the terrain backdrop.
+pub(crate) fn backdrop_curvature_squared(forward: f32, side: f32) -> f32 {
+    if forward <= SCENERY_HORIZON {
+        forward * forward + side * side
+    } else {
+        let lateral = side / forward;
+        backdrop_curve_distance_squared(forward) * (1.0 + lateral * lateral)
+    }
 }
 
 fn unchanged_material(_: f32, _: f32, sample: Sample) -> Surface {
@@ -1020,6 +1057,7 @@ fn draw_near_bands<const CLIPPED: bool>(
         }
     }
     let mut slope_height = [0.0; MAX_BANDS];
+    let mut slope_center = [0_u16; MAX_BANDS];
     let mut open = work.end - work.first;
     let mut distance: f32 = 5.0;
     let mut previous = 0.0;
@@ -1059,6 +1097,7 @@ fn draw_near_bands<const CLIPPED: bool>(
             ((view.cy - view.focal * sea_up / sea_depth + 0.5) as i32).max(top)
         };
         let inverse_step = 1.0 / (distance - previous);
+        let previous_spacing = previous * inverse_focal;
         let distance_fraction = (distance / far).min(1.0);
         let detail_fade = (1.0 - distance / 150.0).clamp(0.0, 1.0);
         let curve = curvature * distance * distance;
@@ -1086,7 +1125,8 @@ fn draw_near_bands<const CLIPPED: bool>(
             }
             let x0 = left + band * stride;
             let x1 = (left + next_band * stride).min(right);
-            let u = (x0 + x1 - 1) as f32 * 0.5 - view.cx;
+            let center = (x0 + x1 - 1) as u16;
+            let u = f32::from(center) * 0.5 - view.cx;
             let world_x = forward_x + step_x * u;
             let world_z = forward_z + step_z * u;
             let ground = sample(world_x, world_z);
@@ -1095,9 +1135,12 @@ fn draw_near_bands<const CLIPPED: bool>(
                 neighbor = None;
                 continue;
             }
-            let prior_height = slope_height[band];
+            let prior = [(f32::from(slope_center[band]) * 0.5 - view.cx) * previous_spacing,
+                slope_height[band]];
             slope_height[band..next_band].fill(elevation);
-            let adjacent = neighbor.replace(elevation);
+            slope_center[band..next_band].fill(center);
+            let current = [u * spacing, elevation];
+            let adjacent = neighbor.replace(current);
 
             let (y, camera_depth) = if sea_row >= 0 && elevation == 0.0 {
                 (sea_row, sea_depth)
@@ -1150,17 +1193,8 @@ fn draw_near_bands<const CLIPPED: bool>(
                 }
             }
 
-            let grade = || {
-                let slope = if previous > 0.0 {
-                    (elevation - prior_height) * inverse_step
-                } else {
-                    0.0
-                };
-                let across = adjacent.map_or(0.0, |other| {
-                    (elevation - other) / (spacing * (x1 - x0) as f32)
-                });
-                [slope, across]
-            };
+            let grade = || terrain_grade(current, prior, adjacent,
+                if previous > 0.0 { inverse_step } else { 0.0 });
             let world_position = [world_x, elevation, world_z];
             let surface = material(world_x, world_z, ground);
             let light = GroundLight {
@@ -1172,8 +1206,8 @@ fn draw_near_bands<const CLIPPED: bool>(
                 reflection: [camera.altitude - distance * reflection, glint_width, glint,
                     sun_right, sun_forward],
             };
-            let color = ground_color(surface, world_position, grade, detail_fade, light);
-            let mut paint = |from: usize, to: usize, color: u16| {
+            let (color, rock_phase) = ground_color(surface, world_position, grade, detail_fade, light);
+            let paint = |from: usize, to: usize, color: u16| {
                 let together = to.min(common_limit);
                 if from < together {
                     paint_span::<CLIPPED>(pixels, work.row_width, height, aperture, view,
@@ -1186,18 +1220,10 @@ fn draw_near_bands<const CLIPPED: bool>(
                     );
                 }
             };
-            let visible_height = (limit - y) as usize;
-            if distance < 160.0 && visible_height >= 3 && matches!(
-                surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof
-                    | Surface::ShipCabin
-            ) {
-                paint_facade(
-                    surface, world_position, color, y as usize..limit as usize,
-                    view.focal / camera_depth, light, paint,
-                );
-            } else {
-                paint(y as usize, limit as usize, color);
-            }
+            paint_visible_surface(
+                surface, world_position, color, y as usize..limit as usize,
+                distance, camera_depth, view, light, rock_phase, paint,
+            );
             if let Some((depth, rect)) = depth.as_mut() {
                 let from = (y as usize).max(rect.top);
                 let to = (limit as usize).min(rect.bottom);
@@ -1263,6 +1289,7 @@ fn draw_terrain<const CLIPPED: bool>(
     }
     let mut edge = [bottom as i16; MAX_BANDS];
     let mut slope_height = [0.0; MAX_BANDS];
+    let mut slope_center = [0_u16; MAX_BANDS];
     let mut open = bands;
     let distant_stride_growth = if cfg!(feature = "small-raster-ray-budget") && aperture.diameter <= 112 {
         0.70 + ((aperture.diameter as f32 - 64.0) / 24.0).clamp(0.0, 0.35)
@@ -1307,6 +1334,7 @@ fn draw_terrain<const CLIPPED: bool>(
             ((view.cy - view.focal * sea_up / sea_depth + 0.5) as i32).max(top)
         };
         let inverse_step = 1.0 / (distance - previous);
+        let previous_spacing = previous * inverse_focal;
         let distance_fraction = (distance / far).min(1.0);
         let detail_fade = (1.0 - distance / 150.0).clamp(0.0, 1.0);
         let curve = curvature * distance * distance;
@@ -1334,7 +1362,8 @@ fn draw_terrain<const CLIPPED: bool>(
             }
             let x0 = left + band * stride;
             let x1 = (left + next_band * stride).min(right);
-            let u = (x0 + x1 - 1) as f32 * 0.5 - view.cx;
+            let center = (x0 + x1 - 1) as u16;
+            let u = f32::from(center) * 0.5 - view.cx;
             let world_x = forward_x + step_x * u;
             let world_z = forward_z + step_z * u;
             let ground = sample(world_x, world_z);
@@ -1343,9 +1372,12 @@ fn draw_terrain<const CLIPPED: bool>(
                 neighbor = None;
                 continue;
             }
-            let prior_height = slope_height[band];
+            let prior = [(f32::from(slope_center[band]) * 0.5 - view.cx) * previous_spacing,
+                slope_height[band]];
             slope_height[band..next_band].fill(elevation);
-            let adjacent = neighbor.replace(elevation);
+            slope_center[band..next_band].fill(center);
+            let current = [u * spacing, elevation];
+            let adjacent = neighbor.replace(current);
 
             let (y, camera_depth) = if sea_row >= 0 && elevation == 0.0 {
                 (sea_row, sea_depth)
@@ -1395,17 +1427,8 @@ fn draw_terrain<const CLIPPED: bool>(
                 }
             }
 
-            let grade = || {
-                let slope = if previous > 0.0 {
-                    (elevation - prior_height) * inverse_step
-                } else {
-                    0.0
-                };
-                let across = adjacent.map_or(0.0, |other| {
-                    (elevation - other) / (spacing * (x1 - x0) as f32)
-                });
-                [slope, across]
-            };
+            let grade = || terrain_grade(current, prior, adjacent,
+                if previous > 0.0 { inverse_step } else { 0.0 });
             let world_position = [world_x, elevation, world_z];
             let surface = material(world_x, world_z, ground);
             let light = GroundLight {
@@ -1417,8 +1440,8 @@ fn draw_terrain<const CLIPPED: bool>(
                 reflection: [camera.altitude - distance * reflection, glint_width, glint,
                     sun_right, sun_forward],
             };
-            let color = ground_color(surface, world_position, grade, detail_fade, light);
-            let mut paint = |from: usize, to: usize, color: u16| {
+            let (color, rock_phase) = ground_color(surface, world_position, grade, detail_fade, light);
+            let paint = |from: usize, to: usize, color: u16| {
                 let together = to.min(common_limit);
                 if from < together {
                     paint_span::<CLIPPED>(pixels, width, height, aperture, view,
@@ -1431,18 +1454,10 @@ fn draw_terrain<const CLIPPED: bool>(
                     );
                 }
             };
-            let visible_height = (limit - y) as usize;
-            if distance < 160.0 && visible_height >= 3 && matches!(
-                surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof
-                    | Surface::ShipCabin
-            ) {
-                paint_facade(
-                    surface, world_position, color, y as usize..limit as usize,
-                    view.focal / camera_depth, light, paint,
-                );
-            } else {
-                paint(y as usize, limit as usize, color);
-            }
+            paint_visible_surface(
+                surface, world_position, color, y as usize..limit as usize,
+                distance, camera_depth, view, light, rock_phase, paint,
+            );
             if let Some((depth, rect)) = depth.as_mut() {
                 let from = (y as usize).max(rect.top);
                 let to = (limit as usize).min(rect.bottom);
@@ -1583,13 +1598,9 @@ fn trace_far_horizon(
         let step_z = -view.heading_sin * spacing;
         let along_up = view.pitch_sin * distance;
         let along_camera = view.pitch_cos * distance;
-        let drop = curve * distance * distance;
-        let progress = (distance - near_far) / (far - near_far);
-        let distant_fog = (0.81 + atmosphere.haze * 0.12 + 0.14 * progress).min(0.98);
-        // Match the contrast at the near edge and ease back into the outer haze.
-        let fog = old_fog + (distant_fog - old_fog) * smoothstep(progress * 4.0)
-            - clear_contrast * (1.0 - smoothstep(progress));
-        let water = rgb565(mix(water_tint, horizon, fog));
+        let drop = curve * backdrop_curve_distance_squared(distance);
+        let mut ring_fog = None;
+        let mut ring_water = None;
         let mut i = 0;
         while i < edge.len() {
             let end = if i + 1 < edge.len() && edge[i].abs_diff(edge[i + 1]) <= 1 {
@@ -1611,8 +1622,18 @@ fn trace_far_horizon(
                 {
                     let y = ((view.cy - up / distance_to_eye + 0.5) as i32).max(top);
                     if y < limit {
+                        // Covered strata need height tests, but no color.
+                        let fog = *ring_fog.get_or_insert_with(|| {
+                            let progress = ((distance - near_far) / (far - near_far)).min(1.0);
+                            let distant = (0.81 + atmosphere.haze * 0.12 + 0.14 * progress).min(0.98);
+                            let fog = old_fog + (distant - old_fog) * smoothstep(progress * 4.0)
+                                - clear_contrast * (1.0 - smoothstep(progress));
+                            let beyond = (distance - far).max(0.0);
+                            let outer_fade = smoothstep(beyond / (TERRAIN_BACKDROP_DISTANCE - far));
+                            fog + (0.98 - fog) * outer_fade
+                        });
                         let color = if elevation == 0.0 {
-                            water
+                            *ring_water.get_or_insert_with(|| rgb565(mix(water_tint, horizon, fog)))
                         } else {
                             let tint =
                                 mix(land_tint, high_tint, (elevation * (1.0 / 150.0)).min(1.0));
@@ -1633,10 +1654,16 @@ fn trace_far_horizon(
             }
             i = end;
         }
-        if distance == far {
+        if distance == TERRAIN_BACKDROP_DISTANCE {
             break;
         }
-        distance = (distance * 1.105).min(far);
+        distance = if distance < far {
+            (distance * 1.105).min(far)
+        } else if distance < CITY_HORIZON {
+            (distance + 160.0).min(CITY_HORIZON)
+        } else {
+            (distance * 1.38).min(TERRAIN_BACKDROP_DISTANCE)
+        };
     }
 }
 
@@ -1849,10 +1876,25 @@ struct GroundLight {
     reflection: [f32; 5],
 }
 
+#[inline]
+fn terrain_grade(
+    [side, height]: [f32; 2], [past_side, past_height]: [f32; 2],
+    adjacent: Option<[f32; 2]>, inverse_step: f32,
+) -> [f32; 2] {
+    // The prior ray sample has a different lateral offset as its column
+    // widens with distance or joins its neighbor. Remove that component
+    // before treating its height difference as a forward grade.
+    let across = adjacent.map_or(0.0, |[left, left_height]| {
+        (height - left_height) / (side - left)
+    });
+    let forward = (height - past_height - across * (side - past_side)) * inverse_step;
+    [forward, across]
+}
+
 fn ground_color(
     surface: Surface, position: [f32; 3], grade: impl FnOnce() -> [f32; 2],
     detail_fade: f32, lighting: GroundLight,
-) -> u16 {
+) -> (u16, f32) {
     let GroundLight {
         daylight, ambient, light_up, horizon, fog, light_forward, light_right, lateral,
         #[cfg(feature = "ground-cover")]
@@ -1903,6 +1945,7 @@ fn ground_color(
         Surface::AlpineMeadow => ([127.0, 145.0, 91.0], false),
         Surface::SaltCrust => ([214.0, 198.0, 167.0], false),
         Surface::DuneSand => ([186.0, 147.0, 98.0], false),
+        Surface::DryWash => ([174.0, 163.0, 146.0], false),
         Surface::GlacierIce => ([175.0, 212.0, 223.0], false),
         Surface::GlacierCrevasse => ([66.0, 118.0, 142.0], false),
         Surface::GlacierMoraine => ([110.0, 118.0, 121.0], false),
@@ -1911,22 +1954,23 @@ fn ground_color(
         Surface::ScreeFine => (mix(alpine_rock(position[1]), [172.0, 166.0, 151.0], 0.70), false),
         Surface::ScreeCoarse => (mix(alpine_rock(position[1]), [155.0, 149.0, 135.0], 0.70), false),
     };
+    let slopes = if water { [0.0; 2] } else { grade() };
     let light = if water {
         0.80 + light_up.max(0.0) * 0.19
     } else {
-        let [slope, across] = grade();
+        let [slope, across] = slopes;
         let steepness = slope.abs() + across.abs();
         let diffuse = light_up - slope * light_forward - across * light_right;
         let incidence = diffuse * (1.0 - steepness.min(3.8) * 0.13);
         0.56 + incidence.clamp(0.0, 1.0) * 0.58
     };
     #[cfg(feature = "ground-cover")]
-    let (color, roughness) = match crate::ground_cover::paint(surface, position, ground_seed, color, detail_fade) {
-        Some(covered) => (covered, 0.0),
-        None => (color, surface_detail(surface, position, detail_fade)),
+    let (color, roughness, rock_phase) = match crate::ground_cover::paint(surface, position, ground_seed, color, detail_fade, slopes) {
+        Some((covered, phase)) => (covered, 0.0, phase),
+        None => (color, surface_detail(surface, position, detail_fade), 0.0),
     };
     #[cfg(not(feature = "ground-cover"))]
-    let roughness = surface_detail(surface, position, detail_fade);
+    let (roughness, rock_phase) = (surface_detail(surface, position, detail_fade), 0.0);
     let exposure = light * (1.0 + roughness) * ambient;
     let twilight = (1.0 - daylight) * 16.0;
     let color = [
@@ -1950,7 +1994,7 @@ fn ground_color(
     } else {
         color
     };
-    rgb565(mix(material, horizon, fog)).max(1)
+    (rgb565(mix(material, horizon, fog)).max(1), rock_phase)
 }
 
 const FOOTHILL: Color = [139.0, 148.0, 96.0];
@@ -2188,6 +2232,58 @@ fn surface_noise(x: f32, z: f32) -> f32 {
     0.5 + (cloud_hash(ix, iz) - 0.5) * smoothstep(taper)
 }
 
+fn paint_visible_surface(
+    surface: Surface, position: [f32; 3], color: u16, rows: core::ops::Range<usize>,
+    distance: f32, depth: f32, view: &View, light: GroundLight,
+    _rock_phase: f32, mut paint: impl FnMut(usize, usize, u16),
+) {
+    if distance < 160.0 && rows.len() >= 3 && matches!(
+        surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof | Surface::ShipCabin
+    ) {
+        paint_facade(surface, position, color, rows, view.focal / depth, light, paint);
+        return;
+    }
+    #[cfg(feature = "ground-cover")]
+    if surface == Surface::Rock && rows.len() >= 5 && distance < 118.0 {
+        let projected = view.focal * view.pitch_cos + (view.cy - rows.start as f32) * view.pitch_sin;
+        let elevation_per_row = depth / projected.max(view.focal * 0.45);
+        let fade = (1.0 - distance / 118.0).clamp(0.0, 1.0);
+        paint_rock_span(_rock_phase, color, rows, elevation_per_row, fade, paint);
+        return;
+    }
+    paint(rows.start, rows.end, color);
+}
+
+#[cfg(feature = "ground-cover")]
+fn paint_rock_span(
+    phase: f32, color: u16, rows: core::ops::Range<usize>, elevation_per_row: f32,
+    fade: f32, mut paint: impl FnMut(usize, usize, u16),
+) {
+    use crate::ground_cover::strata_phase_tone;
+
+    let top = strata_phase_tone(phase);
+    let span = rows.len();
+    let band_size = span.div_ceil(3).max(2);
+    let phase_per_row = 0.083 * elevation_per_row;
+    let strength = fade * 59.0;
+    let r = i32::from(color >> 11);
+    let g = i32::from((color >> 5) & 63);
+    let b = i32::from(color & 31);
+    let mut first = 0;
+    while first < span {
+        let end = (first + band_size).min(span);
+        let phase_drop = ((first + end) as f32 * 0.5 * phase_per_row).min(0.996);
+        let tone = strata_phase_tone(phase - phase_drop);
+        let scale = 256 + ((tone - top) * strength) as i32;
+        let r = ((r * scale + 128) >> 8).min(31);
+        let g = ((g * scale + 128) >> 8).min(63);
+        let b = ((b * scale + 128) >> 8).min(31);
+        let shaded = ((r << 11) | (g << 5) | b).max(1) as u16;
+        paint(rows.start + first, rows.start + end, shaded);
+        first = end;
+    }
+}
+
 fn paint_facade(
     surface: Surface, [x, _, z]: [f32; 3], roof: u16, rows: core::ops::Range<usize>,
     pixel_scale: f32, light: GroundLight, mut paint: impl FnMut(usize, usize, u16),
@@ -2272,7 +2368,8 @@ fn surface_detail(surface: Surface, [x, y, z]: [f32; 3], fade: f32) -> f32 {
             (chips - 0.49) * grain_relief + (beds - 0.51) * 0.14
         }
         Surface::Rock | Surface::Snow | Surface::Desert | Surface::Sand
-        | Surface::SaltCrust | Surface::DuneSand | Surface::GlacierIce | Surface::GlacierMoraine => {
+        | Surface::SaltCrust | Surface::DuneSand | Surface::DryWash
+        | Surface::GlacierIce | Surface::GlacierMoraine => {
             // Samples are anchored to the terrain so the bands do not crawl under the camera.
             let layers = surface_noise(x * 0.049 + y * 0.13, z * 0.072 - y * 0.04);
             let grain = cloud_hash(floor_i32(x * 0.45), floor_i32(z * 0.45));
@@ -2979,6 +3076,81 @@ fn square_root(mut value: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "ground-cover")]
+    #[test]
+    fn long_rock_spans_sample_multiple_beds_and_fill_every_row() {
+        let rows = 12..25;
+        let base = rgb565([164.0, 147.0, 121.0]);
+        let mut shaded = [0_u16; 13];
+        let phase = crate::ground_cover::strata_phase([32.0, 112.0, -88.0], 11);
+        paint_rock_span(phase, base, rows.clone(), 0.91, 1.0,
+            |a, b, color| {
+                let span = &mut shaded[a - rows.start..b - rows.start];
+                assert!(span.iter().all(|&pixel| pixel == 0));
+                span.fill(color);
+            });
+        assert!(shaded.iter().all(|&pixel| pixel != 0));
+        assert!(shaded.windows(2).any(|pair| pair[0] != pair[1]));
+
+        paint_rock_span(phase, base, rows.clone(), 0.91, 0.0,
+            |_, _, color| assert_eq!(color, base));
+    }
+
+    #[test]
+    fn planar_slope_lighting_is_invariant_to_column_width_and_spread() {
+        let elevation = |forward: f32, side: f32| 48.0 + 0.4 * forward - 0.6 * side;
+        for [side, prior, left] in [[5.0, 4.0, 4.0], [5.5, 4.0, 3.5], [-8.0, -7.0, -10.5]] {
+            let actual = terrain_grade(
+                [side, elevation(30.0, side)], [prior, elevation(25.0, prior)],
+                Some([left, elevation(30.0, left)]), 0.2,
+            );
+            assert!((actual[0] - 0.4).abs() < 0.000_01);
+            assert!((actual[1] + 0.6).abs() < 0.000_01);
+        }
+    }
+
+    #[test]
+    fn compressed_backdrop_depth_orders_distant_skylines_and_terrain() {
+        assert_eq!(encoded_depth(896.0), 896 * 32);
+        assert_eq!(encoded_depth(SCENERY_HORIZON), 1_920 * 32);
+        for [near, far] in [[1_920.0, 2_000.0], [2_200.0, 2_240.0], [2_880.0, 6_000.0],
+                            [6_000.0, TERRAIN_BACKDROP_DISTANCE]] {
+            assert!(encoded_depth(near) < encoded_depth(far));
+        }
+        assert!(encoded_depth(TERRAIN_BACKDROP_DISTANCE) < u16::MAX - 1);
+        assert!(encoded_depth(f32::INFINITY) < u16::MAX);
+    }
+
+    #[test]
+    fn a_far_ridge_reaches_the_display_at_low_and_cruise_altitudes() {
+        const SIDE: usize = 60;
+        let aperture = Aperture::new(SIDE, SIDE);
+        let atmosphere = Atmosphere::DAY;
+        for altitude in [28.0, 140.0, 350.0] {
+            // A faint silhouette can be narrower than one raster pixel.
+            // Check several subpixel alignments instead of fixing a row.
+            let visible = (0..8).any(|alignment| {
+                let camera = Camera {
+                    x: 0.0, z: 0.0, altitude, heading: 0.0,
+                    pitch: 0.13 + alignment as f32 * 0.004,
+                    bank: 0.0,
+                };
+                let view = View::new(camera, SIDE, SIDE);
+                let capture = |ridge| {
+                    let mut visible = [SIDE as i16; SIDE];
+                    trace_far_horizon(
+                        &mut |_, z| if ridge && z > 12_000.0 { 140.0 } else { 0.0 },
+                        camera, atmosphere, atmosphere.horizon(), &view, &aperture, &mut visible,
+                        1, SIDE, SIDE, |_, _, _, _, _, _| {},
+                    );
+                    visible
+                };
+                capture(true).iter().zip(capture(false)).any(|(&land, water)| land < water)
+            });
+            assert!(visible, "distant ridge should break the horizon at altitude {altitude}");
+        }
+    }
 
     #[test]
     fn blank_rotation_rows_match_when_the_source_is_clamped() {

@@ -777,6 +777,8 @@ impl Ravine {
         }
         let surface = if relief < 1.05 {
             ground.surface
+        } else if cross.abs() < self.width * 0.26 && end_fade(t) > 0.48 {
+            Surface::DryWash
         } else {
             let layer = ((elevation + self.layers) * 0.31) as i32;
             match layer.rem_euclid(5) {
@@ -927,6 +929,7 @@ mod tests {
             ));
             let mut lowest = f32::INFINITY;
             let mut deepest = 0.0_f32;
+            let mut wash_floor = 0;
             for i in 0..=480 {
                 let t = i as f32 / 480.0;
                 let [x, z] = center_at(site.center, ravine, t, 0.0);
@@ -937,11 +940,16 @@ mod tests {
                 assert!(grade.elevation <= lowest + 0.18);
                 lowest = lowest.min(grade.elevation);
                 deepest = deepest.max(base.elevation - grade.elevation);
+                if grade.surface == Surface::DryWash {
+                    assert!(base.elevation - grade.elevation >= 1.05);
+                    wash_floor += 1;
+                }
                 if i == 0 || i == 480 {
                     assert_eq!(grade, base);
                 }
             }
             assert!(deepest >= 7.0 && deepest <= 13.001);
+            assert!(wash_floor > 180);
             let [x, z] = ravine_point(site.center, ravine.axis, 0.5 * ravine.length + 22.0, 0.0);
             let outlet = world.sample(x, z);
             assert_eq!(site.overlay(x, z, outlet), outlet);

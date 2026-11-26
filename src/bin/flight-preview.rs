@@ -672,7 +672,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             .filter_map(|site| site.screen_bounds(view, dimensions)).reduce(ScreenRect::union);
         let tower_region = district.distant_tower_region(view, dimensions);
         let distant_skyline = skyline.prepare(&district, view, flight.ticks, &sky, dimensions,
-            |x, z| horizon.sample(x, z));
+            |x, z| horizon.backdrop(x, z));
         let skyline_region = distant_skyline.bounds();
         let bridge_region = rivers.bridge_region(view, dimensions);
         let waterfall_region = natural.waterfall_region(view, dimensions);
@@ -703,14 +703,14 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             std::array::from_fn(|_| visible.next())
         };
         let ribbons = || highway_ribbons.iter().chain(coastal_ribbons.iter()).flatten();
-        distant_roads.prepare(&district, &highways, view, flight.ticks, dimensions);
+        distant_roads.prepare(&district, &highways, view, flight.ticks, dimensions, |x, z| horizon.backdrop(x, z));
         let highway_region = ribbons().map(|ribbon| ribbon.depth_region())
             .chain(distant_roads.bounds())
             .reduce(ScreenRect::union);
         let coastal_bridge_region = highways.crossing_region(view, dimensions);
         let distant_bridges = bridge_silhouettes.prepare(view, flight.ticks, &sky, dimensions,
             rivers.bridges().chain(highways.coastal_links().map(|(_, link)| link.bridge())),
-            |x, z| horizon.sample(x, z));
+            |x, z| horizon.backdrop(x, z));
         let clipped_depth = light_region.into_iter().chain(tower_region).chain(skyline_region)
             .chain(bridge_region).chain(route_region).chain(rail_region).chain(corridor_region)
             .chain(train_region).chain(highway_region)
@@ -748,7 +748,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         };
         render_terrain_layer_region_with_horizon(
             (&sample, |x, z, geometry| ground.visible_material(x, z, geometry)),
-            |x, z| horizon.sample(x, z),
+            |x, z| horizon.backdrop(x, z),
             view, &sky, &mut pixels, &mut work, depth_region.map(|rect| (&mut depth[..], rect)),
             dimensions, |_| {}, |_| None,
         ).map_err(|error| format!("Render failed ({error:?})"))?;

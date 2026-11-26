@@ -13,6 +13,7 @@ pub struct ScreeFan {
     width: f32,
     bend: f32,
     lobe: f32,
+    spill: f32,
 }
 
 impl ScreeFan {
@@ -147,7 +148,8 @@ impl ScreeFan {
                     length,
                     width,
                     bend,
-                    lobe: 0.54 + fraction(mix(site_key ^ 0xfb8d)) * 0.28,
+                    lobe: 0.31 + fraction(mix(site_key ^ 0xfb8d)) * 0.29,
+                    spill: (fraction(mix(site_key ^ 0xda55)) - 0.5) * 0.29,
                 });
             }
         }
@@ -182,15 +184,21 @@ impl ScreeFan {
         let centerline = self.bend * t * t;
         let side = (dz * ax - dx * az - centerline) / (self.width * (0.20 + 0.80 * t));
         let wing = side.abs();
-        let toe = 0.99 - 0.26 * wing * wing - 0.08 * (side - self.lobe).abs().min(1.0);
+        // Neighboring rockfall paths overlap at the apex and run to different
+        // distances downslope, leaving scalloped deposits at the lower edge.
+        let central = 1.0 - smoothstep(wing * 2.8);
+        let flank = 1.0 - smoothstep((wing - self.lobe).abs() * 3.6);
+        let toe = 0.89 - 0.26 * wing * wing + central * 0.09
+            + flank * (0.055 + side * self.spill);
         let fade =
             smoothstep(t * 8.5) * smoothstep((toe - t) * 9.0) * smoothstep((1.0 - wing) * 3.8);
         if fade < 0.13 {
             return ground;
         }
         // Deposits thicken downhill, with only subdued surface relief in the apron.
-        let deposit = fade * (0.47 + 1.33 * t);
-        let blockiness = t + 0.13 * side * side - 0.19 * fade;
+        let runoff = smoothstep((t - 0.27) * 2.5) * flank;
+        let deposit = fade * (0.47 + 1.33 * t + 0.38 * runoff);
+        let blockiness = t + 0.13 * side * side - 0.19 * fade + runoff * 0.15;
         let surface = if fade < 0.49 {
             if ground.surface == Surface::Rock {
                 Surface::Rock

@@ -9,7 +9,7 @@ const FAR_STEP: f32 = 20.0;
 const CRUISE_STEP: f32 = 36.0;
 const CRUISE_NEAR_STEP: f32 = 10.0;
 
-const MATERIALS: [Surface; 46] = [
+const MATERIALS: [Surface; 47] = [
     Surface::DeepWater,
     Surface::Shallows,
     Surface::Sand,
@@ -56,6 +56,7 @@ const MATERIALS: [Surface; 46] = [
     Surface::ScreeEdge,
     Surface::ScreeFine,
     Surface::ScreeCoarse,
+    Surface::DryWash,
 ];
 const _: () = {
     let mut index = 0;
@@ -125,10 +126,6 @@ impl Grid {
         (floor_to_cell(x * self.inverse_spacing) - half, floor_to_cell(z * self.inverse_spacing) - half)
     }
 
-    fn cell(&self, x: i32, z: i32) -> Cell {
-        self.cells[(z as usize) & (SIDE - 1)][(x as usize) & (SIDE - 1)]
-    }
-
     fn fill_cell(&mut self, world: &World, x: i32, z: i32) {
         let (sample, coast) = world.sample_and_shore(x as f32 * self.spacing, z as f32 * self.spacing);
         self.cells[(z as usize) & (SIDE - 1)][(x as usize) & (SIDE - 1)] =
@@ -185,12 +182,14 @@ impl Grid {
         }
         let xf = grid_x - ix as f32;
         let zf = grid_z - iz as f32;
-        let cells = [
-            self.cell(ix, iz), self.cell(ix + 1, iz),
-            self.cell(ix, iz + 1), self.cell(ix + 1, iz + 1),
-        ];
-        let closest = cells[usize::from(xf >= 0.5) + 2 * usize::from(zf >= 0.5)];
+        let left = ix as usize & (SIDE - 1);
+        let right = (ix + 1) as usize & (SIDE - 1);
+        let near = &self.cells[iz as usize & (SIDE - 1)];
+        let far = &self.cells[(iz + 1) as usize & (SIDE - 1)];
+        let cells = [near[left], near[right], far[left], far[right]];
         let [a, b, c, d] = cells;
+        let (west, east) = if zf >= 0.5 { (c, d) } else { (a, b) };
+        let closest = if xf >= 0.5 { east } else { west };
         if (a.0 & b.0 & c.0 & d.0) & Cell::SEA != 0 {
             return Some(Sample { elevation: 0.0, surface: closest.surface() });
         }

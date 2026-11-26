@@ -11,8 +11,7 @@ pub fn bounds_in_view(camera: Camera, bounds: [f32; 4]) -> bool {
 }
 
 pub fn landmark_reach(altitude: f32) -> f32 {
-    let detailed = view_distance(altitude);
-    (detailed + (horizon_distance(altitude) - detailed) * 0.58).min(1344.0)
+    horizon_distance(altitude)
 }
 
 pub fn bounds_in_range(camera: Camera, bounds: [f32; 4], reach: f32) -> bool {

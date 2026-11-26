@@ -1,11 +1,13 @@
+const treeForms = ['Rounded', 'Pointed', 'Leaning', 'Forked', 'Spire', 'Umbrella', 'Vase', 'Fan', 'Cluster', 'Crescent', 'Tiered', 'Wind swept', 'Three lobed', 'Cut crown', 'Split ridge', 'Cushion'];
+const treeFootprints = ['Compact', 'Wide', 'Deep', 'Broad'];
+const wagonTypes = ['Container', 'Boxcar', 'Hopper', 'Tanker', 'Loaded flatcar'];
 const categories = [
-  { title: 'Trees', label: 'Tree', atlas: 'trees.png', traits: ['Crown form', 'Width', 'Depth', 'Height'] },
+  { title: 'Trees', label: 'Tree', atlas: 'trees.png' },
   { title: 'Rocks', label: 'Rock', atlas: 'rocks.png', traits: ['Width', 'Depth', 'Relief', 'Crown'] },
   { title: 'Bushes', label: 'Bush', atlas: 'bushes.png', traits: ['Width', 'Height', 'Spread', 'Crown'] },
   { title: 'Cacti', label: 'Cactus', atlas: 'cacti.png', traits: ['Girth', 'Height', 'Arm reach', 'Arm arrangement'] },
+  { title: 'Freight Wagons', label: 'Freight wagon', atlas: 'wagons.png', columns: 5 },
 ];
-const atlasColumns = 16;
-const variantCount = 256;
 const tabs = document.querySelector('#artwork-categories');
 const grid = document.querySelector('#artwork-grid');
 const count = document.querySelector('#artwork-count');
@@ -14,12 +16,14 @@ const viewerMedia = document.querySelector('#viewer-media');
 const viewerTitle = document.querySelector('#viewer-title');
 const viewerInfo = document.querySelector('#viewer-info');
 
-function sprite(atlas, index) {
+function sprite(category, index) {
   const image = document.createElement('span');
+  const atlasColumns = category.columns || 16;
   const x = index % atlasColumns;
   const y = Math.floor(index / atlasColumns);
   image.className = 'artwork-sprite';
-  image.style.backgroundImage = `url("assets/artwork/${atlas}")`;
+  image.style.backgroundImage = `url("assets/artwork/${category.atlas}")`;
+  image.style.backgroundSize = `${atlasColumns * 100}% ${atlasColumns * 100}%`;
   image.style.backgroundPosition = `${x * 100 / (atlasColumns - 1)}% ${y * 100 / (atlasColumns - 1)}%`;
   image.setAttribute('aria-hidden', 'true');
   return image;
@@ -27,27 +31,28 @@ function sprite(atlas, index) {
 
 function render(category) {
   const entries = document.createDocumentFragment();
+  const variantCount = (category.columns || 16) ** 2;
   for (let index = 0; index < variantCount; index++) {
     const entry = document.createElement('li');
     const button = document.createElement('button');
     const number = String(index).padStart(3, '0');
-    const title = `${category.label} ${number}`;
+    const title = category.columns === 5
+      ? `${wagonTypes[Math.floor(index / 5)]} ${index % 5 + 1}`
+      : `${category.label} ${number}`;
     button.type = 'button';
     button.className = 'artwork-tile';
     button.setAttribute('aria-label', title);
     const caption = document.createElement('span');
     caption.className = 'artwork-number';
     caption.textContent = number;
-    button.append(sprite(category.atlas, index), caption);
+    button.append(sprite(category, index), caption);
     button.addEventListener('click', () => {
       viewerTitle.textContent = title;
-      viewerInfo.textContent = category.traits.map((trait, axis) => {
-        const form = (index >> (axis * 2)) & 3;
-        if (category.label === 'Tree' && axis === 0) return ['Rounded', 'Pointed', 'Leaning', 'Forked'][form];
-        return `${trait} ${form + 1} of 4`;
-      }).join(' · ');
-      viewerInfo.hidden = false;
-      viewerMedia.replaceChildren(sprite(category.atlas, index));
+      viewerInfo.textContent = category.label === 'Tree'
+        ? [treeForms[index & 15], treeFootprints[(index >> 4) & 3], `Height ${(index >> 6) + 1} of 4`].join(' · ')
+        : category.traits?.map((trait, axis) => `${trait} ${((index >> (axis * 2)) & 3) + 1} of 4`).join(' · ') || '';
+      viewerInfo.hidden = !viewerInfo.textContent;
+      viewerMedia.replaceChildren(sprite(category, index));
       viewer.showModal();
     });
     entry.append(button);

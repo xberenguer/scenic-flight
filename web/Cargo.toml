@@ -1,0 +1,15 @@
+[package]
+name = "scenic-flight-web"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+scenic-flight = { path = "..", features = ["ground-cover", "small-raster-ray-budget"] }
+
+[profile.release]
+lto = "thin"
+panic = "abort"

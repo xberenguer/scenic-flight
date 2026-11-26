@@ -2,12 +2,19 @@
 
 use crate::crossings::{Bridge, BridgeStyle, BridgeWater};
 use crate::math::{sin_cos, smoothstep};
-use crate::render::{encoded_depth, horizon_distance, view_distance, Camera, ScreenRect};
+use crate::render::{
+    CITY_HORIZON, Camera, ScreenRect, backdrop_curvature_squared, encoded_depth, horizon_distance,
+    view_distance,
+};
 use crate::sky::Sky;
 use crate::world::SEA_LEVEL;
 
 const LIMIT: usize = 8;
 const FADE: u64 = 32;
+
+pub(crate) fn has_extended_range(bridge: &Bridge) -> bool {
+    bridge.water == BridgeWater::SeaNarrows && bridge.span() >= 44.0
+}
 
 #[derive(Clone, Copy)]
 struct Retained {
@@ -63,13 +70,14 @@ impl BridgeSilhouettes {
                 .find(|entry| entry.bridge == *bridge)
             {
                 entry.seen = true;
-            } else if let Some(slot) = self.retained.iter_mut().find(|r| r.is_none()) {
-                *slot = Some(Retained {
-                    bridge: *bridge,
-                    age: 0,
-                    seen: true,
-                    fresh: true,
-                });
+            } else {
+                let mut free = self.retained.iter_mut().filter(|r| r.is_none());
+                let Some(slot) = free.next() else { continue };
+                // Reserve two slots for crossings entering the detailed view.
+                if view.outer(bridge) && free.nth(1).is_none() {
+                    continue;
+                }
+                *slot = Some(Retained { bridge: *bridge, age: 0, seen: true, fresh: true });
             }
         }
         let mut frame = BridgeSilhouetteFrame {
@@ -219,8 +227,7 @@ impl Stroke {
         if distance >= outer * outer {
             return None;
         }
-        let z =
-            encoded_depth(1.0 / mix(self.start.inverse_z, self.end.inverse_z, t)).min(u16::MAX - 1);
+        let z = encoded_depth(1.0 / mix(self.start.inverse_z, self.end.inverse_z, t));
         if z >= terrain_z {
             return None;
         }
@@ -253,7 +260,7 @@ impl View {
             pitch: sin_cos(camera.pitch.clamp(-1.3, 1.3)).into(),
             roll: sin_cos(-camera.bank).into(),
             near,
-            far: near + (horizon_distance(camera.altitude) - near) * 0.76,
+            far: horizon_distance(camera.altitude),
             focal: dimensions.0.min(dimensions.1) as f32 * 0.73,
             curvature: (near - 512.0) * (0.000040 / 384.0),
         }
@@ -268,15 +275,32 @@ impl View {
         ]
     }
 
-    fn potential(&self, bridge: &Bridge) -> bool {
+    fn center(&self, bridge: &Bridge) -> [f32; 2] {
         let [a, _, _, b] = *bridge.sections();
-        let [side, along] = self.relative((a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5);
-        along > self.near * 0.61 && along < self.far + 100.0 && side.abs() < along * 0.80 + 120.0
+        self.relative((a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5)
+    }
+
+    fn reach(&self, bridge: &Bridge) -> f32 {
+        if has_extended_range(bridge) {
+            CITY_HORIZON
+        } else {
+            self.far
+        }
+    }
+
+    fn outer(&self, bridge: &Bridge) -> bool {
+        self.center(bridge)[1] > self.far
+    }
+
+    fn potential(&self, bridge: &Bridge) -> bool {
+        let [side, along] = self.center(bridge);
+        along > self.near * 0.61 && along < self.reach(bridge) + 100.0
+            && side.abs() < along * 0.80 + 120.0
     }
 
     fn vertex(&self, [x, y, z]: [f32; 3]) -> Option<Vertex> {
         let [side, ahead] = self.relative(x, z);
-        let relief = y - self.camera.altitude - self.curvature * (side * side + ahead * ahead);
+        let relief = y - self.camera.altitude - self.curvature * backdrop_curvature_squared(ahead, side);
         let z = ahead * self.pitch[1] - relief * self.pitch[0];
         if z <= 2.0 || !z.is_finite() {
             return None;
@@ -369,7 +393,8 @@ impl View {
         };
         let near_fade =
             smoothstep((along - self.near * 0.74) / (self.near * (handoff_range - 0.74)));
-        let far_fade = 1.0 - smoothstep((along - self.far * 0.80) / (self.far * 0.20));
+        let reach = self.reach(&bridge);
+        let far_fade = 1.0 - smoothstep((along - reach * 0.80) / (reach * 0.20));
         let fade = age * near_fade * far_fade;
         if fade < 0.015 {
             return None;

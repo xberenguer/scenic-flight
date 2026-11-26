@@ -21,9 +21,9 @@
   },
   {
     "id": "city-approach",
-    "title": "City flyby at dusk",
+    "title": "Ultralight over the city",
     "category": "Built World",
-    "aircraft": "Sport Jet",
+    "aircraft": "Ultralight",
     "biome": "",
     "format": "Video",
     "poster": "assets/current/city-approach.png",
@@ -31,10 +31,10 @@
   },
   {
     "id": "river-valley",
-    "title": "Low over the floodplain",
+    "title": "Ultralight along the coastal bluffs",
     "category": "Biomes",
     "aircraft": "Ultralight",
-    "biome": "Rivers & Wetlands",
+    "biome": "Coast & Ocean",
     "format": "Video",
     "poster": "assets/current/river-valley.png",
     "src": "assets/current/river-valley.mp4"
