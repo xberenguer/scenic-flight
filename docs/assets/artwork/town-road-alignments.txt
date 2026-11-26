@@ -1,0 +1,26 @@
+Direct avenue
+Shallow left arc
+Shallow right arc
+Late left bend
+Late right bend
+Early left bend
+Early right bend
+Left bank sweep
+Right bank sweep
+Left and right offset
+Right and left offset
+Left hillside shoulder
+Right hillside shoulder
+Left shallow S-curve
+Right shallow S-curve
+Left broad S-curve
+Right broad S-curve
+Left saddle approach
+Right saddle approach
+Left valley loop
+Right valley loop
+Left gully bypass
+Right gully bypass
+Left cliff bypass
+Right cliff bypass
+Staggered ridge crossing

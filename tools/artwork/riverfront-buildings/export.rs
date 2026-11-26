@@ -1,6 +1,6 @@
 use scenic_flight::{
     render::Camera,
-    settlement::{SettlementSurface, riverfront_buildings::RiverfrontBuilding},
+    settlement::riverfront_buildings::RiverfrontBuilding,
     sky::Sky,
     world_mesh::WorldMesh,
 };
@@ -43,7 +43,7 @@ fn main() -> io::Result<()> {
             let mut depth = [u16::MAX; TILE * TILE];
             let mut mesh =
                 WorldMesh::new(&mut pixels, &mut depth, (TILE, TILE), view, &sky).unwrap();
-            relief::draw(&mut mesh, [12.8, 12.8], |[u, v]| {
+            relief::draw_materials(&mut mesh, [12.8, 12.8], |[u, v]| {
                 let [x, z] = [u * 6.4, v * 6.4];
                 let [half_width, half_depth] = profile.size;
                 let on_landing =
@@ -55,20 +55,11 @@ fn main() -> io::Result<()> {
                 } else {
                     [97, 122, 85]
                 };
-                let Some((surface, height)) = profile.roof([x / half_width, z / half_depth]) else {
-                    return Some((0.13, ground));
+                let Some((_, height)) = profile.roof([x / half_width, z / half_depth]) else {
+                    return Some((0.13, ground, ground));
                 };
-                let color = match surface {
-                    SettlementSurface::PitchedRoof => [166, 108, 79],
-                    SettlementSurface::FlatRoof => [146, 143, 131],
-                    SettlementSurface::TowerRoof => [107, 150, 166],
-                    SettlementSurface::IndustryBrick => [142, 108, 93],
-                    SettlementSurface::IndustryConcrete => [159, 153, 136],
-                    SettlementSurface::IndustryMetal => [123, 135, 141],
-                    SettlementSurface::Street => [107, 111, 109],
-                    _ => [88, 118, 78],
-                };
-                Some((0.12 + height, color))
+                let finish = scenic_flight::settlement::building_palettes::RIVER[index];
+                Some((0.12 + height, finish.roof, finish.wall))
             });
             let (left, top) = (index % COLS * TILE, index / COLS * TILE);
             assert!(

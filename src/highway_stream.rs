@@ -2,7 +2,7 @@
 
 use crate::coastal_highways::{CoastalHighway, CoastalHighwaySurvey, CoastalHighwayWork};
 use crate::facility_stream::FacilityStream;
-use crate::highway_links::{HighwayContact, HighwayLink, HighwaySurvey};
+use crate::highway_links::{HighwayContact, HighwayLink, HighwaySurvey, TOWN_CAP_PAIRS, within_street_cap as within_cap};
 use crate::land_stream::LandStream;
 use crate::local_routes::LocalRouteStream;
 use crate::math::sin_cos;
@@ -125,6 +125,7 @@ impl HighwayConnection {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Search {
     Ground(u8),
+    Town { pair: u8, detour: u8 },
     Coastal,
 }
 
@@ -147,7 +148,8 @@ pub struct HighwayResult {
 pub type HighwayTowns = [Option<Settlement>; 2];
 
 enum Fit {
-    Candidate { link: HighwayConnection, retry_detour: Option<u8> },
+    Candidate { link: HighwayConnection, retry: Option<Search> },
+    Retry(Search),
     SurveyCoast,
     Unavailable,
 }
@@ -189,8 +191,15 @@ impl HighwayRequest {
         self.nearby_towns(land).map(|town| town.cloned())
     }
 
+    /// Copy worker inputs into the shared staging slot one town at a time.
+    pub fn stage_towns<const LAND: usize>(&self, land: &LandStream<LAND>, towns: &mut HighwayTowns) {
+        for (slot, town) in towns.iter_mut().zip(self.nearby_towns(land)) {
+            *slot = town.cloned();
+        }
+    }
+
     fn nearby_towns<'a, const LAND: usize>(&self, land: &'a LandStream<LAND>) -> [Option<&'a Settlement>; 2] {
-        if self.search != Search::Coastal {
+        if matches!(self.search, Search::Ground(_)) {
             return [None, None];
         }
         self.survey.contacts.map(|contact| {
@@ -209,7 +218,29 @@ impl HighwayRequest {
         let fit = match self.search {
             Search::Ground(next) => {
                 if let Some((link, next)) = self.survey.fit(&self.world, next, true, |_, _| false, &mut pulse) {
-                    Fit::Candidate { link: HighwayConnection::Ground(link), retry_detour: Some(next) }
+                    Fit::Candidate { link: HighwayConnection::Ground(link), retry: Some(Search::Ground(next)) }
+                } else if allow_coast {
+                    Fit::Retry(Search::Town { pair: 0, detour: 0 })
+                } else {
+                    Fit::Unavailable
+                }
+            }
+            Search::Town { pair, detour } => {
+                let plan = self.survey.town_cap_plan(&self.world, towns);
+                if let Some((index, caps)) = (pair..TOWN_CAP_PAIRS)
+                    .find_map(|index| plan.pair(index).map(|caps| (index, caps)))
+                {
+                    let start = if index == pair { detour } else { 0 };
+                    if let Some((link, next)) = self.survey.fit_town_cap_pair(
+                        &self.world, towns, caps, start, |_, _| false, &mut pulse,
+                    ) {
+                        Fit::Candidate {
+                            link: HighwayConnection::Ground(link),
+                            retry: Some(Search::Town { pair: index, detour: next }),
+                        }
+                    } else {
+                        Fit::Retry(Search::Town { pair: index + 1, detour: 0 })
+                    }
                 } else if allow_coast {
                     Fit::SurveyCoast
                 } else {
@@ -239,7 +270,7 @@ impl HighwayRequest {
                         })
                     });
                     match fit {
-                        Some(link) => Fit::Candidate { link: HighwayConnection::Coastal(link), retry_detour: None },
+                        Some(link) => Fit::Candidate { link: HighwayConnection::Coastal(link), retry: None },
                         None => Fit::Unavailable,
                     }
                 }
@@ -251,8 +282,8 @@ impl HighwayRequest {
 }
 
 enum State {
-    Candidate { link: HighwayConnection, retry_detour: Option<u8> },
-    Retry(u8),
+    Candidate { link: HighwayConnection, retry: Option<Search> },
+    Retry(Search),
     Deferred(HighwayConnection),
     Published(HighwayConnection),
 }
@@ -372,7 +403,7 @@ impl<const ACTIVE: usize> HighwayStream<ACTIVE> {
         self.reset(self.world, self.seed);
         // At most two canonical positive-facing seams for every ready district.
         // Each subsequent pass either consumes a seam or advances its detour list.
-        for _ in 0..LAND.saturating_mul(2 * 21) {
+        for _ in 0..LAND.saturating_mul(2 * (22 + usize::from(TOWN_CAP_PAIRS))) {
             let Some(request) = self.request_filtered(land, camera, true, include_coast) else {
                 break;
             };
@@ -406,11 +437,14 @@ impl<const ACTIVE: usize> HighwayStream<ACTIVE> {
             return None;
         }
         let retry = self.residents.iter().flatten().filter_map(|record| {
-            let State::Retry(detour) = record.state else {
+            let State::Retry(search) = record.state else {
                 return None;
             };
+            if !include_coast && !matches!(search, Search::Ground(_)) {
+                return None;
+            }
             let survey = record.pair.survey(land)?;
-            Some((record.pair, survey, Search::Ground(detour)))
+            Some((record.pair, survey, search))
         });
         let room = self.residents.iter().any(Option::is_none);
         let new = neighboring_pairs(land).filter_map(|pair| {
@@ -488,7 +522,8 @@ impl<const ACTIVE: usize> HighwayStream<ACTIVE> {
             }
         }
         let state = match result.fit {
-            Fit::Candidate { link, retry_detour } => State::Candidate { link, retry_detour },
+            Fit::Candidate { link, retry } => State::Candidate { link, retry },
+            Fit::Retry(search) => State::Retry(search),
             Fit::SurveyCoast => {
                 if let Some(slot) = slot {
                     self.residents[slot] = None;
@@ -548,22 +583,22 @@ impl<const ACTIVE: usize> HighwayStream<ACTIVE> {
     ) -> HighwayProgress {
         for slot in &mut self.residents {
             let Some(resident) = slot else { continue; };
-            let State::Candidate { link, retry_detour } = &resident.state else {
+            let State::Candidate { link, retry } = &resident.state else {
                 continue;
             };
             let check = reserve(resident.pair, link);
             if check == Reservation::Pending {
                 continue;
             }
-            let retry_detour = *retry_detour;
+            let retry = *retry;
             let State::Candidate { link, .. } =
-                core::mem::replace(&mut resident.state, State::Retry(0))
+                core::mem::replace(&mut resident.state, State::Retry(Search::Ground(0)))
             else {
                 unreachable!()
             };
             if check == Reservation::Blocked {
-                if let Some(detour) = retry_detour {
-                    resident.state = State::Retry(detour);
+                if let Some(search) = retry {
+                    resident.state = State::Retry(search);
                 } else {
                     self.rejected[resident.pair.directory()] = Some(resident.pair);
                     *slot = None;
@@ -622,7 +657,7 @@ impl<const ACTIVE: usize> HighwayStream<ACTIVE> {
             if let State::Deferred(link) = &record.state {
                 if published_owners(land, record.pair) && outside(camera, link.bounds(), RETAIN) {
                     let State::Deferred(link) =
-                        core::mem::replace(&mut record.state, State::Retry(0))
+                        core::mem::replace(&mut record.state, State::Retry(Search::Ground(0)))
                     else {
                         unreachable!()
                     };
@@ -811,16 +846,13 @@ pub fn highway_reservation<const LAND: usize, const RIVERS: usize, const ROUTES:
                     return Reservation::Blocked;
                 }
             }
-            let shared_street = match link {
-                HighwayConnection::Coastal(crossing) => crossing.contacts().into_iter()
-                    .zip(crossing.street_caps())
-                    .find(|(contact, _)| (contact.region[0], contact.region[1]) == key)
-                    .and_then(|(contact, cap)| {
-                        let town = district.town(contact_terminus(contact))?;
-                        Some((town, cap?))
-                    }),
-                HighwayConnection::Ground(_) => None,
+            let caps = match link {
+                HighwayConnection::Ground(ground) => ground.street_caps(),
+                HighwayConnection::Coastal(crossing) => crossing.street_caps(),
             };
+            let shared_street = link.contacts().into_iter().zip(caps)
+                .find(|(contact, _)| (contact.region[0], contact.region[1]) == key)
+                .and_then(|(contact, cap)| Some((district.town(contact_terminus(contact))?, cap?)));
             let overlaps_town = district.towns().any(|town| {
                 occupied(link, town.bounds(), |x, z| {
                     let Some(sample) = town.sample_transport_reservation(x, z) else { return false; };
@@ -946,12 +978,6 @@ fn overlaps(a: Area, b: Area) -> bool {
 
 fn contact_terminus(contact: HighwayContact) -> Terminus {
     if contact.final_endpoint { Terminus::End } else { Terminus::Start }
-}
-
-fn within_cap(cap: RoadPoint, x: f32, z: f32) -> bool {
-    let dx = x - cap.x;
-    let dz = z - cap.z;
-    dx * dx + dz * dz <= (SHOULDER + 0.8) * (SHOULDER + 0.8)
 }
 
 fn region_at(value: f32) -> i32 {
@@ -1177,8 +1203,8 @@ mod tests {
         let mut encountered = false;
         while let Some(request) = stream.request(&land, look, true) {
             if request.key() == pair {
-                assert_eq!(request.search, Search::Coastal);
-                encountered = true;
+                assert!(matches!(request.search, Search::Town { .. } | Search::Coastal));
+                encountered |= request.search == Search::Coastal;
             }
             assert!(stream.commit(request.prepare_with_coast(&mut work, || {}), &land, look));
             stream.service_with_reservations(&land, look, true, |key, link| {
@@ -1194,6 +1220,46 @@ mod tests {
         assert!(encountered);
         assert!(matches!(stream.planned(pair), Some(None)));
         assert_eq!(stream.obstruction(-943.12, 7_570.83), 0.0);
+    }
+
+    #[test]
+    fn two_town_streets_join_through_the_authoritative_dry_highway_survey() {
+        let seed = 93;
+        let world = World::new(seed);
+        let pair = HighwayPair::new((-2, 0), (-2, 1)).unwrap();
+        let look = Camera { x: -1431.8726, z: 970.2853, altitude: 140.0,
+            heading: -0.10283643, pitch: 0.13, bank: 0.0 };
+        let mut land = LandStream::<8>::new();
+        land.reset(world);
+        assert!(land.preflight(look, true));
+        land.preflight_skyline(look);
+        let mut facilities = FacilityStream::<8>::new(world, seed);
+        facilities.preflight(&land);
+        let mut rivers = RiverStream::<3>::new(world, seed);
+        rivers.preflight(&land, &facilities, look, &mut WatershedWork::new());
+        let mut routes = LocalRouteStream::<8>::new(world, seed);
+        routes.preflight(&land, look, |key, route| {
+            route_reservation(&world, &facilities, &rivers, key, route)
+        });
+        let mut stream = HighwayStream::<4>::new(world, seed);
+        let reserve = |key, link: &HighwayConnection| {
+            highway_reservation(&land, &facilities, &rivers, &routes, key, link)
+        };
+        stream.preflight_with_coast(&land, look, &mut CoastalHighwayWork::new(), reserve, || {});
+        let (_, link) = stream.links().find(|(key, _)| *key == pair)
+            .expect("a dry road joining the surveyed town streets");
+        let [start, finish] = link.street_caps().map(Option::unwrap);
+        assert_eq!(link.polyline().first(), Some(&start));
+        assert_eq!(link.polyline().last(), Some(&finish));
+        assert!(start.z < ROAD_REGION_SIZE as f32 && finish.z > ROAD_REGION_SIZE as f32);
+        assert!(link.town_alignment().is_some());
+        for (contact, cap) in link.contacts().into_iter().zip([start, finish]) {
+            let [x, z] = contact.region;
+            let town = land.planned((x, z)).flatten().unwrap().town(contact_terminus(contact)).unwrap();
+            assert_eq!(town.sample(cap.x, cap.z).unwrap().surface, SettlementSurface::Street);
+            assert_ne!(contact.point, cap);
+            assert_eq!(stream.overlay(cap.x, cap.z, world.sample(cap.x, cap.z)).surface, Surface::Pavement);
+        }
     }
 
     #[test]

@@ -9,6 +9,16 @@ pub(super) fn draw(
     size: [f32; 2],
     profile: impl Fn([f32; 2]) -> Option<(f32, [u8; 3])>,
 ) {
+    draw_materials(mesh, size, |point| {
+        profile(point).map(|(height, color)| (height, color, color))
+    });
+}
+
+pub(super) fn draw_materials(
+    mesh: &mut WorldMesh<'_>,
+    size: [f32; 2],
+    profile: impl Fn([f32; 2]) -> Option<(f32, [u8; 3], [u8; 3])>,
+) {
     let sample = |[x, z]: [usize; 2]| {
         profile([
             (x as f32 + 0.5) * (2.0 / GRID as f32) - 1.0,
@@ -23,12 +33,12 @@ pub(super) fn draw(
     };
     for z in 0..GRID {
         for x in 0..GRID {
-            let Some((height, material)) = sample([x, z]) else {
+            let Some((height, roof_color, wall_color)) = sample([x, z]) else {
                 continue;
             };
             let corners = [at(x, z), at(x + 1, z), at(x + 1, z + 1), at(x, z + 1)];
             let roof = corners.map(|[x, z]| [x, height, z]);
-            mesh.faded_quad(roof, material.map(|value| value.saturating_add(16)), 1.0);
+            mesh.faded_quad(roof, roof_color.map(|value| value.saturating_add(16)), 1.0);
             let neighbors = [
                 z.checked_sub(1).map(|z| [x, z]),
                 (x + 1 < GRID).then_some([x + 1, z]),
@@ -36,12 +46,13 @@ pub(super) fn draw(
                 x.checked_sub(1).map(|x| [x, z]),
             ];
             for (edge, neighbor) in neighbors.into_iter().enumerate() {
-                let low = neighbor.and_then(sample).map_or(0.0, |(height, _)| height);
+                let low = neighbor.and_then(sample).map_or(0.0, |(height, _, _)| height);
                 if low >= height {
                     continue;
                 }
                 let next = (edge + 1) & 3;
                 let [[x0, z0], [x1, z1]] = [corners[edge], corners[next]];
+                let material = if height - low > 0.65 { wall_color } else { roof_color };
                 let color = material.map(|value| value.saturating_sub([9, 22, 26, 12][edge]));
                 mesh.faded_quad(
                     [roof[edge], roof[next], [x1, low, z1], [x0, low, z0]],

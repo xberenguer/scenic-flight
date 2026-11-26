@@ -89,7 +89,10 @@ impl WalkLandmark {
         let v = (rx * dx + rz * dz) / depth;
         let [a, b] = [u.abs(), v.abs()];
         let (surface, height) = match self.kind {
-            Kind::Designed(index) => RiverfrontBuilding::ALL[usize::from(index)].roof([u, v])?,
+            Kind::Designed(index) => {
+                let (_, height) = RiverfrontBuilding::ALL[usize::from(index)].roof([u, v])?;
+                (SettlementSurface::LandmarkPalette(index + 25), height)
+            }
             Kind::BoatShed if a > 0.83 && v < 0.1 => (SettlementSurface::FlatRoof, 3.05),
             Kind::BoatShed => (SettlementSurface::PitchedRoof, 3.5 + (1.0 - b) * 1.8),
             Kind::PicnicPavilion if a + b > 1.66 => return None,

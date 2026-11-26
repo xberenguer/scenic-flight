@@ -449,11 +449,10 @@ fn update_surveys(
                 highway_reservation_with_nature(land, facilities, rivers, routes, natural, pair, link)
             });
             if let Some(request) = highways.request(land, camera, display.survey_ready()) {
-                display.survey(Survey::Highway {
-                    request,
-                    #[cfg(feature = "coastal-highways")]
-                    towns: request.copy_towns(land),
-                });
+                #[cfg(feature = "coastal-highways")]
+                display.survey_highway(request, land);
+                #[cfg(not(feature = "coastal-highways"))]
+                display.survey(Survey::Highway(request));
             }
         }
         #[cfg(feature = "regional-rail")]

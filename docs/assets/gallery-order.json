@@ -50,7 +50,7 @@
       "title": "Weather artwork",
       "sections": [
         {
-          "title": "Snowfall profiles",
+          "title": "Animated snowfall",
           "id": "snowfall-profiles",
           "count": 25
         }
@@ -329,6 +329,11 @@
     {
       "title": "Roads and mountain routes",
       "sections": [
+        {
+          "title": "Road layouts between towns",
+          "id": "town-road-alignments",
+          "count": 26
+        },
         {
           "id": "bridges",
           "title": "River and coastal bridges",

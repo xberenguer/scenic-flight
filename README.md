@@ -238,176 +238,177 @@ Select a preview to open the full-size clip or screenshot.
 
 <table>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/road-between-towns.mp4"><img src="docs/assets/readme/road-between-towns.gif" width="220" alt="Racer over a highway joining two towns"></a><br><a href="docs/assets/current/road-between-towns.png">Still</a><br>Racer over a highway joining two towns</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/highway-neighborhood-33.mp4"><img src="docs/assets/readme/highway-neighborhood-33.gif" width="220" alt="Bush Plane approaching a coastal town"></a><br><a href="docs/assets/current/highway-neighborhood-33.png">Still</a><br>Bush Plane approaching a coastal town</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/highway-neighborhood-18.mp4"><img src="docs/assets/readme/highway-neighborhood-18.gif" width="220" alt="Bush Plane over highway shops and duplexes"></a><br><a href="docs/assets/current/highway-neighborhood-18.png">Still</a><br>Bush Plane over highway shops and duplexes</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/contour-barley-steps.mp4"><img src="docs/assets/readme/contour-barley-steps.gif" width="220" alt="Glider over three narrow barley steps"></a><br><a href="docs/assets/current/contour-barley-steps.png">Still</a><br>Glider over three narrow barley steps</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/contour-barley-steps.mp4"><img src="docs/assets/readme/contour-barley-steps.gif" width="220" alt="Glider over three narrow barley steps"></a><br><a href="docs/assets/current/contour-barley-steps.png">Still</a><br>Glider over three narrow barley steps</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/contour-grass-spine.mp4"><img src="docs/assets/readme/contour-grass-spine.gif" width="220" alt="Bush Plane along a grass spine and hay belts"></a><br><a href="docs/assets/current/contour-grass-spine.png">Still</a><br>Bush Plane along a grass spine and hay belts</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/contour-oat-fan.mp4"><img src="docs/assets/readme/contour-oat-fan.gif" width="220" alt="Sport Jet above a fan-shaped oat field"></a><br><a href="docs/assets/current/contour-oat-fan.png">Still</a><br>Sport Jet above a fan-shaped oat field</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/contour-hay-fallow-shelves.mp4"><img src="docs/assets/readme/contour-hay-fallow-shelves.gif" width="220" alt="Ultralight over hay and fallow shelves"></a><br><a href="docs/assets/current/contour-hay-fallow-shelves.png">Still</a><br>Ultralight over hay and fallow shelves</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/contour-hay-fallow-shelves.mp4"><img src="docs/assets/readme/contour-hay-fallow-shelves.gif" width="220" alt="Ultralight over hay and fallow shelves"></a><br><a href="docs/assets/current/contour-hay-fallow-shelves.png">Still</a><br>Ultralight over hay and fallow shelves</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metro-green-inlet.mp4"><img src="docs/assets/readme/metro-green-inlet.gif" width="220" alt="Bush Plane over Green Inlet Steps"></a><br><a href="docs/assets/current/metro-green-inlet.png">Still</a><br>Bush Plane over Green Inlet Steps</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metro-pocket-valley.mp4"><img src="docs/assets/readme/metro-pocket-valley.gif" width="220" alt="Glider over Pocket-valley Edge"></a><br><a href="docs/assets/current/metro-pocket-valley.png">Still</a><br>Glider over Pocket-valley Edge</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metro-asymmetric-fan.mp4"><img src="docs/assets/readme/metro-asymmetric-fan.gif" width="220" alt="Ultralight over the Asymmetric Fan"></a><br><a href="docs/assets/current/metro-asymmetric-fan.png">Still</a><br>Ultralight over the Asymmetric Fan</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metro-asymmetric-fan.mp4"><img src="docs/assets/readme/metro-asymmetric-fan.gif" width="220" alt="Ultralight over the Asymmetric Fan"></a><br><a href="docs/assets/current/metro-asymmetric-fan.png">Still</a><br>Ultralight over the Asymmetric Fan</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metro-greenbelt-fork.mp4"><img src="docs/assets/readme/metro-greenbelt-fork.gif" width="220" alt="Racer over the Greenbelt Fork"></a><br><a href="docs/assets/current/metro-greenbelt-fork.png">Still</a><br>Racer over the Greenbelt Fork</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/hotel-skybridge-skyline.mp4"><img src="docs/assets/readme/hotel-skybridge-skyline.gif" width="220" alt="Ultralight approaching a hotel with a skybridge"></a><br><a href="docs/assets/current/hotel-skybridge-skyline.png">Still</a><br>Ultralight approaching a hotel with a skybridge</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glass-bell-tower-skyline.mp4"><img src="docs/assets/readme/glass-bell-tower-skyline.gif" width="220" alt="Glider past a slanted glass bell tower"></a><br><a href="docs/assets/current/glass-bell-tower-skyline.png">Still</a><br>Glider past a slanted glass bell tower</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glass-bell-tower-skyline.mp4"><img src="docs/assets/readme/glass-bell-tower-skyline.gif" width="220" alt="Glider past a slanted glass bell tower"></a><br><a href="docs/assets/current/glass-bell-tower-skyline.png">Still</a><br>Glider past a slanted glass bell tower</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/hillside-civic-center-skyline.mp4"><img src="docs/assets/readme/hillside-civic-center-skyline.gif" width="220" alt="Racer approaching a hillside civic center"></a><br><a href="docs/assets/current/hillside-civic-center-skyline.png">Still</a><br>Racer approaching a hillside civic center</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tiered-elevator-tower-skyline.mp4"><img src="docs/assets/readme/tiered-elevator-tower-skyline.gif" width="220" alt="Bush Plane above a tiered elevator tower"></a><br><a href="docs/assets/current/tiered-elevator-tower-skyline.png">Still</a><br>Bush Plane above a tiered elevator tower</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/paved-runway-double-arrow.mp4"><img src="docs/assets/readme/paved-runway-double-arrow.gif" width="220" alt="Racer crossing the runway 23 lead-in arrows"></a><br><a href="docs/assets/current/paved-runway-double-arrow.png">Still</a><br>Racer crossing the runway 23 lead-in arrows</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/paved-runway-double-arrow.mp4"><img src="docs/assets/readme/paved-runway-double-arrow.gif" width="220" alt="Racer crossing the runway 23 lead-in arrows"></a><br><a href="docs/assets/current/paved-runway-double-arrow.png">Still</a><br>Racer crossing the runway 23 lead-in arrows</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/paved-runway-aiming-blocks.mp4"><img src="docs/assets/readme/paved-runway-aiming-blocks.gif" width="220" alt="Glider approaching runway 08"></a><br><a href="docs/assets/current/paved-runway-aiming-blocks.png">Still</a><br>Glider approaching runway 08</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/grass-runway-displaced-threshold.mp4"><img src="docs/assets/readme/grass-runway-displaced-threshold.gif" width="220" alt="Bush Plane over a grass-strip threshold"></a><br><a href="docs/assets/current/grass-runway-displaced-threshold.png">Still</a><br>Bush Plane over a grass-strip threshold</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tunnel-brick-keystone.mp4"><img src="docs/assets/readme/tunnel-brick-keystone.gif" width="220" alt="Brick keystone portal"></a><br><a href="docs/assets/current/tunnel-brick-keystone.png">Still</a><br>Brick keystone portal</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tunnel-brick-keystone.mp4"><img src="docs/assets/readme/tunnel-brick-keystone.gif" width="220" alt="Brick keystone portal"></a><br><a href="docs/assets/current/tunnel-brick-keystone.png">Still</a><br>Brick keystone portal</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tunnel-sandstone-buttresses.mp4"><img src="docs/assets/readme/tunnel-sandstone-buttresses.gif" width="220" alt="Sandstone buttressed portal"></a><br><a href="docs/assets/current/tunnel-sandstone-buttresses.png">Still</a><br>Sandstone buttressed portal</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tunnel-limestone-double-ring.mp4"><img src="docs/assets/readme/tunnel-limestone-double-ring.gif" width="220" alt="Limestone double-ring portal"></a><br><a href="docs/assets/current/tunnel-limestone-double-ring.png">Still</a><br>Limestone double-ring portal</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/riverfront-covered-hide.mp4"><img src="docs/assets/readme/riverfront-covered-hide.gif" width="220" alt="Covered bird hide by the coast"></a><br><a href="docs/assets/current/riverfront-covered-hide.png">Still</a><br>Covered bird hide by the coast</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/riverfront-covered-hide.mp4"><img src="docs/assets/readme/riverfront-covered-hide.gif" width="220" alt="Covered bird hide by the coast"></a><br><a href="docs/assets/current/riverfront-covered-hide.png">Still</a><br>Covered bird hide by the coast</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/riverfront-glazed-arcade.mp4"><img src="docs/assets/readme/riverfront-glazed-arcade.gif" width="220" alt="Glazed market arcade"></a><br><a href="docs/assets/current/riverfront-glazed-arcade.png">Still</a><br>Glazed market arcade</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/riverfront-twin-canopies.mp4"><img src="docs/assets/readme/riverfront-twin-canopies.gif" width="220" alt="Picnic canopies above the river"></a><br><a href="docs/assets/current/riverfront-twin-canopies.png">Still</a><br>Picnic canopies above the river</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/outer-block-coastal-flight.mp4"><img src="docs/assets/readme/outer-block-coastal-flight.gif" width="220" alt="The edge of a coastal neighborhood"></a><br><a href="docs/assets/current/outer-block-coastal-flight.png">Still</a><br>The edge of a coastal neighborhood</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/outer-block-coastal-flight.mp4"><img src="docs/assets/readme/outer-block-coastal-flight.gif" width="220" alt="The edge of a coastal neighborhood"></a><br><a href="docs/assets/current/outer-block-coastal-flight.png">Still</a><br>The edge of a coastal neighborhood</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/outer-block-courtyard-flight.mp4"><img src="docs/assets/readme/outer-block-courtyard-flight.gif" width="220" alt="Courtyards beyond downtown"></a><br><a href="docs/assets/current/outer-block-courtyard-flight.png">Still</a><br>Courtyards beyond downtown</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/rail-gravel-shoulders.mp4"><img src="docs/assets/readme/rail-gravel-shoulders.gif" width="220" alt="Gravel embankment along the foothill railway"></a><br><a href="docs/assets/current/rail-gravel-shoulders.png">Still</a><br>Gravel embankment along the foothill railway</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/rail-earthworks.mp4"><img src="docs/assets/readme/rail-earthworks.gif" width="220" alt="Rock cutting through the foothills"></a><br><a href="docs/assets/current/rail-earthworks.png">Still</a><br>Rock cutting through the foothills</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/rail-earthworks.mp4"><img src="docs/assets/readme/rail-earthworks.gif" width="220" alt="Rock cutting through the foothills"></a><br><a href="docs/assets/current/rail-earthworks.png">Still</a><br>Rock cutting through the foothills</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/airfield-country-service-pocket.mp4"><img src="docs/assets/readme/airfield-country-service-pocket.gif" width="220" alt="Bush Plane circling a country strip"></a><br><a href="docs/assets/current/airfield-country-service-pocket.png">Still</a><br>Bush Plane circling a country strip</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/airfield-light-aircraft-bays.mp4"><img src="docs/assets/readme/airfield-light-aircraft-bays.gif" width="220" alt="Glider over light-aircraft bays"></a><br><a href="docs/assets/current/airfield-light-aircraft-bays.png">Still</a><br>Glider over light-aircraft bays</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/narrow-inlet-quarry.mp4"><img src="docs/assets/readme/narrow-inlet-quarry.gif" width="220" alt="Bush Plane above a narrow quarry entrance"></a><br><a href="docs/assets/current/narrow-inlet-quarry.png">Still</a><br>Bush Plane above a narrow quarry entrance</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/narrow-inlet-quarry.mp4"><img src="docs/assets/readme/narrow-inlet-quarry.gif" width="220" alt="Bush Plane above a narrow quarry entrance"></a><br><a href="docs/assets/current/narrow-inlet-quarry.png">Still</a><br>Bush Plane above a narrow quarry entrance</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/west-sweep-quarry.mp4"><img src="docs/assets/readme/west-sweep-quarry.gif" width="220" alt="Glider past a sweeping cut and haul road"></a><br><a href="docs/assets/current/west-sweep-quarry.png">Still</a><br>Glider past a sweeping cut and haul road</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/half-bowl-quarry.mp4"><img src="docs/assets/readme/half-bowl-quarry.gif" width="220" alt="Ultralight above a half-bowl quarry"></a><br><a href="docs/assets/current/half-bowl-quarry.png">Still</a><br>Ultralight above a half-bowl quarry</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/quay-boatyard-paint-hall.mp4"><img src="docs/assets/readme/quay-boatyard-paint-hall.gif" width="220" alt="Bush Plane along the boatyard promenade"></a><br><a href="docs/assets/current/quay-boatyard-paint-hall.png">Still</a><br>Bush Plane along the boatyard promenade</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/quay-boatyard-paint-hall.mp4"><img src="docs/assets/readme/quay-boatyard-paint-hall.gif" width="220" alt="Bush Plane along the boatyard promenade"></a><br><a href="docs/assets/current/quay-boatyard-paint-hall.png">Still</a><br>Bush Plane along the boatyard promenade</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/quay-twin-fish-sheds.mp4"><img src="docs/assets/readme/quay-twin-fish-sheds.gif" width="220" alt="Glider approaching twin fish sheds"></a><br><a href="docs/assets/current/quay-twin-fish-sheds.png">Still</a><br>Glider approaching twin fish sheds</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/market-gardens-below-town.mp4"><img src="docs/assets/readme/market-gardens-below-town.gif" width="220" alt="Ultralight over market gardens below town"></a><br><a href="docs/assets/current/market-gardens-below-town.png">Still</a><br>Ultralight over market gardens below town</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-stubble-fields.mp4"><img src="docs/assets/readme/coastal-stubble-fields.gif" width="220" alt="Bush Plane over coastal stubble fields"></a><br><a href="docs/assets/current/coastal-stubble-fields.png">Still</a><br>Bush Plane over coastal stubble fields</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-stubble-fields.mp4"><img src="docs/assets/readme/coastal-stubble-fields.gif" width="220" alt="Bush Plane over coastal stubble fields"></a><br><a href="docs/assets/current/coastal-stubble-fields.png">Still</a><br>Bush Plane over coastal stubble fields</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/grassy-field-setbacks.mp4"><img src="docs/assets/readme/grassy-field-setbacks.gif" width="220" alt="Glider over fields with grassy setbacks"></a><br><a href="docs/assets/current/grassy-field-setbacks.png">Still</a><br>Glider over fields with grassy setbacks</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/raised-council-building-skyline.mp4"><img src="docs/assets/readme/raised-council-building-skyline.gif" width="220" alt="Bush Plane approaching a raised council building"></a><br><a href="docs/assets/current/raised-council-building-skyline.png">Still</a><br>Bush Plane approaching a raised council building</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/terraced-library-skyline.mp4"><img src="docs/assets/readme/terraced-library-skyline.gif" width="220" alt="Ultralight approaching a terraced library"></a><br><a href="docs/assets/current/terraced-library-skyline.png">Still</a><br>Ultralight approaching a terraced library</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/terraced-library-skyline.mp4"><img src="docs/assets/readme/terraced-library-skyline.gif" width="220" alt="Ultralight approaching a terraced library"></a><br><a href="docs/assets/current/terraced-library-skyline.png">Still</a><br>Ultralight approaching a terraced library</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glass-tower-skyline.mp4"><img src="docs/assets/readme/glass-tower-skyline.gif" width="220" alt="Glider approaching a glass tower"></a><br><a href="docs/assets/current/glass-tower-skyline.png">Still</a><br>Glider approaching a glass tower</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/skybridge-towers-skyline.mp4"><img src="docs/assets/readme/skybridge-towers-skyline.gif" width="220" alt="Racer approaching twin towers with a skybridge"></a><br><a href="docs/assets/current/skybridge-towers-skyline.png">Still</a><br>Racer approaching twin towers with a skybridge</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/solar-three-islands.mp4"><img src="docs/assets/readme/solar-three-islands.gif" width="220" alt="Bush Plane over three banks of solar panels"></a><br><a href="docs/assets/current/solar-three-islands.png">Still</a><br>Bush Plane over three banks of solar panels</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/solar-three-islands.mp4"><img src="docs/assets/readme/solar-three-islands.gif" width="220" alt="Bush Plane over three banks of solar panels"></a><br><a href="docs/assets/current/solar-three-islands.png">Still</a><br>Bush Plane over three banks of solar panels</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/solar-striped-field.mp4"><img src="docs/assets/readme/solar-striped-field.gif" width="220" alt="Bald Eagle over a striped solar field"></a><br><a href="docs/assets/current/solar-striped-field.png">Still</a><br>Bald Eagle over a striped solar field</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/solar-diamond-field.mp4"><img src="docs/assets/readme/solar-diamond-field.gif" width="220" alt="Glider over a diamond-shaped solar field"></a><br><a href="docs/assets/current/solar-diamond-field.png">Still</a><br>Glider over a diamond-shaped solar field</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/solar-service-court.mp4"><img src="docs/assets/readme/solar-service-court.gif" width="220" alt="Ultralight over a solar service court"></a><br><a href="docs/assets/current/solar-service-court.png">Still</a><br>Ultralight over a solar service court</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/solar-service-court.mp4"><img src="docs/assets/readme/solar-service-court.gif" width="220" alt="Ultralight over a solar service court"></a><br><a href="docs/assets/current/solar-service-court.png">Still</a><br>Ultralight over a solar service court</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/splayed-portal-water-tower.mp4"><img src="docs/assets/readme/splayed-portal-water-tower.gif" width="220" alt="Ultralight past a splayed portal tank"></a><br><a href="docs/assets/current/splayed-portal-water-tower.png">Still</a><br>Ultralight past a splayed portal tank</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/copper-dome-water-tower.mp4"><img src="docs/assets/readme/copper-dome-water-tower.gif" width="220" alt="Glider beside a masonry water tower"></a><br><a href="docs/assets/current/copper-dome-water-tower.png">Still</a><br>Glider beside a masonry water tower</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/steel-frame-saucer-tower.mp4"><img src="docs/assets/readme/steel-frame-saucer-tower.gif" width="220" alt="Bald Eagle past a steel-frame water tower"></a><br><a href="docs/assets/current/steel-frame-saucer-tower.png">Still</a><br>Bald Eagle past a steel-frame water tower</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/steel-frame-saucer-tower.mp4"><img src="docs/assets/readme/steel-frame-saucer-tower.gif" width="220" alt="Bald Eagle past a steel-frame water tower"></a><br><a href="docs/assets/current/steel-frame-saucer-tower.png">Still</a><br>Bald Eagle past a steel-frame water tower</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/green-pratt-crossing.mp4"><img src="docs/assets/readme/green-pratt-crossing.gif" width="220" alt="Ultralight alongside a green Pratt truss"></a><br><a href="docs/assets/current/green-pratt-crossing.png">Still</a><br>Ultralight alongside a green Pratt truss</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/cream-tied-arch.mp4"><img src="docs/assets/readme/cream-tied-arch.gif" width="220" alt="Glider past a tied-arch bridge"></a><br><a href="docs/assets/current/cream-tied-arch.png">Still</a><br>Glider past a tied-arch bridge</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/timber-crossing.mp4"><img src="docs/assets/readme/timber-crossing.gif" width="220" alt="Bald Eagle over a timber-braced crossing"></a><br><a href="docs/assets/current/timber-crossing.png">Still</a><br>Bald Eagle over a timber-braced crossing</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/timber-crossing.mp4"><img src="docs/assets/readme/timber-crossing.gif" width="220" alt="Bald Eagle over a timber-braced crossing"></a><br><a href="docs/assets/current/timber-crossing.png">Still</a><br>Bald Eagle over a timber-braced crossing</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/stone-cableway-landing.mp4"><img src="docs/assets/readme/stone-cableway-landing.gif" width="220" alt="Ultralight at a stone cableway landing"></a><br><a href="docs/assets/current/stone-cableway-landing.png">Still</a><br>Ultralight at a stone cableway landing</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/timber-cableway-terminal.mp4"><img src="docs/assets/readme/timber-cableway-terminal.gif" width="220" alt="Bald Eagle past a timber cableway terminal"></a><br><a href="docs/assets/current/timber-cableway-terminal.png">Still</a><br>Bald Eagle past a timber cableway terminal</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/open-frame-lighthouse-night.mp4"><img src="docs/assets/readme/open-frame-lighthouse-night.gif" width="220" alt="Bush Plane past an open-frame lighthouse at night"></a><br><a href="docs/assets/current/open-frame-lighthouse-night.png">Still</a><br>Bush Plane past an open-frame lighthouse at night</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/open-frame-lighthouse-night.mp4"><img src="docs/assets/readme/open-frame-lighthouse-night.gif" width="220" alt="Bush Plane past an open-frame lighthouse at night"></a><br><a href="docs/assets/current/open-frame-lighthouse-night.png">Still</a><br>Bush Plane past an open-frame lighthouse at night</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/green-cupola-lighthouse.mp4"><img src="docs/assets/readme/green-cupola-lighthouse.gif" width="220" alt="Ultralight by a green-cupola keeper tower"></a><br><a href="docs/assets/current/green-cupola-lighthouse.png">Still</a><br>Ultralight by a green-cupola keeper tower</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/red-banded-lighthouse.mp4"><img src="docs/assets/readme/red-banded-lighthouse.gif" width="220" alt="Bald Eagle past a red-banded lighthouse"></a><br><a href="docs/assets/current/red-banded-lighthouse.png">Still</a><br>Bald Eagle past a red-banded lighthouse</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coach-rest-hall.mp4"><img src="docs/assets/readme/coach-rest-hall.gif" width="220" alt="Glider over a coach rest hall"></a><br><a href="docs/assets/current/coach-rest-hall.png">Still</a><br>Glider over a coach rest hall</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coach-rest-hall.mp4"><img src="docs/assets/readme/coach-rest-hall.gif" width="220" alt="Glider over a coach rest hall"></a><br><a href="docs/assets/current/coach-rest-hall.png">Still</a><br>Glider over a coach rest hall</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/stone-roadside-overlook.mp4"><img src="docs/assets/readme/stone-roadside-overlook.gif" width="220" alt="Ultralight past a stone overlook"></a><br><a href="docs/assets/current/stone-roadside-overlook.png">Still</a><br>Ultralight past a stone overlook</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/forest-camp-check-in.mp4"><img src="docs/assets/readme/forest-camp-check-in.gif" width="220" alt="Eagle over a forest check-in kiosk"></a><br><a href="docs/assets/current/forest-camp-check-in.png">Still</a><br>Eagle over a forest check-in kiosk</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/twin-stack-boiler-house.mp4"><img src="docs/assets/readme/twin-stack-boiler-house.gif" width="220" alt="Ultralight by a twin-stack boiler house"></a><br><a href="docs/assets/current/twin-stack-boiler-house.png">Still</a><br>Ultralight by a twin-stack boiler house</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/twin-stack-boiler-house.mp4"><img src="docs/assets/readme/twin-stack-boiler-house.gif" width="220" alt="Ultralight by a twin-stack boiler house"></a><br><a href="docs/assets/current/twin-stack-boiler-house.png">Still</a><br>Ultralight by a twin-stack boiler house</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/rail-workshops-flyover.mp4"><img src="docs/assets/readme/rail-workshops-flyover.gif" width="220" alt="Ultralight over railway workshops"></a><br><a href="docs/assets/current/rail-workshops-flyover.png">Still</a><br>Ultralight over railway workshops</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tram-carhouse-flyover.mp4"><img src="docs/assets/readme/tram-carhouse-flyover.gif" width="220" alt="Ultralight above a tram carhouse"></a><br><a href="docs/assets/current/tram-carhouse-flyover.png">Still</a><br>Ultralight above a tram carhouse</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/covered-market-court.mp4"><img src="docs/assets/readme/covered-market-court.gif" width="220" alt="Bald Eagle over a covered market court"></a><br><a href="docs/assets/current/covered-market-court.png">Still</a><br>Bald Eagle over a covered market court</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/covered-market-court.mp4"><img src="docs/assets/readme/covered-market-court.gif" width="220" alt="Bald Eagle over a covered market court"></a><br><a href="docs/assets/current/covered-market-court.png">Still</a><br>Bald Eagle over a covered market court</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-grain-store.mp4"><img src="docs/assets/readme/coastal-grain-store.gif" width="220" alt="Ultralight passes a cooperative grain store"></a><br><a href="docs/assets/current/coastal-grain-store.png">Still</a><br>Ultralight passes a cooperative grain store</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/town-clock-tower.mp4"><img src="docs/assets/readme/town-clock-tower.gif" width="220" alt="Ultralight over a town hall clock tower"></a><br><a href="docs/assets/current/town-clock-tower.png">Still</a><br>Ultralight over a town hall clock tower</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/twin-summit-domes.mp4"><img src="docs/assets/readme/twin-summit-domes.gif" width="220" alt="Glider approaches twin summit observatories"></a><br><a href="docs/assets/current/twin-summit-domes.png">Still</a><br>Glider approaches twin summit observatories</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/twin-summit-domes.mp4"><img src="docs/assets/readme/twin-summit-domes.gif" width="220" alt="Glider approaches twin summit observatories"></a><br><a href="docs/assets/current/twin-summit-domes.png">Still</a><br>Glider approaches twin summit observatories</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/cantilever-ridge-lookout.mp4"><img src="docs/assets/readme/cantilever-ridge-lookout.gif" width="220" alt="Bush plane passes a cantilevered ridge lookout"></a><br><a href="docs/assets/current/cantilever-ridge-lookout.png">Still</a><br>Bush plane passes a cantilevered ridge lookout</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/split-roof-summit-refuge.mp4"><img src="docs/assets/readme/split-roof-summit-refuge.gif" width="220" alt="Bush plane over a split-roof alpine refuge"></a><br><a href="docs/assets/current/split-roof-summit-refuge.png">Still</a><br>Bush plane over a split-roof alpine refuge</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/island-landing-craft.mp4"><img src="docs/assets/readme/island-landing-craft.gif" width="220" alt="Bald Eagle passes an island landing craft"></a><br><a href="docs/assets/current/island-landing-craft.png">Still</a><br>Bald Eagle passes an island landing craft</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/island-landing-craft.mp4"><img src="docs/assets/readme/island-landing-craft.gif" width="220" alt="Bald Eagle passes an island landing craft"></a><br><a href="docs/assets/current/island-landing-craft.png">Still</a><br>Bald Eagle passes an island landing craft</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/fish-farm-barge.mp4"><img src="docs/assets/readme/fish-farm-barge.gif" width="220" alt="Bald Eagle over a fish farm feeder barge"></a><br><a href="docs/assets/current/fish-farm-barge.png">Still</a><br>Bald Eagle over a fish farm feeder barge</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/night-industrial-skyline.mp4"><img src="docs/assets/readme/night-industrial-skyline.gif" width="220" alt="Ultralight over the industrial skyline at night"></a><br><a href="docs/assets/current/night-industrial-skyline.png">Still</a><br>Ultralight over the industrial skyline at night</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/road-rest-stop.mp4"><img src="docs/assets/readme/road-rest-stop.gif" width="220" alt="Roadside rest stop"></a><br><a href="docs/assets/current/road-rest-stop.png">Still</a><br>Roadside rest stop</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/road-rest-stop.mp4"><img src="docs/assets/readme/road-rest-stop.gif" width="220" alt="Roadside rest stop"></a><br><a href="docs/assets/current/road-rest-stop.png">Still</a><br>Roadside rest stop</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/woodland-trailhead.mp4"><img src="docs/assets/readme/woodland-trailhead.gif" width="220" alt="Woodland trailhead"></a><br><a href="docs/assets/current/woodland-trailhead.png">Still</a><br>Woodland trailhead</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/road-overlook.mp4"><img src="docs/assets/readme/road-overlook.gif" width="220" alt="Mountain road overlook"></a><br><a href="docs/assets/current/road-overlook.png">Still</a><br>Mountain road overlook</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/freight-apron-preview.mp4"><img src="docs/assets/readme/freight-apron-preview.gif" width="220" alt="Freight siding and loading apron"></a><br><a href="docs/assets/current/freight-apron-preview.png">Still</a><br>Freight siding and loading apron</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/freight-apron-preview.mp4"><img src="docs/assets/readme/freight-apron-preview.gif" width="220" alt="Freight siding and loading apron"></a><br><a href="docs/assets/current/freight-apron-preview.png">Still</a><br>Freight siding and loading apron</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/station-platform-preview.mp4"><img src="docs/assets/readme/station-platform-preview.gif" width="220" alt="Passenger station platform"></a><br><a href="docs/assets/current/station-platform-preview.png">Still</a><br>Passenger station platform</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/farm-details-flyover.mp4"><img src="docs/assets/readme/farm-details-flyover.gif" width="220" alt="Harvest equipment beside the fields"></a><br><a href="docs/assets/current/farm-details-flyover.png">Still</a><br>Harvest equipment beside the fields</td>
-    <td align="center"><a href="docs/assets/current/coastal-boardwalk.png"><img src="docs/assets/current/coastal-boardwalk.png" width="220" alt="Coastal boardwalk village"></a><br>Coastal boardwalk village</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/coastal-boardwalk.png"><img src="docs/assets/current/coastal-boardwalk.png" width="220" alt="Coastal boardwalk village"></a><br>Coastal boardwalk village</td>
     <td align="center"><a href="docs/assets/current/river-boardwalk.png"><img src="docs/assets/current/river-boardwalk.png" width="220" alt="River boardwalk and lookout"></a><br>River boardwalk and lookout</td>
     <td align="center"><a href="docs/assets/current/ferry-quayside.png"><img src="docs/assets/current/ferry-quayside.png" width="220" alt="Ferry quay and workshops"></a><br>Ferry quay and workshops</td>
-    <td align="center"><a href="docs/assets/current/beach-umbrellas.png"><img src="docs/assets/current/beach-umbrellas.png" width="220" alt="Beach umbrellas and towels"></a><br>Beach umbrellas and towels</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/beach-umbrellas.png"><img src="docs/assets/current/beach-umbrellas.png" width="220" alt="Beach umbrellas and towels"></a><br>Beach umbrellas and towels</td>
     <td align="center"><a href="docs/assets/current/coastal-lighthouse.png"><img src="docs/assets/current/coastal-lighthouse.png" width="220" alt="Coastal lighthouse"></a><br>Coastal lighthouse</td>
     <td align="center"><a href="docs/assets/current/hillside-town.png"><img src="docs/assets/current/hillside-town.png" width="220" alt="Hillside town"></a><br>Hillside town</td>
-    <td align="center"><a href="docs/assets/current/river-road-bridge.png"><img src="docs/assets/current/river-road-bridge.png" width="220" alt="River road bridge"></a><br>River road bridge</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/river-road-bridge.png"><img src="docs/assets/current/river-road-bridge.png" width="220" alt="River road bridge"></a><br>River road bridge</td>
     <td align="center"><a href="docs/assets/current/regional-airfield.png"><img src="docs/assets/current/regional-airfield.png" width="220" alt="Regional airfield"></a><br>Regional airfield</td>
     <td align="center"><a href="docs/assets/current/grass-airstrip.png"><img src="docs/assets/current/grass-airstrip.png" width="220" alt="Country airstrip"></a><br>Country airstrip</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/freight-harbor.mp4"><img src="docs/assets/readme/freight-harbor.gif" width="220" alt="Freight harbor"></a><br><a href="docs/assets/current/freight-harbor.png">Still</a><br>Freight harbor</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/freight-harbor.mp4"><img src="docs/assets/readme/freight-harbor.gif" width="220" alt="Freight harbor"></a><br><a href="docs/assets/current/freight-harbor.png">Still</a><br>Freight harbor</td>
     <td align="center"><a href="docs/assets/current/aggregate-service.png"><img src="docs/assets/current/aggregate-service.png" width="220" alt="Loaded gravel train and empty return"></a><br>Loaded gravel train and empty return</td>
     <td align="center"><a href="docs/assets/current/gravel-freight.png"><img src="docs/assets/current/gravel-freight.png" width="220" alt="Gravel pit and aggregate freight"></a><br>Gravel pit and aggregate freight</td>
-    <td align="center"><a href="docs/assets/current/contour-fields.png"><img src="docs/assets/current/contour-fields.png" width="220" alt="Contour strips and grass buffers"></a><br>Contour strips and grass buffers</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/contour-fields.png"><img src="docs/assets/current/contour-fields.png" width="220" alt="Contour strips and grass buffers"></a><br>Contour strips and grass buffers</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/grain-terminal.gif"><img src="docs/assets/readme/grain-terminal.gif" width="220" alt="Rural grain elevator and hopper train"></a><br><a href="docs/assets/current/grain-terminal.png">Still</a><br>Rural grain elevator and hopper train</td>
     <td align="center"><a href="docs/assets/current/freight-loading.png"><img src="docs/assets/current/freight-loading.png" width="220" alt="Gravel and container loading aprons"></a><br>Gravel and container loading aprons</td>
-    <td align="center"><a href="docs/assets/current/freight-platforms.png"><img src="docs/assets/current/freight-platforms.png" width="220" alt="Rail loading apron and inland transfer shed"></a><br>Rail loading apron and inland transfer shed</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/freight-platforms.png"><img src="docs/assets/current/freight-platforms.png" width="220" alt="Rail loading apron and inland transfer shed"></a><br>Rail loading apron and inland transfer shed</td>
     <td align="center"><a href="docs/assets/current/freight-steel-coils.png"><img src="docs/assets/current/freight-steel-coils.png" width="220" alt="Steel coils and machinery freight"></a><br>Steel coils and machinery freight</td>
     <td align="center"><a href="docs/assets/current/freight-cold-storage.png"><img src="docs/assets/current/freight-cold-storage.png" width="220" alt="Frozen-food reefers"></a><br>Frozen-food reefers</td>
-    <td align="center"><a href="docs/assets/current/freight-tankers.png"><img src="docs/assets/current/freight-tankers.png" width="220" alt="Food-oil tank cars"></a><br>Food-oil tank cars</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/freight-tankers.png"><img src="docs/assets/current/freight-tankers.png" width="220" alt="Food-oil tank cars"></a><br>Food-oil tank cars</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/freight-containers.gif"><img src="docs/assets/readme/freight-containers.gif" width="220" alt="Container train below the Ultralight"></a><br><a href="docs/assets/current/freight-containers.png">Still</a><br>Container train below the Ultralight</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/ferry-terminal.mp4"><img src="docs/assets/readme/ferry-terminal.gif" width="220" alt="Ferry terminal"></a><br><a href="docs/assets/current/ferry-terminal.png">Still</a><br>Ferry terminal</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/marina-piers.mp4"><img src="docs/assets/readme/marina-piers.gif" width="220" alt="Marina and sailboats"></a><br><a href="docs/assets/current/marina-piers.png">Still</a><br>Marina and sailboats</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/marina-piers.mp4"><img src="docs/assets/readme/marina-piers.gif" width="220" alt="Marina and sailboats"></a><br><a href="docs/assets/current/marina-piers.png">Still</a><br>Marina and sailboats</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/city-approach.mp4"><img src="docs/assets/readme/city-approach.gif" width="220" alt="Racer approaching the skyline"></a><br><a href="docs/assets/current/city-approach.png">Still</a><br>Racer approaching the skyline</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/night-neighborhoods.mp4"><img src="docs/assets/readme/night-neighborhoods.gif" width="220" alt="Ultralight over the city at night"></a><br><a href="docs/assets/current/night-neighborhoods.png">Still</a><br>Ultralight over the city at night</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/neighborhood-avenue.mp4"><img src="docs/assets/readme/neighborhood-avenue.gif" width="220" alt="Racer over the outer neighborhoods"></a><br><a href="docs/assets/current/neighborhood-avenue.png">Still</a><br>Racer over the outer neighborhoods</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/neighborhood-avenue.mp4"><img src="docs/assets/readme/neighborhood-avenue.gif" width="220" alt="Racer over the outer neighborhoods"></a><br><a href="docs/assets/current/neighborhood-avenue.png">Still</a><br>Racer over the outer neighborhoods</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/country-strip-pass.mp4"><img src="docs/assets/readme/country-strip-pass.gif" width="220" alt="Ultralight over a country airstrip"></a><br><a href="docs/assets/current/country-strip-pass.png">Still</a><br>Ultralight over a country airstrip</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/regional-airfield-apron.mp4"><img src="docs/assets/readme/regional-airfield-apron.gif" width="220" alt="Ultralight by the regional apron"></a><br><a href="docs/assets/current/regional-airfield-apron.png">Still</a><br>Ultralight by the regional apron</td>
   </tr>
@@ -457,11 +458,9 @@ Select a preview to open the full-size clip or screenshot.
 
 ### Weather artwork
 
-#### Snowfall profiles · 25 variants
+#### Animated snowfall · 25 variants
 
-<a href="docs/assets/artwork/snowfall-profiles.png"><img src="docs/assets/artwork/snowfall-profiles.png" width="780" alt="Snowfall profiles"></a>
-
-<a href="docs/assets/artwork/snowfall-profiles.gif"><img src="docs/assets/artwork/snowfall-profiles.gif" width="550" alt="Snowfall profiles animated atlas"></a>
+<a href="docs/assets/artwork/snowfall-profiles.gif"><img src="docs/assets/artwork/snowfall-profiles.gif" width="780" alt="Animated snowfall"></a>
 
 ### Mountains and ice
 
@@ -740,6 +739,10 @@ Select a preview to open the full-size clip or screenshot.
 <a href="docs/assets/artwork/skyline-landmarks.gif"><img src="docs/assets/artwork/skyline-landmarks.gif" width="550" alt="Skyline landmarks animated atlas"></a>
 
 ### Roads and mountain routes
+
+#### Road layouts between towns · 26 variants
+
+<a href="docs/assets/artwork/town-road-alignments.png"><img src="docs/assets/artwork/town-road-alignments.png" width="780" alt="Road layouts between towns"></a>
 
 #### River and coastal bridges · 25 variants
 

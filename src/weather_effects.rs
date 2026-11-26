@@ -8,7 +8,7 @@ use crate::world::World;
 
 mod snow_profiles;
 mod valley_mist;
-pub use snow_profiles::{SNOWFALL_PROFILES, SnowfallProfile};
+pub use snow_profiles::{SNOWFALL_PROFILES, SnowfallProfile, Snowflake};
 pub use valley_mist::{MistView, ValleyMist};
 
 const CELL: f32 = 648.0;
@@ -29,6 +29,8 @@ pub struct RainShaft {
     snow: f32,
     snow_profile: u8,
     drift: f32,
+    flake_seed: u64,
+    flake_ticks: u32,
     rainbow: Option<Rainbow>,
 }
 
@@ -231,6 +233,8 @@ impl Site {
             snow,
             snow_profile: (mix(self.key ^ 0x242b) % SNOWFALL_PROFILES.len() as u64) as u8,
             drift: (ticks % (4 * TICKS)) as f32 / (4 * TICKS) as f32,
+            flake_seed: self.key,
+            flake_ticks: ticks as u32,
             rainbow,
         })
     }
@@ -347,7 +351,7 @@ impl RainShaft {
                     let rain = softened * softened * vertical * filaments;
                     let snow = if self.snow > 0.0 {
                         SNOWFALL_PROFILES[usize::from(self.snow_profile)]
-                            .opacity(across, falling, self.drift)
+                            .opacity(across, falling, self.drift) * 0.56
                     } else {
                         0.0
                     };
@@ -378,6 +382,38 @@ impl RainShaft {
                         }
                     }
                     pixels[index] = pixel;
+                }
+            }
+        }
+        if let Some(profile) = self.snow_profile() {
+            let count = (length * (ra + rb) * 0.56).clamp(14.0, 82.0) as u32;
+            let strength = (self.snow - 0.5) * 2.0 * self.opacity;
+            for index in 0..count {
+                let flake = profile.flake(self.flake_seed, self.flake_ticks, index);
+                let along = flake.falling;
+                let across = flake.across * (ra + (rb - ra) * along);
+                let x = ax + dx * along + ty * across;
+                let y = ay + dy * along - tx * across;
+                let z = encoded_depth(1.0 / (za + (zb - za) * along));
+                let cx = x as i32;
+                let cy = y as i32;
+                for j in cy..=cy + 1 {
+                    for i in cx..=cx + 1 {
+                        let sx = 2 * i + 1 - width as i32;
+                        let sy = 2 * j + 1 - height as i32;
+                        if i < 0 || j < 0 || i >= width as i32 || j >= height as i32
+                            || sx * sx + sy * sy > aperture * aperture
+                        {
+                            continue;
+                        }
+                        let feather = (1.0 - (x - i as f32).abs() / flake.size).max(0.0)
+                            * (1.0 - (y - j as f32).abs() / flake.size).max(0.0);
+                        let at = j as usize * width + i as usize;
+                        if feather > 0.03 && z < depth[at] {
+                            let alpha = (feather * flake.opacity * strength * 2.1).min(0.84);
+                            pixels[at] = blend(pixels[at], rgb565([238.0, 246.0, 255.0]), alpha);
+                        }
+                    }
                 }
             }
         }
@@ -719,6 +755,29 @@ mod tests {
         assert!(winter.snow_fraction() > 0.95 && winter.rainbow.is_none());
         assert!(winter.foot[1] > summer.foot[1] + 36.0);
         assert_ne!(winter.tint, summer.tint);
+    }
+
+    #[test]
+    fn seeded_snowflakes_fall_and_respect_depth() {
+        let seed = 11;
+        let ticks = 20_652_179;
+        let camera = Camera { x: 1355.9989, z: -6803.0825, altitude: 82.0,
+            heading: 4.71, pitch: -0.08, bank: 0.0 };
+        let sky = Sky::at_position(seed, ticks, [camera.x, camera.altitude, camera.z]);
+        let snow = WeatherEffects::new().visible(seed, ticks, camera, &sky).unwrap();
+        assert!(snow.snow_profile().is_some());
+        const DIM: usize = 144;
+        let mut first = [0x0863; DIM * DIM];
+        let mut later = first;
+        let visible = [u16::MAX; DIM * DIM];
+        snow.paint(camera, (DIM, DIM), &mut first, &visible);
+        let shifted = RainShaft { flake_ticks: snow.flake_ticks + 15, ..snow };
+        shifted.paint(camera, (DIM, DIM), &mut later, &visible);
+        assert!(first.iter().zip(later).filter(|(a,b)| **a != *b).count() > 12);
+
+        let mut covered = [0x0863; DIM * DIM];
+        snow.paint(camera, (DIM, DIM), &mut covered, &[0; DIM * DIM]);
+        assert!(covered.iter().all(|&pixel| pixel == 0x0863));
     }
 
     #[test]

@@ -205,6 +205,12 @@ fn draw(catalog: Catalog, family: usize, index: usize, angle: f32) -> [u16; TILE
                 SettlementSurface::IndustryConcrete => ([190, 182, 160], [161, 151, 126]),
                 SettlementSurface::IndustryMetal => ([117, 145, 149], [113, 130, 129]),
             };
+            let (roof, wall) = if matches!(catalog, Catalog::Town) {
+                let finish = scenic_flight::settlement::building_palettes::TOWN[family * MODELS + index];
+                (finish.roof, finish.wall)
+            } else {
+                (roof, wall)
+            };
             let ridge_light = (0.95 + (get(row, col.wrapping_sub(1)) - get(row, col + 1)) * 0.14)
                 .clamp(0.77, 1.12);
             face(

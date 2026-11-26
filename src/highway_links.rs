@@ -4,6 +4,10 @@ use crate::roads::{
     RoadClass, RoadNetwork, RoadPoint, RoadProximity, ROAD_HALF_WIDTH, ROAD_REGION_SIZE,
 };
 use crate::world::{World, SEA_LEVEL};
+use crate::settlement::{Settlement, SettlementRoadExit, SettlementSurface};
+
+mod town_paths;
+use town_paths::TOWN_PATHS;
 
 const MAX_POINTS: usize = 97;
 const EMPTY_POINT: RoadPoint = RoadPoint {
@@ -48,6 +52,8 @@ pub struct HighwayContact {
 
 pub struct HighwayLink {
     contacts: [HighwayContact; 2],
+    street_caps: [Option<RoadPoint>; 2],
+    town_alignment: Option<u8>,
     points: [RoadPoint; MAX_POINTS],
     stations: [f32; MAX_POINTS],
     axis: [f32; 2],
@@ -64,6 +70,34 @@ pub(crate) struct HighwaySurvey {
     principal: [usize; 2],
     pub(crate) outgoing: [f32; 2],
     pub(crate) inward: [f32; 2],
+}
+
+const TOWN_EXITS: usize = 6;
+pub(crate) const TOWN_CAP_PAIRS: u8 = (TOWN_EXITS * TOWN_EXITS) as u8;
+
+pub(crate) struct TownCapPlan {
+    exits: [[Option<SettlementRoadExit>; TOWN_EXITS]; 2],
+    occupied: [bool; 2],
+}
+
+impl TownCapPlan {
+    pub(crate) fn pair(&self, index: u8) -> Option<[Option<SettlementRoadExit>; 2]> {
+        if !self.occupied.into_iter().any(|town| town) {
+            return None;
+        }
+        let entries = [usize::from(index) / TOWN_EXITS, usize::from(index) % TOWN_EXITS];
+        let [a, b] = entries;
+        let option = |i: usize, exit: usize| {
+            if self.occupied[i] { self.exits[i].get(exit).copied().flatten().map(Some) }
+            else { (exit == 0).then_some(None) }
+        };
+        Some([option(0, a)?, option(1, b)?])
+    }
+}
+
+pub(crate) fn within_street_cap(cap: RoadPoint, x: f32, z: f32) -> bool {
+    let [dx, dz] = [x - cap.x, z - cap.z];
+    dx * dx + dz * dz <= (MARGIN + 0.8) * (MARGIN + 0.8)
 }
 
 impl HighwayLink {
@@ -88,6 +122,15 @@ impl HighwayLink {
 
     pub fn contacts(&self) -> [HighwayContact; 2] {
         self.contacts
+    }
+
+    /// The outer end of a connected town street, when reached via its grid.
+    pub fn street_caps(&self) -> [Option<RoadPoint>; 2] {
+        self.street_caps
+    }
+
+    pub fn town_alignment(&self) -> Option<&'static str> {
+        self.town_alignment.map(|index| TOWN_PATHS[usize::from(index)].name)
     }
 
     pub fn polyline(&self) -> &[RoadPoint] {
@@ -215,11 +258,66 @@ impl HighwaySurvey {
         depth <= side * 0.5 - MARGIN - 0.01 && (MARGIN..=side - MARGIN).contains(&lateral)
     }
 
+    pub(crate) fn town_cap_plan(
+        self, world: &World, towns: [Option<&Settlement>; 2],
+    ) -> TownCapPlan {
+        TownCapPlan {
+            exits: core::array::from_fn(|i| towns[i].map_or([None; TOWN_EXITS], |town| {
+                town.road_exits(world, self.contacts[i ^ 1].point)
+            })),
+            occupied: towns.map(|town| town.is_some()),
+        }
+    }
+
+    pub(crate) fn fit_town_cap_pair(
+        self,
+        world: &World,
+        towns: [Option<&Settlement>; 2],
+        caps: [Option<SettlementRoadExit>; 2],
+        next: u8,
+        mut reserved: impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<(HighwayLink, u8)> {
+        let mut trial = self;
+        if let Some(cap) = caps[0] {
+            trial.contacts[0].point = cap.point;
+            trial.outgoing = cap.outward;
+        }
+        if let Some(cap) = caps[1] {
+            trial.contacts[1].point = cap.point;
+            trial.inward = cap.outward.map(|value| -value);
+        }
+        let blocked = |x, z| {
+            reserved(x, z) || towns.into_iter().zip(caps).any(|(town, cap)| {
+                town.is_some_and(|town| town.sample_transport_reservation(x,z).is_some_and(|sample| {
+                    sample.surface != SettlementSurface::Street
+                        || !cap.is_some_and(|exit| within_street_cap(exit.point, x, z))
+                }))
+            })
+        };
+        let (mut link, continuation) = trial.fit_route(world, next, true, true, blocked, pulse)?;
+        link.contacts = self.contacts;
+        link.street_caps = caps.map(|cap| cap.map(|exit| exit.point));
+        Some((link, continuation))
+    }
+
     pub(crate) fn fit(
         self,
         world: &World,
         next: u8,
         stay_on_seam: bool,
+        blocked: impl FnMut(f32, f32) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<(HighwayLink, u8)> {
+        self.fit_route(world, next, stay_on_seam, false, blocked, pulse)
+    }
+
+    fn fit_route(
+        self,
+        world: &World,
+        next: u8,
+        stay_on_seam: bool,
+        town: bool,
         mut blocked: impl FnMut(f32, f32) -> bool,
         pulse: &mut impl FnMut(),
     ) -> Option<(HighwayLink, u8)> {
@@ -254,13 +352,21 @@ impl HighwaySurvey {
         let lateral_max = lateral_min + ROAD_REGION_SIZE as f32 - 2.0 * MARGIN;
         let mut link = HighwayLink {
             contacts: [start, finish],
+            street_caps: [None; 2],
+            town_alignment: None,
             points: [EMPTY_POINT; MAX_POINTS],
             stations: [0.0; MAX_POINTS],
             axis,
             count: segments + 1,
             bounds: [0.0; 4],
         };
-        for (variant, (shift, skew)) in DETOURS.into_iter().enumerate().skip(usize::from(next)) {
+        let profile_count = if town { TOWN_PATHS.len() } else { DETOURS.len() };
+        for variant in usize::from(next)..profile_count {
+            let [shift, skew, counter_bend] = if town { TOWN_PATHS[variant].curve } else {
+                let (shift, skew) = DETOURS[variant];
+                [shift, skew, 0.0]
+            };
+            link.town_alignment = town.then_some(variant as u8);
             pulse();
             link.points[0] = p;
             link.points[segments] = q;
@@ -276,7 +382,10 @@ impl HighwaySurvey {
                 let middle = t * t * (3.0 - 2.0 * t);
                 let head = 3.0 * u * u * t * handle;
                 let tail = 3.0 * u * t * t * handle;
-                let detour = 16.0 * (shift + skew * (t - u)) * t * t * u * u;
+                let balance = t - u;
+                let lateral_offset = shift + skew * balance
+                    + counter_bend * balance * (1.0 - 2.1 * balance * balance);
+                let detour = 16.0 * lateral_offset * t * t * u * u;
                 let [x, z] = if i == 1 {
                     [
                         p.x + outgoing[0] * junction_step,

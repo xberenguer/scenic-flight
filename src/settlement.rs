@@ -11,6 +11,7 @@ pub mod district_layouts;
 pub mod neighborhood_blocks;
 pub mod riverfront_buildings;
 mod building_forms;
+pub mod building_palettes;
 mod expansion;
 pub mod town_landmarks;
 pub(crate) use expansion::{BoroughPaintCache, TownExpansion, WaterfrontVillage};
@@ -60,6 +61,7 @@ pub enum SettlementSurface {
     IndustryBrick,
     IndustryConcrete,
     IndustryMetal,
+    LandmarkPalette(u8),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -139,6 +141,12 @@ impl Settlement {
     pub fn coastal_road_exits(
         &self, world: &World, toward: RoadPoint,
     ) -> [Option<SettlementRoadExit>; 2] {
+        self.road_exits(world, toward)
+    }
+
+    pub(crate) fn road_exits<const LIMIT: usize>(
+        &self, world: &World, toward: RoadPoint,
+    ) -> [Option<SettlementRoadExit>; LIMIT] {
         let mut parent = [usize::MAX; JUNCTIONS];
         let mut queue = [0; JUNCTIONS];
         parent[ENTRY_COL] = ENTRY_COL;
@@ -157,7 +165,7 @@ impl Settlement {
             }
         }
 
-        let mut best = [(f32::NEG_INFINITY, None); 2];
+        let mut best = [(f32::NEG_INFINITY, None); LIMIT];
         let origin = [toward.x - self.local.x, toward.z - self.local.z];
         let origin_length = horizontal_length(origin[0], origin[1]);
         if !origin_length.is_finite() || origin_length < 1.0 {
@@ -202,11 +210,9 @@ impl Settlement {
                 }
                 let score = origin_length - distance + alignment * 36.0;
                 let exit = Some(SettlementRoadExit { point: RoadPoint { x, z, elevation }, outward });
-                if score > best[0].0 {
-                    best[1] = best[0];
-                    best[0] = (score, exit);
-                } else if score > best[1].0 {
-                    best[1] = (score, exit);
+                if let Some(place) = best.iter().position(|(previous, _)| score > *previous) {
+                    best.copy_within(place..LIMIT - 1, place + 1);
+                    best[place] = (score, exit);
                 }
             }
         }
@@ -752,7 +758,8 @@ impl Settlement {
                     } else {
                         ((layout >> 21) + (key >> 15 & 1)) as usize % 3
                     };
-                    let design = TownLandmark::select(family, key >> 6);
+                    let design = TownLandmark::select(family, key >> 6)
+                        .with_region(building_palettes::region(world, self.local.x, self.local.z));
                     let [width, depth, height] = design.dimensions();
                     let lot = frontage.lot(x, z, 0.0, 0.20, width, depth);
                     if let Some(base) = frontage.site(world, road, self.local, lot, 1.95) {
@@ -960,6 +967,7 @@ impl Building {
                 let [face, mut side] = frontage.roof_axes(self.area, x, z);
                 if matches!(frontage, Frontage::Near | Frontage::Right) { side = -side; }
                 let (surface, profile) = design.roof([side, face])?;
+                let surface = design.palette_id().map_or(surface, SettlementSurface::LandmarkPalette);
                 (surface, self.height * profile)
             }
             Form::Cottage(variant) => {
@@ -1614,7 +1622,7 @@ mod tests {
                         }
                         skyline.extend(town.skyline_roofs().filter(|roof| roof.form == crate::skyline::Form::TownLandmark)
                             .map(|roof| roof.building.profile)
-                            .filter(|&profile| TownLandmark::from_index(profile as usize).unwrap().is_industry()));
+                            .filter(|&profile| TownLandmark::from_profile(profile).unwrap().is_industry()));
                         if placed.len() == TownLandmark::INDUSTRY_COUNT && skyline.len() >= 20 { break 'worlds; }
                     }
                 }

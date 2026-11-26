@@ -54,6 +54,20 @@ In the examples below, cyan marks the added streets and gold marks their homes a
 
 [Frontage planner](../src/settlement/frontage.rs) · [Layout atlas](assets/artwork/frontage-layouts.png)
 
+## A road between two towns
+
+When a regional road's regular end cannot reach the next town, the survey can try the outer ends of streets already connected to each town center. These routes keep their terrain grade and reserve ground around buildings, waterways, and other infrastructure. The planner tests 26 different alignments before choosing a route that fits.
+
+The map below shows seed 93. The accepted highway is about **575 world units** between the two street connections and crosses the boundary between the two surveyed regions.
+
+![Street grids joined by a cross-region highway](assets/planning/urban-connected-93.png)
+
+[Road alignment atlas](assets/artwork/town-road-alignments.png) · [Highway planner](../src/highway_links.rs)
+
+## Local building finishes
+
+Civic landmarks use finishes selected from local terrain. Coastal areas favor whitewash, blue roofs, slate, and weathered finishes. Dry inland districts favor clay and sandstone. Upland areas use stone, slate, and weathered wood tones. The town and riverfront atlases show 50 individual roof and wall combinations.
+
 ## What can appear where
 
 | System | Placement |
@@ -63,7 +77,7 @@ In the examples below, cyan marks the added streets and gold marks their homes a
 | Ports, vessels and lighthouses | Port candidates need a coastal road approach, compatible shoreline, enough water depth and a pier site. Moorings and lighthouse headlands use separate coastal surveys. [Ports](../src/ports.rs) · [Anchorages](../src/maritime.rs) · [Lighthouses](../src/lighthouses.rs) |
 | Airfields | Country strips need enough open, suitable ground for a runway. Regional airfields also plan their access from the road network. [Airfields](../src/airfield.rs) |
 | Rail and industry | Regional rail corridors join suitable endpoints and can serve quarries, terminals and stations. Trains follow the surveyed corridors. [Rail surveys](../src/rail_survey.rs) · [Regional rail](../src/rail_stream.rs) |
-| Sky and weather | The sun follows a seasonal path. The Moon changes phase. Local cloud cover, haze and elevation affect which showers form and where they fall as snow. [Sky](../src/sky.rs) · [Precipitation](../src/weather_effects.rs) |
+| Sky and weather | The sun follows a seasonal path. The Moon changes phase. Local cloud cover, haze and elevation affect which showers form and where they fall as snow. Individual flakes fall through each snow band. [Sky](../src/sky.rs) · [Precipitation](../src/weather_effects.rs) |
 
 ## Where a flight starts
 

@@ -101,10 +101,14 @@ def render(entries, order):
         for entry in group["sections"]:
             title, slug, count = entry["title"], entry["id"], entry["count"]
             path = f"docs/assets/artwork/{slug}.png"
-            sections.extend((f"#### {title} · {count} variants", preview(title, path, width=780)))
             animation = f"assets/artwork/{slug}.gif"
-            if (DOCS / animation).is_file():
-                sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
+            sections.append(f"#### {title} · {count} variants")
+            if slug == "snowfall-profiles" and (DOCS / animation).is_file():
+                sections.append(preview(title, f"docs/{animation}", width=780))
+            else:
+                sections.append(preview(title, path, width=780))
+                if (DOCS / animation).is_file():
+                    sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
     sections.extend((
         "## World generation",
         "Cities grow around road approaches and expand where the land allows. "

@@ -307,6 +307,21 @@ mod background {
             });
         }
 
+        #[cfg(feature = "coastal-highways")]
+        #[inline(never)]
+        pub fn survey_highway(
+            &mut self,
+            request: scenic_flight::highway_stream::HighwayRequest,
+            land: &scenic_flight::land_stream::LandStream,
+        ) {
+            let slots = self.survey_slots.take().expect("one active scenery survey");
+            request.stage_towns(land, &mut slots.highway_towns);
+            slots.request.write(Survey::Highway(request));
+            critical_section::with(|cs| {
+                *SURVEY.borrow_ref_mut(cs) = Some(slots);
+            });
+        }
+
         #[cfg(feature = "regional-rail")]
         #[inline(never)]
         pub fn survey_rail(
@@ -475,6 +490,7 @@ mod background {
                 #[cfg(feature = "river-stream")] water,
                 #[cfg(feature = "river-stream")] &slots.river,
                 #[cfg(feature = "coastal-highways")] coast,
+                #[cfg(feature = "coastal-highways")] &slots.highway_towns,
                 #[cfg(feature = "regional-rail")] (&slots.rail, rail_work),
                 || {
                     #[cfg(feature = "scene-probe")]

@@ -20,7 +20,7 @@ impl TownLandmark {
     }
 
     pub fn is_industry(self) -> bool {
-        usize::from(self.0) >= LANDMARKS.len()
+        usize::from(self.0 & 63) >= LANDMARKS.len()
     }
 
     pub(crate) fn industry(key: u32) -> Self {
@@ -72,13 +72,13 @@ impl TownLandmark {
     }
 
     pub(crate) fn design(self) -> &'static Landmark {
-        let index = usize::from(self.0);
+        let index = usize::from(self.0 & 63);
         if self.is_industry() { &industry::LANDMARKS[index - LANDMARKS.len()] } else { &LANDMARKS[index] }
     }
 
     fn material(self, form: Roof, ordinary: SettlementSurface) -> SettlementSurface {
         if !self.is_industry() { return ordinary; }
-        let index = usize::from(self.0) - LANDMARKS.len();
+        let index = usize::from(self.0 & 63) - LANDMARKS.len();
         match form {
             Roof::Barrel | Roof::Monitor | Roof::Lantern => IndustryMetal,
             Roof::Drum | Roof::Dome if !matches!(index, 0 | 6 | 8 | 14 | 21) => IndustryConcrete,
@@ -86,6 +86,20 @@ impl TownLandmark {
             _ if (10..20).contains(&index) => IndustryMetal,
             _ => IndustryConcrete,
         }
+    }
+
+    pub(crate) fn with_region(self, region: u8) -> Self {
+        debug_assert!(region < 4);
+        Self((self.0 & 63) | (region << 6))
+    }
+
+    pub(crate) fn from_profile(profile: u16) -> Option<Self> {
+        (profile <= u8::MAX as u16 && usize::from(profile & 63) < Self::COUNT)
+            .then_some(Self(profile as u8))
+    }
+
+    pub(crate) fn palette_id(self) -> Option<u8> {
+        (!self.is_industry()).then(|| super::building_palettes::town_finish(self.0 & 63, self.0 >> 6))
     }
 
     pub(crate) fn id(self) -> u16 {

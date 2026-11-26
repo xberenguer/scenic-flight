@@ -2016,6 +2016,7 @@ fn ground_color(
         Surface::ScreeEdge => (mix(grass_color(position[1]), [135.0, 128.0, 116.0], 0.44), false),
         Surface::ScreeFine => (mix(alpine_rock(position[1]), [172.0, 166.0, 151.0], 0.70), false),
         Surface::ScreeCoarse => (mix(alpine_rock(position[1]), [155.0, 149.0, 135.0], 0.70), false),
+        _ => (surface.building_palette().unwrap().roof.map(f32::from), false),
     };
     let slopes = if water { [0.0; 2] } else { grade() };
     let light = if water {
@@ -2300,7 +2301,7 @@ fn paint_visible_surface(
     distance: f32, depth: f32, view: &View, light: GroundLight,
     _rock_phase: f32, mut paint: impl FnMut(usize, usize, u16),
 ) {
-    if distance < 160.0 && rows.len() >= 3 && (surface.is_station_roof() || surface.is_industry() || matches!(
+    if distance < 160.0 && rows.len() >= 3 && (surface.is_station_roof() || surface.is_industry() || surface.building_palette().is_some() || matches!(
         surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof | Surface::ShipCabin
     )) {
         paint_facade(surface, position, color, rows, view.focal / depth, light, paint);
@@ -2402,7 +2403,7 @@ fn facade_color(surface: Surface, daylight: f32, horizon: Color, fog: f32) -> u1
         Surface::RailGlass => [86, 139, 156],
         Surface::RailRust => [111, 85, 69],
         Surface::ShipCabin => [199, 202, 193],
-        _ => [131, 137, 143],
+        _ => surface.building_palette().map_or([131, 137, 143], |palette| palette.wall),
     };
     let ambient = 0.32 + daylight * 0.57;
     let subdued = [

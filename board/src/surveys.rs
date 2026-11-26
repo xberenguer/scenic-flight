@@ -44,11 +44,7 @@ pub enum Survey {
     #[cfg(feature = "natural-scenery")]
     Summit(SummitRequest),
     #[cfg(feature = "highway-stream")]
-    Highway {
-        request: HighwayRequest,
-        #[cfg(feature = "coastal-highways")]
-        towns: HighwayTowns,
-    },
+    Highway(HighwayRequest),
     #[cfg(feature = "regional-rail")]
     RegionalRail(RailRequest),
     #[cfg(feature = "river-stream")]
@@ -86,6 +82,8 @@ pub struct SurveySlots {
     pub result: MaybeUninit<SurveyResult>,
     #[cfg(feature = "river-stream")]
     pub river: RiverInputs,
+    #[cfg(feature = "coastal-highways")]
+    pub highway_towns: HighwayTowns,
     #[cfg(feature = "regional-rail")]
     pub rail: RailSurveyData,
 }
@@ -96,6 +94,8 @@ impl SurveySlots {
             request: MaybeUninit::uninit(), result: MaybeUninit::uninit(),
             #[cfg(feature = "river-stream")]
             river: RiverInputs { district: None, facilities: None },
+            #[cfg(feature = "coastal-highways")]
+            highway_towns: [None, None],
             #[cfg(feature = "regional-rail")]
             rail: RailSurveyData::new(),
         }
@@ -109,6 +109,7 @@ impl Survey {
         #[cfg(feature = "river-stream")] water: &mut WatershedWork,
         #[cfg(feature = "river-stream")] river: &RiverInputs,
         #[cfg(feature = "coastal-highways")] coast: &mut CoastalHighwayWork,
+        #[cfg(feature = "coastal-highways")] highway_towns: &HighwayTowns,
         #[cfg(feature = "regional-rail")] rail: (&RailSurveyData, &mut RailSurveyWork),
         pulse: impl FnMut(),
     ) {
@@ -127,13 +128,9 @@ impl Survey {
             #[cfg(feature = "natural-scenery")]
             Self::Summit(request) => prepare_one(slot, || request.prepare(pulse), SurveyResult::Summit),
             #[cfg(feature = "highway-stream")]
-            Self::Highway {
-                request,
+            Self::Highway(request) => {
                 #[cfg(feature = "coastal-highways")]
-                towns,
-            } => {
-                #[cfg(feature = "coastal-highways")]
-                prepare_one(slot, || request.prepare_with_towns(coast, towns, pulse), SurveyResult::Highway);
+                prepare_one(slot, || request.prepare_with_towns(coast, highway_towns, pulse), SurveyResult::Highway);
                 #[cfg(not(feature = "coastal-highways"))]
                 prepare_one(slot, || request.prepare(pulse), SurveyResult::Highway);
             }

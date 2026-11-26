@@ -446,7 +446,7 @@ impl Glyph {
             }
             Form::Hall => overlap(u, -self.half, self.half) * overlap(v, -self.height, 0.0),
             Form::TownLandmark => {
-                let design = crate::settlement::town_landmarks::TownLandmark::from_index(usize::from(self.profile)).unwrap();
+                let design = crate::settlement::town_landmarks::TownLandmark::from_profile(self.profile).unwrap();
                 design.design().masses.iter().fold(0.0_f32, |coverage, mass| {
                     let half = self.tier_halves[0] * mass.half[0] + self.tier_halves[1] * mass.half[1];
                     let center = self.tier_centers[0] * mass.center[0] + self.tier_centers[1] * mass.center[1];
@@ -737,7 +737,16 @@ impl Projection {
             Form::Tower => landmark.map_or_else(|| tower_forms::design(tower.profile).wall, |form| form.wall).map(|value| {
                 27.0 + f32::from(value) * (0.20 + 0.58 * dusk)
             }),
-            Form::Hall | Form::TownLandmark => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
+            Form::TownLandmark => {
+                let finish = crate::settlement::town_landmarks::TownLandmark::from_profile(tower.profile)
+                    .and_then(|design| design.palette_id());
+                match finish {
+                    Some(finish) => crate::settlement::building_palettes::from_id(usize::from(finish))
+                        .wall.map(|channel| 27.0 + f32::from(channel) * (0.40 + dusk * 0.38)),
+                    None => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
+                }
+            }
+            Form::Hall => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
             Form::Gable => [46.0 + 115.0 * dusk, 42.0 + 86.0 * dusk, 49.0 + 66.0 * dusk],
             Form::Neighborhood if quay.is_some_and(|(design, _)| design.commercial) =>
                 [49.0 + 111.0 * dusk, 45.0 + 98.0 * dusk, 51.0 + 90.0 * dusk],
@@ -891,7 +900,7 @@ mod tests {
     #[test]
     fn elevated_exchange_gate_leaves_a_gap_in_the_distant_glyph() {
         let catalog = &tower_forms::landmarks::LANDMARKS;
-        let index = catalog.iter().position(|form| form.name == "Exchange gate").unwrap();
+        let index = catalog.iter().position(|form| form.name == "Commercial building with gateway").unwrap();
         let profile = (tower_forms::TOWER_DESIGN_COUNT + index) as u16;
         let view = camera(0.0, 0.0, 32.0, 0.0, 0.0);
         let projection = Projection::new(view, (144, 144));

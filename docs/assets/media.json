@@ -2420,7 +2420,7 @@
     "format": "Video",
     "poster": "assets/current/sky-weather-snow-0.png",
     "src": "assets/current/sky-weather-snow-0.mp4",
-    "note": "Snow forms where cold, moist air meets high ground."
+    "note": "Individual flakes fall through the band, with mountains in front blocking them."
   },
   {
     "id": "highway-neighborhood-18",
@@ -2443,5 +2443,16 @@
     "poster": "assets/current/highway-neighborhood-33.png",
     "src": "assets/current/highway-neighborhood-33.mp4",
     "note": "Work yards and staggered village streets at the town edge."
+  },
+  {
+    "id": "road-between-towns",
+    "title": "Racer over a highway joining two towns",
+    "category": "Built World",
+    "aircraft": "Racer",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/road-between-towns.png",
+    "src": "assets/current/road-between-towns.mp4",
+    "note": "The road crosses a planning boundary and joins the existing street grid at both ends."
   }
 ]

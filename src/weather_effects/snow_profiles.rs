@@ -1,12 +1,20 @@
 //! Snow bands viewed edge-on. Lobes can bend, split, or evaporate at
 //! different heights while sharing one terrain-occluded precipitation volume.
 
-use crate::math::smoothstep;
+use crate::math::{fraction, mix, smoothstep};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SnowfallProfile {
     pub name: &'static str,
     lobes: [Lobe; 3],
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Snowflake {
+    pub across: f32,
+    pub falling: f32,
+    pub opacity: f32,
+    pub size: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -33,6 +41,30 @@ const NONE: Lobe = lobe(0.0, 0.0, 1.0, 0.0, 0.0);
 impl SnowfallProfile {
     const fn new(name: &'static str, lobes: [Lobe; 3]) -> Self {
         Self { name, lobes }
+    }
+
+    /// Stable particles fall through a profile and fade before recycling.
+    pub fn flake(&self, seed: u64, ticks: u32, index: u32) -> Snowflake {
+        let key = mix(seed ^ u64::from(index).wrapping_mul(0x9e37_79b9));
+        let active =
+            1 + usize::from(self.lobes[1].density > 0.0) + usize::from(self.lobes[2].density > 0.0);
+        let lobe = self.lobes[(key % active as u64) as usize];
+        let life = [120, 160, 240][((key >> 10) as usize) % 3];
+        let start = (key >> 32) as u32 % life;
+        let cycle = (ticks % life + start) % life;
+        let t = cycle as f32 / life as f32;
+        let falling = t * lobe.reach.min(1.0);
+        let center = lobe.start + (lobe.end - lobe.start) * falling;
+        let spread = (fraction(key) * 2.0 - 1.0 + t * 0.28 - 0.14) * 0.82 / lobe.spread;
+        let across = center + spread;
+        let edge = smoothstep((1.0 - across.abs()) * 6.0);
+        let fade = smoothstep(t * 9.0) * smoothstep((1.0 - t) * 7.0);
+        Snowflake {
+            across,
+            falling,
+            opacity: edge * fade * (0.54 + 0.46 * lobe.density),
+            size: 0.65 + fraction(mix(key ^ 0x2647)) * 0.85,
+        }
     }
 
     /// Cross-section opacity. Coordinates are measured from the wind-adjusted
