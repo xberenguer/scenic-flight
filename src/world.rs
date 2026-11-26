@@ -64,9 +64,22 @@ pub enum Surface {
     IndustryBrick,
     IndustryConcrete,
     IndustryMetal,
+    MesaCap,
+    MesaCliff,
+    MesaApron,
 }
 
 impl Surface {
+    /// Sandstone pigments shared by the scenery renderer and terrain artwork.
+    pub fn sandstone_color(self) -> Option<[u8; 3]> {
+        match self {
+            Self::MesaCap => Some([183, 143, 104]),
+            Self::MesaCliff => Some([181, 111, 78]),
+            Self::MesaApron => Some([158, 126, 95]),
+            _ => None,
+        }
+    }
+
     /// Base daylight color used for the same foliage in gameplay and in the artwork atlas.
     pub const fn canopy_color(self) -> Option<[u8; 3]> {
         match self {

@@ -8,6 +8,10 @@ use crate::roads::{ROAD_HALF_WIDTH, RoadNetwork};
 use crate::watershed::Watershed;
 use crate::world::{SEA_LEVEL, World};
 
+mod designs;
+pub use designs::CablewayDesign;
+use designs::{Car, Paint, Terminal};
+
 const LANE: f32 = 2.15;
 const STATION_WIDTH: f32 = 4.25;
 const STATION_LENGTH: f32 = 4.5;
@@ -115,6 +119,7 @@ pub struct Cableway {
     axis: [f32; 2],
     length: f32,
     phase: f32,
+    design: CablewayDesign,
 }
 
 impl Cableway {
@@ -206,6 +211,7 @@ impl Cableway {
                 axis,
                 length,
                 phase,
+                design: CablewayDesign::select(mix(key ^ 0xd997)),
             };
             for lift in [0.0, 0.85, 1.50] {
                 line.stations = [lower, upper];
@@ -240,6 +246,10 @@ impl Cableway {
             }
         }
         None
+    }
+
+    pub fn design(&self) -> CablewayDesign {
+        self.design
     }
 
     pub fn stations(&self) -> &[Station; 2] {
@@ -352,20 +362,8 @@ impl Cableway {
     }
 
     pub fn draw(&self, mesh: &mut crate::world_mesh::WorldMesh<'_>, ticks: u64) {
-        self.triangles(ticks, |triangle| {
-            let color = match triangle.part {
-                CablePart::AccessPath => [138, 122, 88],
-                CablePart::Station => [119, 106, 95],
-                CablePart::StationRoof => [123, 99, 84],
-                CablePart::Overlook => [156, 130, 92],
-                CablePart::Foundation => [127, 125, 115],
-                CablePart::Pylon => [159, 167, 157],
-                CablePart::Cabin => [171, 73, 58],
-                CablePart::Window => [97, 142, 159],
-                CablePart::Hanger => [60, 66, 68],
-            };
-            mesh.lit_triangle(triangle.corners, color);
-        });
+        let paint = self.design.spec().paint;
+        self.triangles(ticks, |triangle| draw_part(mesh, triangle, paint));
         self.cable_segments(|wire| mesh.wire(wire.from, wire.to, wire.diameter, [86, 92, 93]));
     }
 
@@ -382,30 +380,15 @@ impl Cableway {
                 ],
             );
         }
+        let design = self.design.spec();
         for (i, station) in self.stations.iter().enumerate() {
-            let ground = station.platform[1];
-            self.block(
+            self.terminal_geometry(&mut emit, *station, design.terminal, i == 1);
+            self.tower_geometry(
                 &mut emit,
                 station.platform,
-                [3.98, 4.07],
-                [station.base - ground, 0.35],
-                CablePart::Foundation,
+                station.anchor,
+                design.terminal.upright,
             );
-            self.block(
-                &mut emit,
-                station.platform,
-                [3.43, 3.72],
-                [0.35, 3.53],
-                CablePart::Station,
-            );
-            self.block(
-                &mut emit,
-                station.platform,
-                [3.74, 4.02],
-                [3.45, 3.91],
-                CablePart::StationRoof,
-            );
-            self.tower_geometry(&mut emit, station.platform, station.anchor, 3.83);
             if i == 1 {
                 let terrace = self.shift(station.platform, 3.95, 0.0, 0.31);
                 self.block(
@@ -429,36 +412,171 @@ impl Cableway {
         }
         for lane in 0..2 {
             if let Some(cabin) = self.cabin(ticks, lane) {
-                self.block(
-                    &mut emit,
-                    cabin.floor,
-                    [1.60, 1.32],
-                    [0.0, 1.15],
-                    CablePart::Cabin,
-                );
-                self.block(
-                    &mut emit,
-                    cabin.floor,
-                    [1.57, 1.30],
-                    [1.15, 2.18],
-                    CablePart::Window,
-                );
-                self.block(
-                    &mut emit,
-                    cabin.floor,
-                    [1.66, 1.36],
-                    [2.15, 2.40],
-                    CablePart::Cabin,
-                );
-                self.block(
-                    &mut emit,
-                    cabin.floor,
-                    [0.15, 0.15],
-                    [2.40, CABIN_DROP],
-                    CablePart::Hanger,
+                self.cabin_geometry(&mut emit, cabin.floor, design.car);
+            }
+        }
+    }
+
+    fn terminal_geometry(
+        &self,
+        emit: &mut impl FnMut(CableTriangle),
+        station: Station,
+        terminal: Terminal,
+        upper: bool,
+    ) {
+        let origin = station.platform;
+        self.block(
+            emit,
+            origin,
+            [4.42, 4.16],
+            [station.base - origin[1], 0.35],
+            CablePart::Foundation,
+        );
+        let width = terminal.half_width - 0.28;
+        let levels = if upper {
+            core::array::from_fn(|i| terminal.roof[3 - i])
+        } else {
+            terminal.roof
+        };
+        self.block(
+            emit,
+            origin,
+            [3.98, width],
+            [0.35, terminal.upright],
+            CablePart::Station,
+        );
+
+        let roof_point = |index: usize, lateral: f32| {
+            self.shift(
+                origin,
+                [-4.38, -1.35, 1.35, 4.38][index],
+                lateral,
+                levels[index],
+            )
+        };
+        let roof = [-terminal.half_width, terminal.half_width];
+        for i in 0..levels.len() - 1 {
+            let a = roof_point(i, roof[0]);
+            let b = roof_point(i + 1, roof[0]);
+            let c = roof_point(i + 1, roof[1]);
+            let d = roof_point(i, roof[1]);
+            quad(emit, CablePart::StationRoof, [a, b, c, d]);
+            for sign in [-1.0, 1.0] {
+                let edge = |idx: usize| {
+                    self.shift(
+                        origin,
+                        [-3.98, -1.35, 1.35, 3.98][idx],
+                        width * sign,
+                        levels[idx],
+                    )
+                };
+                let left = edge(i);
+                let right = edge(i + 1);
+                let floor = origin[1] + terminal.upright;
+                quad(
+                    emit,
+                    CablePart::Station,
+                    [
+                        left,
+                        right,
+                        [right[0], floor, right[2]],
+                        [left[0], floor, left[2]],
+                    ],
                 );
             }
         }
+        for (edge, end) in [(0, -3.98), (3, 3.98)] {
+            let top = [-width, width].map(|side| self.shift(origin, end, side, levels[edge]));
+            let base = [-width, width].map(|side| self.shift(origin, end, side, terminal.upright));
+            quad(emit, CablePart::Station, [base[0], base[1], top[1], top[0]]);
+            let windows = [-width * 0.70, width * 0.70];
+            let front = end + end.signum() * 0.03;
+            let [a, b] = windows.map(|side| self.shift(origin, front, side, 1.38));
+            let [c, d] =
+                windows.map(|side| self.shift(origin, front, side, terminal.upright - 0.48));
+            quad(emit, CablePart::Window, [a, b, d, c]);
+        }
+    }
+
+    fn cabin_geometry(&self, emit: &mut impl FnMut(CableTriangle), center: Point, car: Car) {
+        let [length, width, bevel] = [car.length, car.width, car.chisel];
+        let shape = [
+            [-length, -width + bevel],
+            [-length, width - bevel],
+            [-length + bevel, width],
+            [length - bevel, width],
+            [length, width - bevel],
+            [length, -width + bevel],
+            [length - bevel, -width],
+            [-length + bevel, -width],
+        ];
+        let ring =
+            |height, scale| shape.map(|[x, z]| self.shift(center, x * scale, z * scale, height));
+        let lower = ring(0.0, 0.85);
+        let belt = ring(car.lower, 1.0);
+        let lintel = ring(car.cap - 0.22, 0.92);
+        let top = ring(car.cap, 0.77);
+        for i in 0..8 {
+            let next = (i + 1) % 8;
+            quad(
+                emit,
+                CablePart::Cabin,
+                [lower[i], lower[next], belt[next], belt[i]],
+            );
+            quad(
+                emit,
+                CablePart::Window,
+                [belt[i], belt[next], lintel[next], lintel[i]],
+            );
+            quad(
+                emit,
+                CablePart::Cabin,
+                [lintel[i], lintel[next], top[next], top[i]],
+            );
+        }
+        for i in 1..7 {
+            emit(CableTriangle {
+                corners: [top[0], top[i], top[i + 1]],
+                part: CablePart::Cabin,
+            });
+        }
+        self.block(
+            emit,
+            center,
+            [0.15, 0.15],
+            [car.cap, CABIN_DROP],
+            CablePart::Hanger,
+        );
+    }
+
+    /// Draw a terminal and its cabin together for the game's artwork catalog.
+    pub fn draw_artwork(design: CablewayDesign, mesh: &mut crate::world_mesh::WorldMesh<'_>) {
+        let station = Station {
+            platform: [-3.3, 0.0, 0.0],
+            anchor: [-3.3, 8.65, 0.0],
+            base: -0.30,
+        };
+        let line = Self {
+            stations: [station; 2],
+            pylons: [Pylon::EMPTY; 2],
+            spans: [SagSpan::EMPTY; 3],
+            pylon_count: 0,
+            path: [[0.0; 3]; 3],
+            axis: [0.0, 1.0],
+            length: 0.0,
+            phase: 0.0,
+            design,
+        };
+        let spec = design.spec();
+        let mut emit = |triangle| draw_part(mesh, triangle, spec.paint);
+        line.terminal_geometry(&mut emit, station, spec.terminal, false);
+        line.tower_geometry(
+            &mut emit,
+            station.platform,
+            station.anchor,
+            spec.terminal.upright,
+        );
+        line.cabin_geometry(&mut emit, [4.4, 0.25, 0.0], spec.car);
     }
 
     fn set_pylons(&mut self, pylons: &[Pylon]) {
@@ -513,7 +631,21 @@ impl Cableway {
         bottom: f32,
     ) {
         let height = anchor[1] - base[1];
-        self.block(emit, base, [0.41, 0.47], [bottom, height], CablePart::Pylon);
+        let waist = self.design.spec().mast_waist;
+        self.block(
+            emit,
+            base,
+            [0.46, 0.59],
+            [bottom, bottom + (height - bottom) * 0.42],
+            CablePart::Pylon,
+        );
+        self.block(
+            emit,
+            base,
+            [waist, waist + 0.09],
+            [bottom + (height - bottom) * 0.42, height],
+            CablePart::Pylon,
+        );
         self.block(emit, anchor, [0.35, 2.78], [-0.38, 0.02], CablePart::Pylon);
     }
 }
@@ -652,6 +784,21 @@ impl Survey<'_> {
             anchor: [at[0], support, at[2]],
         })
     }
+}
+
+fn draw_part(mesh: &mut crate::world_mesh::WorldMesh<'_>, triangle: CableTriangle, paint: Paint) {
+    let color = match triangle.part {
+        CablePart::AccessPath => [138, 122, 88],
+        CablePart::Station => paint.walls,
+        CablePart::StationRoof => paint.roof,
+        CablePart::Overlook => [156, 130, 92],
+        CablePart::Foundation => [127, 125, 115],
+        CablePart::Pylon => paint.steel,
+        CablePart::Cabin => paint.car,
+        CablePart::Window => [97, 142, 159],
+        CablePart::Hanger => [60, 66, 68],
+    };
+    mesh.lit_triangle(triangle.corners, color);
 }
 
 fn horizontal(a: Point, b: Point) -> f32 {

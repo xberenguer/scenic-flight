@@ -77,7 +77,12 @@ impl BridgeSilhouettes {
                 if view.outer(bridge) && free.nth(1).is_none() {
                     continue;
                 }
-                *slot = Some(Retained { bridge: *bridge, age: 0, seen: true, fresh: true });
+                *slot = Some(Retained {
+                    bridge: *bridge,
+                    age: 0,
+                    seen: true,
+                    fresh: true,
+                });
             }
         }
         let mut frame = BridgeSilhouetteFrame {
@@ -194,7 +199,7 @@ impl BridgeSilhouetteFrame {
 #[derive(Clone, Copy)]
 struct Projected {
     join_key: [u32; 4],
-    strokes: [Option<Stroke>; 4],
+    strokes: [Option<Stroke>; 6],
     bounds: ScreenRect,
     depth: f32,
     handoff: f32,
@@ -294,13 +299,15 @@ impl View {
 
     fn potential(&self, bridge: &Bridge) -> bool {
         let [side, along] = self.center(bridge);
-        along > self.near * 0.61 && along < self.reach(bridge) + 100.0
+        along > self.near * 0.61
+            && along < self.reach(bridge) + 100.0
             && side.abs() < along * 0.80 + 120.0
     }
 
     fn vertex(&self, [x, y, z]: [f32; 3]) -> Option<Vertex> {
         let [side, ahead] = self.relative(x, z);
-        let relief = y - self.camera.altitude - self.curvature * backdrop_curvature_squared(ahead, side);
+        let relief =
+            y - self.camera.altitude - self.curvature * backdrop_curvature_squared(ahead, side);
         let z = ahead * self.pitch[1] - relief * self.pitch[0];
         if z <= 2.0 || !z.is_finite() {
             return None;
@@ -425,30 +432,33 @@ impl View {
             43.0 + 92.0 * daylight,
             57.0 + 103.0 * daylight,
         ]);
-        let truss = rgb([
-            43.0 + 112.0 * daylight,
-            47.0 + 70.0 * daylight,
-            60.0 + 58.0 * daylight,
-        ]);
+        let truss = rgb(bridge
+            .sidework_color()
+            .map(|c| 26.0 + f32::from(c) * daylight * 0.76));
         let width = bridge.width() * 0.5;
         let mut strokes = [
             self.stroke(a, b, width, alpha * 0.66, road, axis, 0.15),
             self.stroke(b, c, width, alpha, deck, axis, 0.47),
             self.stroke(c, d, width, alpha * 0.66, road, axis, 0.15),
             None,
+            None,
+            None,
         ];
         if bridge.style == BridgeStyle::SmallTruss {
-            let rise = (bridge.span() * 0.10).clamp(1.35, 2.55);
-            let crown = |t| [mix(b[0], c[0], t), b[1] + rise, mix(b[2], c[2], t)];
-            strokes[3] = self.stroke(
-                crown(1.0 / 6.0),
-                crown(5.0 / 6.0),
-                width * 0.38,
-                alpha * 0.73,
-                truss,
-                axis,
-                0.23,
-            );
+            for (i, [from, to]) in [[0.0, 1.0 / 3.0], [1.0 / 3.0, 2.0 / 3.0], [2.0 / 3.0, 1.0]]
+                .into_iter()
+                .enumerate()
+            {
+                strokes[3 + i] = self.stroke(
+                    bridge.sidework_outline(from),
+                    bridge.sidework_outline(to),
+                    width * 0.38,
+                    alpha * 0.73,
+                    truss,
+                    axis,
+                    0.23,
+                );
+            }
         }
         let bounds = strokes
             .iter()
@@ -551,9 +561,11 @@ mod tests {
             frame.draw(&mut image, depth);
             image
         };
-        assert!(state
-            .prepare(far, 0, &sky, SIZE, [bridge], ground)
-            .is_empty());
+        assert!(
+            state
+                .prepare(far, 0, &sky, SIZE, [bridge], ground)
+                .is_empty()
+        );
         for tick in 1..=32 {
             state.prepare(far, tick, &sky, SIZE, [bridge], ground);
         }
@@ -598,7 +610,7 @@ mod tests {
         let [a, b, c, d] = *bridge.sections();
         let view = View::new(far, SIZE);
         let projected = view.bridge(*bridge, 1.0, &sky, &mut |_, _| b[1]).unwrap();
-        let [ramp, deck, exit, _] = projected.strokes;
+        let [ramp, deck, exit, ..] = projected.strokes;
         for (stroke, start, end) in [(ramp, a, b), (deck, b, c), (exit, c, d)] {
             let stroke = stroke.unwrap();
             assert_eq!(stroke.start.p, view.vertex(start).unwrap().p);

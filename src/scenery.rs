@@ -231,6 +231,7 @@ pub fn overlay_alpine(lake: &AlpineLake, x: f32, z: f32, ground: Sample) -> Samp
         AlpineSurface::TarnShallows => Surface::TarnShallows,
         AlpineSurface::Meadow => Surface::AlpineMeadow,
         AlpineSurface::OutletGravel => Surface::Gravel,
+        AlpineSurface::Shore(surface) => surface,
     };
     Sample { elevation: cover.elevation, surface }
 }

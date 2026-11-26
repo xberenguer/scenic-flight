@@ -6,6 +6,10 @@ use crate::math::{fraction, mix, sin_cos};
 use crate::ports::{Port, PortKind};
 use crate::world::{SEA_LEVEL, Surface, World};
 
+mod profiles;
+pub use profiles::CoastalProfile;
+use profiles::Silhouette;
+
 pub const COASTAL_LANDFORM_TILE: i32 = 256;
 const CACHE_SIDE: usize = 11;
 const LANDMARK_LIMIT: usize = 24;
@@ -18,7 +22,10 @@ struct RegionSlot {
 }
 
 impl RegionSlot {
-    const EMPTY: Self = Self { tile: [i32::MIN; 2], landmark_index: NO_LANDMARK };
+    const EMPTY: Self = Self {
+        tile: [i32::MIN; 2],
+        landmark_index: NO_LANDMARK,
+    };
 }
 
 /// An eleven-tile window leaves a preparation margin around the highest aircraft's view.
@@ -32,8 +39,10 @@ pub struct CoastalLandmarks {
 impl CoastalLandmarks {
     pub const fn new() -> Self {
         Self {
-            slots: [RegionSlot::EMPTY; CACHE_SIDE * CACHE_SIDE], landmarks: [None; LANDMARK_LIMIT],
-            center: [0; 2], next: 0,
+            slots: [RegionSlot::EMPTY; CACHE_SIDE * CACHE_SIDE],
+            landmarks: [None; LANDMARK_LIMIT],
+            center: [0; 2],
+            next: 0,
         }
     }
 
@@ -61,7 +70,10 @@ impl CoastalLandmarks {
             if self.slots[slot].tile == [tx, tz] {
                 continue;
             }
-            if let Some(previous) = self.landmarks.get_mut(self.slots[slot].landmark_index as usize) {
+            if let Some(previous) = self
+                .landmarks
+                .get_mut(self.slots[slot].landmark_index as usize)
+            {
                 *previous = None;
             }
             let mut landmark_index = NO_LANDMARK;
@@ -71,7 +83,10 @@ impl CoastalLandmarks {
                     landmark_index = index as u8;
                 }
             }
-            self.slots[slot] = RegionSlot { tile: [tx, tz], landmark_index };
+            self.slots[slot] = RegionSlot {
+                tile: [tx, tz],
+                landmark_index,
+            };
             updated += 1;
         }
     }
@@ -84,8 +99,14 @@ impl CoastalLandmarks {
         let [tx, tz] = [x, z].map(|value| tile_of(value, COASTAL_LANDFORM_TILE));
         let slot = self.slots[(tz.rem_euclid(CACHE_SIDE as i32) as usize) * CACHE_SIDE
             + tx.rem_euclid(CACHE_SIDE as i32) as usize];
-        if slot.tile != [tx, tz] { return SEA_LEVEL; }
-        let Some(form) = self.landmarks.get(slot.landmark_index as usize).and_then(Option::as_ref) else {
+        if slot.tile != [tx, tz] {
+            return SEA_LEVEL;
+        }
+        let Some(form) = self
+            .landmarks
+            .get(slot.landmark_index as usize)
+            .and_then(Option::as_ref)
+        else {
             return SEA_LEVEL;
         };
         let [min_x, min_z, max_x, max_z] = form.bounds();
@@ -97,7 +118,9 @@ impl CoastalLandmarks {
         }
         let height = match form.shape {
             Shape::Stack(rock) => 3.0 + rock.height,
-            Shape::Skerries(rocks) => 3.0 + rocks.iter().map(|rock| rock.height).fold(0.0, f32::max),
+            Shape::Skerries(rocks) => {
+                3.0 + rocks.iter().map(|rock| rock.height).fold(0.0, f32::max)
+            }
             Shape::Arch(arch) => 3.0 + arch.height,
         };
         SEA_LEVEL + height * (1.0 - crate::math::smoothstep(fade))
@@ -228,6 +251,7 @@ struct StoneSpur {
     height: f32,
     sides: [u8; 6],
     top_scale: f32,
+    shoulder: f32,
 }
 
 impl StoneSpur {
@@ -239,6 +263,7 @@ impl StoneSpur {
         height: 0.0,
         sides: [0; 6],
         top_scale: 0.0,
+        shoulder: 0.0,
     };
 
     fn new(
@@ -257,6 +282,7 @@ impl StoneSpur {
             height,
             sides: core::array::from_fn(|side| 83 + (mix(key ^ (side as u64 * 1151)) % 28) as u8),
             top_scale: 0.35 + fraction(mix(key ^ 0x71e4)) * 0.24,
+            shoulder: 0.85,
         }
     }
 
@@ -265,12 +291,11 @@ impl StoneSpur {
     }
 
     fn radius(self, level: f32) -> f32 {
-        let rim = if level < 0.22 {
-            1.0 - 0.85 * level
+        if level < 0.62 {
+            1.0 + (self.shoulder - 1.0) * (level / 0.62)
         } else {
-            0.85
-        };
-        rim + (self.top_scale - rim) * level * level
+            self.shoulder + (self.top_scale - self.shoulder) * ((level - 0.62) / 0.38)
+        }
     }
 
     fn ring(self, level: f32, band: usize) -> [[f32; 3]; 6] {
@@ -303,12 +328,21 @@ impl StoneSpur {
     }
 
     fn height_at(self, x: f32, z: f32) -> Option<f32> {
-        if self.height <= 0.0 || !self.contains_ring(x, z, 0.0) {
+        if self.height <= 0.0 || !within(self.center, [x, z], self.cap_radius()) {
             return None;
         }
-        let mut lower = 0.0;
         let mut upper = 1.0;
-        for _ in 0..6 {
+        let mut lower = [1.0, 0.81, 0.62, 0.39, 0.19, 0.0]
+            .into_iter()
+            .find(|&level| {
+                if self.contains_ring(x, z, level) {
+                    true
+                } else {
+                    upper = level;
+                    false
+                }
+            })?;
+        for _ in 0..5 {
             let level = (lower + upper) * 0.5;
             if self.contains_ring(x, z, level) {
                 lower = level;
@@ -363,6 +397,7 @@ struct StoneArch {
     height: f32,
     clearance: f32,
     asymmetry: f32,
+    crown: f32,
     fractures: [u8; 9],
     axis: [f32; 2],
 }
@@ -404,6 +439,7 @@ impl StoneArch {
         ];
         let ring = |index: usize| {
             let [u, rise] = PROFILE[index];
+            let rise = rise / (self.crown + (1.0 - self.crown) * rise);
             let fault = self.fractures[index];
             let cut = (f32::from(fault & 15) - 7.5) * (1.0 / 7.5);
             let strata = (f32::from(fault >> 4) - 7.5) * (1.0 / 7.5);
@@ -463,6 +499,7 @@ pub struct CoastalLandform {
     radius: f32,
     shore: Shore,
     stone: Stone,
+    profile: CoastalProfile,
     shape: Shape,
 }
 
@@ -561,65 +598,77 @@ impl CoastalLandform {
             1 | 2 if shore.relief < 75.0 => Stone::Sandstone,
             _ => Stone::GrayRock,
         };
-        let (shape, radius) = match kind {
-            LandformKind::Stack if shore.relief >= 24.0 => {
-                let height =
-                    (9.5 + shore.relief * 0.24).clamp(13.0, 25.5) * (0.90 + variety * 0.20);
-                let rock = StoneSpur::new(
+        let profile = CoastalProfile::choose(kind, mix(key ^ 0x40dc));
+        Self::build_profile(shore, center, axis, stone, profile, key)
+    }
+
+    fn build_profile(
+        shore: Shore,
+        center: [f32; 2],
+        axis: [f32; 2],
+        stone: Stone,
+        profile: CoastalProfile,
+        key: u64,
+    ) -> Option<Self> {
+        let variation = 0.93 + fraction(mix(key ^ 0xa493)) * 0.14;
+        let (shape, radius) = match profile.silhouette() {
+            Silhouette::Stack([width, depth, rise, crown, shoulder, lean])
+                if shore.relief >= 24.0 =>
+            {
+                let height = (9.5 + shore.relief * 0.24).clamp(13.0, 25.5) * rise * variation;
+                let mut rock = StoneSpur::new(
                     center,
                     axis,
-                    [5.5 + variety * 2.1, 4.3 + variety * 0.9],
+                    [width * variation, depth * variation],
                     height,
-                    [
-                        shore.out[0] * 1.12 + axis[0] * (variety - 0.5),
-                        shore.out[1] * 1.12 + axis[1] * (variety - 0.5),
-                    ],
+                    shore.out.map(|v| v * lean),
                     key,
                 );
+                rock.top_scale = crown;
+                rock.shoulder = shoulder;
                 (Shape::Stack(rock), rock.cap_radius())
             }
-            LandformKind::Skerries => {
-                let count = if key & 1 == 0 { 2 } else { 3 };
+            Silhouette::Skerries(layout) => {
                 let mut radius = 0.0_f32;
-                let mut rocks = [StoneSpur::EMPTY; 3];
-                for (index, rock) in rocks[..count].iter_mut().enumerate() {
+                let rocks = core::array::from_fn(|index| {
+                    let [along, out, width, depth, height] = layout[index];
+                    if height == 0.0 {
+                        return StoneSpur::EMPTY;
+                    }
                     let seed = mix(key ^ (index as u64 + 77));
-                    let size = fraction(seed);
-                    let along = [
-                        -6.2 - variety * 2.5,
-                        3.2 + variety * 2.9,
-                        10.4 + variety * 2.8,
-                    ][index];
-                    let across = [-0.8, 1.9 + size, -0.5 + size][index];
-                    *rock = StoneSpur::new(
-                        local_point(center, axis, along, across),
+                    let position = offset(offset(center, axis, along), shore.out, out);
+                    let rock = StoneSpur::new(
+                        position,
                         axis,
-                        [3.6 + size * 2.5, 2.6 + size * 1.45],
-                        1.45 + size * 2.9,
-                        [axis[0] * (size - 0.35), axis[1] * (size - 0.35)],
+                        [width * variation, depth * variation],
+                        height * variation,
+                        axis.map(|v| v * (fraction(seed) - 0.5)),
                         seed,
                     );
-                    let delta = subtract(rock.center, center);
+                    let delta = subtract(position, center);
                     radius = radius.max(root(dot(delta, delta)) + rock.cap_radius());
-                }
+                    rock
+                });
                 (Shape::Skerries(rocks), radius)
             }
-            LandformKind::Arch if shore.relief >= 29.5 && shore.head >= 0.013 => {
-                let height = (12.2 + shore.relief * 0.05 + variety * 3.5).min(20.0);
-                let span = 12.2 + variety * 4.1;
+            Silhouette::Arch([span, gap, depth, height, clearance, asymmetry, crown])
+                if shore.relief >= 29.5 && shore.head >= 0.013 =>
+            {
+                let height = height * variation;
                 let arch = StoneArch {
                     span,
-                    gap: span - 5.6 - variety * 1.35,
-                    thickness: 3.6 + variety * 1.3,
+                    gap: span * gap,
+                    thickness: depth,
                     height,
-                    clearance: height - (4.15 + 0.8 * variety),
-                    asymmetry: fraction(mix(key ^ 0x28ea)) * 1.8 - 0.9,
+                    clearance: height * clearance,
+                    asymmetry,
+                    crown,
                     fractures: core::array::from_fn(|station| {
                         mix(key ^ (station as u64 * 9299 + 7073)) as u8
                     }),
                     axis,
                 };
-                (Shape::Arch(arch), span + arch.thickness + 1.0)
+                (Shape::Arch(arch), span + depth + 1.0)
             }
             _ => return None,
         };
@@ -628,8 +677,25 @@ impl CoastalLandform {
             radius,
             shore,
             stone,
+            profile,
             shape,
         })
+    }
+
+    /// The same mesh used in flight, centered for the artwork gallery.
+    pub fn artwork(profile: CoastalProfile) -> Self {
+        let shore = Shore {
+            edge: [0.0; 2],
+            out: [0.0, 1.0],
+            relief: 52.0,
+            head: 0.02,
+        };
+        Self::build_profile(shore, [0.0; 2], [1.0, 0.0], Stone::GrayRock, profile, 89)
+            .expect("The artwork shelf supports all rock profiles")
+    }
+
+    pub fn profile(&self) -> CoastalProfile {
+        self.profile
     }
 
     pub fn center(&self) -> [f32; 2] {
@@ -825,8 +891,7 @@ impl CoastalLandform {
             for tx in tile_x - 1..=tile_x + 1 {
                 if BeachSite::reserved_footprint(world, seed, tx, tz).is_some_and(|beach| {
                     beach.conflicts_with(|x, z| within(self.shore.edge, [x, z], 36.0 + self.radius))
-                })
-                {
+                }) {
                     return false;
                 }
             }

@@ -10,6 +10,10 @@ use crate::ports::Port;
 use crate::world::{SEA_LEVEL, Sample, Surface, World};
 use crate::world_mesh::WorldMesh;
 
+mod designs;
+pub use designs::LighthouseDesign;
+use designs::{Design, Roof};
+
 pub const LIGHTHOUSE_TILE: i32 = 384;
 const OCTAGON: [[f32; 2]; 8] = [
     [1.0, 0.0],
@@ -119,8 +123,7 @@ pub struct Lighthouse {
     radius: f32,
     period: u16,
     phase: u16,
-    daymark: Daymark,
-    tower: TowerForm,
+    design: LighthouseDesign,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -149,22 +152,6 @@ impl TowerForm {
             _ => Self::Masonry,
         }
     }
-
-    fn dimensions(self, variety: f32) -> (f32, f32) {
-        match self {
-            Self::Masonry => (11.6 + 4.6 * variety, 2.45 + 0.36 * variety),
-            Self::Keeper => (10.4 + 2.0 * variety, 3.00 + 0.24 * variety),
-            Self::Lattice => (12.7 + 4.0 * variety, 3.02 + 0.20 * variety),
-        }
-    }
-
-    fn roof_trim(self) -> [u8; 3] {
-        match self {
-            Self::Masonry => [127, 66, 53],
-            Self::Keeper => [71, 106, 101],
-            Self::Lattice => [149, 71, 56],
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -172,35 +159,43 @@ enum Daymark {
     Whitewash,
     PaintedBands,
     RedBrick,
+    BlackBands,
 }
 
 impl Daymark {
-    fn from_site(state: u64) -> Self {
-        match mix(state ^ 0xc69b_41df_f22b_e18d) % 3 {
-            0 => Self::Whitewash,
-            1 => Self::PaintedBands,
-            _ => Self::RedBrick,
-        }
-    }
-
-    fn draw(self, mesh: &mut WorldMesh<'_>, foot: [[f32; 3]; 8], shoulder: [[f32; 3]; 8]) {
-        let whitewash = [215, 212, 193];
-        match self {
-            Self::Whitewash => shell(mesh, foot, shoulder, whitewash),
-            Self::RedBrick => shell(mesh, foot, shoulder, [161, 102, 77]),
-            Self::PaintedBands => {
-                let mut lower = foot;
-                for (level, color) in [
-                    (0.23, whitewash),
-                    (0.39, [146, 54, 46]),
-                    (0.65, whitewash),
-                    (0.82, [146, 54, 46]),
-                    (1.0, whitewash),
-                ] {
-                    let upper = core::array::from_fn(|i| lerp(foot[i], shoulder[i], level));
-                    shell(mesh, lower, upper, color);
-                    lower = upper;
-                }
+    fn draw(
+        self,
+        mesh: &mut WorldMesh<'_>,
+        start: [[f32; 3]; 8],
+        end: [[f32; 3]; 8],
+        from: f32,
+        to: f32,
+    ) {
+        let white = [215, 212, 193];
+        let stripe = match self {
+            Self::Whitewash => return shell(mesh, start, end, white),
+            Self::RedBrick => return shell(mesh, start, end, [161, 102, 77]),
+            Self::PaintedBands => [146, 54, 46],
+            Self::BlackBands => [55, 63, 67],
+        };
+        let mut lower = start;
+        for (level, color) in [
+            (0.23, white),
+            (0.39, stripe),
+            (0.65, white),
+            (0.82, stripe),
+            (1.0, white),
+        ] {
+            if level <= from {
+                continue;
+            }
+            let upper = core::array::from_fn(|i| {
+                lerp(start[i], end[i], ((level - from) / (to - from)).min(1.0))
+            });
+            shell(mesh, lower, upper, color);
+            lower = upper;
+            if level >= to {
+                break;
             }
         }
     }
@@ -281,7 +276,10 @@ impl Lighthouse {
         }
         let variety = fraction(state);
         let tower = TowerForm::on_headland(high, state);
-        let (gallery_height, radius) = tower.dimensions(variety);
+        let design = LighthouseDesign::choose(tower, mix(state ^ 0x36ea));
+        let spec = design.spec();
+        let gallery_height = spec.height * (0.96 + variety * 0.08);
+        let radius = spec.radius;
         let period =
             (TICKS_PER_SECOND * 7 + ((state >> 17) as u32 % (TICKS_PER_SECOND * 4))) as u16;
         Some(Self {
@@ -293,9 +291,31 @@ impl Lighthouse {
             radius,
             period,
             phase: ((state >> 30) % u64::from(period)) as u16,
-            daymark: Daymark::from_site(state),
-            tower,
+            design,
         })
+    }
+
+    pub fn design(&self) -> LighthouseDesign {
+        self.design
+    }
+
+    /// Builds the real tower mesh above a level footing for the artwork catalog.
+    pub fn artwork(design: LighthouseDesign) -> Self {
+        let spec = design.spec();
+        Self {
+            center: [0.0; 2],
+            approach: [0.0, -23.0],
+            headland: Headland {
+                edge: [0.0, 56.0],
+                out: [0.0, 1.0],
+            },
+            foundation: [-0.35, 0.19],
+            gallery_height: spec.height,
+            radius: spec.radius,
+            period: (TICKS_PER_SECOND * 8) as u16,
+            phase: 0,
+            design,
+        }
     }
 
     pub fn center(&self) -> [f32; 2] {
@@ -322,14 +342,20 @@ impl Lighthouse {
         ]
     }
 
-    pub fn screen_bounds(&self, camera: crate::render::Camera, dimensions: (usize, usize))
-        -> Option<crate::render::ScreenRect>
-    {
+    pub fn screen_bounds(
+        &self,
+        camera: crate::render::Camera,
+        dimensions: (usize, usize),
+    ) -> Option<crate::render::ScreenRect> {
         let [left, near, right, far] = self.bounds();
-        crate::render::screen_region(camera, dimensions, [
-            [left, self.foundation[0] - 0.05, near],
-            [right, self.foundation[1] + self.gallery_height + 4.2, far],
-        ])
+        crate::render::screen_region(
+            camera,
+            dimensions,
+            [
+                [left, self.foundation[0] - 0.05, near],
+                [right, self.foundation[1] + self.gallery_height + 4.2, far],
+            ],
+        )
     }
 
     pub fn clears_port(&self, port: &Port) -> bool {
@@ -347,7 +373,8 @@ impl Lighthouse {
         for z in tz - 1..=tz + 1 {
             for x in tx - 1..=tx + 1 {
                 if CoastalLandform::generate(world, seed, x, z)
-                    .is_some_and(|rock| !self.clears_landform(&rock)) {
+                    .is_some_and(|rock| !self.clears_landform(&rock))
+                {
                     return false;
                 }
             }
@@ -423,43 +450,55 @@ impl Lighthouse {
         let base = self.foundation[1];
         let deck = base + self.gallery_height;
         let stone = [118, 117, 108];
-        let painted_trim = self.tower.roof_trim();
+        let spec = self.design.spec();
+        let tower = self.design.form();
+        let painted_trim = spec.trim;
         let frame = [58, 70, 73];
         let center = self.center;
-        let (shaft_section, taper) = match self.tower {
-            TowerForm::Masonry => (OCTAGON, 0.68),
-            TowerForm::Keeper => (SQUARE, 0.98),
-            TowerForm::Lattice => (SQUARE, 0.56),
+        let shaft_section = match tower {
+            TowerForm::Masonry => OCTAGON,
+            TowerForm::Keeper | TowerForm::Lattice => SQUARE,
         };
-        let lantern_radius = self.radius.min(2.72);
+        let lantern_radius = (self.radius * 0.88).clamp(1.75, 2.80);
         let lower = ring(center, self.foundation[0], PLINTH);
-        let plinth = ring(center, base, PLINTH * 0.89);
+        let plinth = ring(center, base, PLINTH * 0.94);
         let foot = polygon(center, base, self.radius, shaft_section);
-        let shoulder = polygon(center, deck - 0.55, self.radius * taper, shaft_section);
-        let ledge = ring(center, deck, lantern_radius * 0.91);
-        let lower_glass = ring(center, deck + 0.16, lantern_radius * 0.68);
-        let upper_glass = ring(center, deck + 2.08, lantern_radius * 0.68);
-        let eave = ring(center, deck + 2.24, lantern_radius * 0.88);
-        let crown = ring(center, deck + 3.50, lantern_radius * 0.16);
+        let shoulder = polygon(center, deck - 0.55, self.radius * spec.taper, shaft_section);
+        let middle = polygon(
+            center,
+            base + (self.gallery_height - 0.55) * spec.break_at,
+            self.radius * spec.waist,
+            shaft_section,
+        );
+        let ledge = ring(center, deck, lantern_radius * 1.06);
+        let lower_glass = ring(center, deck + 0.16, lantern_radius * 0.67);
+        let upper_glass = ring(center, deck + 2.08, lantern_radius * 0.67);
         shell(mesh, lower, plinth, stone);
         shell(mesh, plinth, foot, [151, 145, 128]);
-        match self.tower {
-            TowerForm::Masonry => self.daymark.draw(mesh, foot, shoulder),
-            TowerForm::Keeper => {
-                let cap = core::array::from_fn(|i| lerp(foot[i], shoulder[i], 0.93));
-                shell(mesh, foot, cap, [178, 137, 107]);
-                shell(mesh, cap, shoulder, [220, 213, 183]);
+        match tower {
+            TowerForm::Masonry | TowerForm::Keeper => {
+                spec.mark.draw(mesh, foot, middle, 0.0, spec.break_at);
+                spec.mark.draw(mesh, middle, shoulder, spec.break_at, 1.0);
+                if tower == TowerForm::Keeper {
+                    draw_balcony(
+                        mesh,
+                        center,
+                        middle[0][1],
+                        (self.radius * spec.waist * 1.08).min(3.52),
+                        painted_trim,
+                    );
+                }
             }
-            TowerForm::Lattice => draw_lattice(mesh, foot, shoulder),
+            TowerForm::Lattice => {
+                draw_lattice(mesh, foot, shoulder);
+                let radius = (self.radius * spec.waist).min(3.30);
+                draw_balcony(mesh, center, middle[0][1], radius, painted_trim);
+            }
         }
         shell(mesh, shoulder, ledge, painted_trim);
         shell(mesh, ledge, lower_glass, [115, 111, 97]);
         shell(mesh, lower_glass, upper_glass, frame);
-        shell(mesh, upper_glass, eave, [95, 59, 51]);
-        shell(mesh, eave, crown, painted_trim);
-        for i in 1..7 {
-            mesh.lit_triangle([crown[0], crown[i + 1], crown[i]], painted_trim);
-        }
+        draw_roof(mesh, center, deck, lantern_radius, upper_glass, spec);
 
         let inland = [-self.headland.out[0], -self.headland.out[1]];
         let mut entrance = 0;
@@ -483,9 +522,9 @@ impl Lighthouse {
             mesh.luminous_triangle([a, b, c], color, emission);
             mesh.luminous_triangle([a, c, d], color, emission);
         }
-        if self.tower != TowerForm::Lattice {
-            let door = window(foot, shoulder, entrance, 0.24, 0.0, 0.06);
-            let upper = 2.03 / (self.gallery_height - 0.55);
+        if tower != TowerForm::Lattice {
+            let door = window(foot, middle, entrance, 0.24, 0.0, 0.06);
+            let upper = (2.03 / ((self.gallery_height - 0.55) * spec.break_at)).min(1.0);
             let entry = [
                 door[0],
                 door[1],
@@ -568,15 +607,74 @@ fn polygon(center: [f32; 2], height: f32, radius: f32, section: [[f32; 2]; 8]) -
     })
 }
 
+fn draw_balcony(
+    mesh: &mut WorldMesh<'_>,
+    center: [f32; 2],
+    height: f32,
+    radius: f32,
+    tint: [u8; 3],
+) {
+    let bottom = ring(center, height - 0.24, radius * 0.90);
+    let top = ring(center, height, radius);
+    shell(mesh, bottom, top, tint);
+    for i in 1..7 {
+        mesh.lit_triangle([top[0], top[i + 1], top[i]], tint);
+    }
+}
+
+fn draw_roof(
+    mesh: &mut WorldMesh<'_>,
+    center: [f32; 2],
+    deck: f32,
+    radius: f32,
+    glass: [[f32; 3]; 8],
+    spec: Design,
+) {
+    let square = if matches!(spec.roof, Roof::Pyramid) {
+        SQUARE
+    } else {
+        OCTAGON
+    };
+    let profile: &[[f32; 2]] = match spec.roof {
+        Roof::Flat => &[[2.25, 0.93], [2.66, 0.93]],
+        Roof::Cone => &[[2.24, 0.88], [3.96, 0.09]],
+        Roof::Dome => &[[2.24, 0.86], [2.89, 0.79], [3.48, 0.46], [3.61, 0.16]],
+        Roof::Pyramid => &[[2.25, 1.00], [3.85, 0.08]],
+        Roof::Cupola => &[
+            [2.24, 0.86],
+            [2.55, 0.91],
+            [3.13, 0.62],
+            [3.22, 0.29],
+            [3.94, 0.15],
+        ],
+    };
+    let mut lower = glass;
+    for &[height, width] in profile {
+        let upper = polygon(center, deck + height, radius * width, square);
+        shell(mesh, lower, upper, spec.trim);
+        lower = upper;
+    }
+    for i in 1..7 {
+        mesh.lit_triangle([lower[0], lower[i + 1], lower[i]], spec.trim);
+    }
+}
+
 fn draw_lattice(mesh: &mut WorldMesh<'_>, foot: [[f32; 3]; 8], shoulder: [[f32; 3]; 8]) {
     let steel = [111, 129, 129];
     for a in [1, 3, 5, 7] {
         let b = (a + 2) & 7;
         for (from, to) in [(a, b), (b, a)] {
-            quad(mesh, [
-                foot[from], lerp(foot[from], foot[to], 0.12),
-                lerp(shoulder[from], shoulder[to], 0.16), shoulder[from],
-            ], steel, true);
+            quad(
+                mesh,
+                [
+                    foot[from],
+                    lerp(foot[from], foot[to], 0.12),
+                    lerp(shoulder[from], shoulder[to], 0.16),
+                    shoulder[from],
+                ],
+                steel,
+                true,
+            );
         }
         let mid_b = lerp(foot[b], shoulder[b], 0.52);
         for (mut lower, mut upper) in [(foot[a], mid_b), (mid_b, shoulder[a])] {
@@ -735,15 +833,17 @@ mod tests {
             (0, -9, 6, TowerForm::Masonry),
             (0, -3, -3, TowerForm::Keeper),
             (1, -7, -12, TowerForm::Lattice),
-        ].map(|(seed, tile_x, tile_z, form)| {
+        ]
+        .map(|(seed, tile_x, tile_z, form)| {
             let world = World::new(seed);
             let plan = Lighthouse::generate(&world, seed, tile_x, tile_z).unwrap();
-            assert_eq!(plan.tower, form);
+            assert_eq!(plan.design.form(), form);
             assert!(foundation(&world, plan.center()).is_some());
             assert!(accessible(&world, plan.center(), plan.approach()));
             let [x, z] = plan.center();
-            assert!(plan.obstruction(x, z).unwrap()
-                > plan.foundation[1] + plan.gallery_height + 3.50);
+            assert!(
+                plan.obstruction(x, z).unwrap() > plan.foundation[1] + plan.gallery_height + 3.50
+            );
             let camera = Camera {
                 x: x + 24.0,
                 z: z - 30.0,
@@ -757,7 +857,8 @@ mod tests {
             let mut depth = [u16::MAX; COUNT];
             plan.draw(
                 &mut WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), camera, &sky).unwrap(),
-                sky.daylight, 0,
+                sky.daylight,
+                0,
             );
             let mask = pixels.map(|pixel| pixel != 0);
             assert!(mask.iter().filter(|&&pixel| pixel).count() > 90);

@@ -682,7 +682,9 @@ mod quarry_tests {
                     let raw = world.sample(px, pz);
                     let developed = district.overlay(px, pz, raw);
                     matches!(overlay_facilities(&owner, px, pz, raw, developed).surface,
-                        crate::world::Surface::PitchedRoof | crate::world::Surface::FlatRoof)
+                        crate::world::Surface::PitchedRoof | crate::world::Surface::FlatRoof
+                        | crate::world::Surface::IndustryBrick | crate::world::Surface::IndustryConcrete
+                        | crate::world::Surface::IndustryMetal)
                 })
             });
             assert!(has_roof, "{kind:?} did not add a visible roof");

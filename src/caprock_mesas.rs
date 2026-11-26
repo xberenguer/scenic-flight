@@ -1,8 +1,11 @@
-//! Paired caprock remnants on surveyed dry plateau shoulders.
+//! Eroded caprock remnants on surveyed dry plateau shoulders.
 
 use crate::dry_landmarks::DRY_LANDMARK_TILE;
 use crate::math::{fraction, mix, sin_cos, smoothstep};
 use crate::world::{Sample, Surface, World};
+
+mod profiles;
+pub use profiles::MesaProfile;
 
 const AXES: [[f32; 2]; 8] = [
     [1.0, 0.0],
@@ -23,6 +26,7 @@ struct Remnant {
     level: f32,
     tilt: f32,
     corners: f32,
+    profile: MesaProfile,
 }
 
 impl Remnant {
@@ -80,21 +84,42 @@ impl Remnant {
             return ground;
         }
         let top = self.level + self.tilt * u + 0.26 * v;
-        let bench = smoothstep((0.87 - radius) * (1.0 / 0.29));
-        let apron = smoothstep((1.0 - radius) * (1.0 / 0.42));
+        let (relief, crown) = self.profile.relief(u, v, radius);
         let support = smoothstep((ground.elevation - 15.0) * (1.0 / 3.0))
             * smoothstep((61.0 - ground.elevation) * (1.0 / 3.0));
         let rise =
-            (top - ground.elevation).clamp(0.0, 20.0) * (0.79 * bench + 0.21 * apron) * support;
-        let elevation = ground.elevation + rise;
-        let surface = if radius < 0.62 && rise > 1.4 {
-            Surface::Gravel
-        } else if rise > 2.8 && top - elevation < 6.2 {
-            Surface::DuneSand
+            (top - ground.elevation).clamp(0.0, 20.0) * relief * support;
+        let surface = MesaProfile::material(relief, crown, rise).unwrap_or(ground.surface);
+        Sample { elevation: ground.elevation + rise, surface }
+    }
+}
+
+impl MesaProfile {
+    fn relief(self, u: f32, v: f32, radius: f32) -> (f32, f32) {
+        let apron = smoothstep((1.0 - radius) * (1.0 / 0.48));
+        let crown = self.crown(u, v, radius);
+        let rim = smoothstep((1.0 - radius) * (1.0 / 0.19));
+        (0.25 * apron + 0.75 * crown * rim, crown)
+    }
+
+    fn material(relief: f32, crown: f32, rise: f32) -> Option<Surface> {
+        if rise <= 0.24 { return None; }
+        Some(if crown >= 0.82 && relief > 0.78 {
+            Surface::MesaCap
+        } else if crown > 0.29 && rise >= 1.9 {
+            Surface::MesaCliff
         } else {
-            ground.surface
-        };
-        Sample { elevation, surface }
+            Surface::MesaApron
+        })
+    }
+
+    /// Sample the same normalized relief and materials used by surveyed remnants.
+    pub fn study(self, u: f32, v: f32) -> Option<(f32, Surface)> {
+        let [a, b] = [u.abs(), v.abs()];
+        let radius = a.max(b) + 0.28 * a.min(b);
+        if radius >= 1.0 { return None; }
+        let (relief, crown) = self.relief(u, v, radius);
+        Self::material(relief, crown, 14.0 * relief).map(|surface| (relief, surface))
     }
 }
 
@@ -166,6 +191,7 @@ impl CaprockMesa {
                     descent[1] * cosine + descent[0] * sine,
                 ];
                 let level = floor + 9.75 + 4.8 * fraction(mix(key ^ 0x775b));
+                let [main_profile, companion_profile] = MesaProfile::pair(mix(key ^ 0xc714));
                 let mesa = Remnant {
                     center,
                     axis,
@@ -176,6 +202,7 @@ impl CaprockMesa {
                     level,
                     tilt: (fraction(mix(key ^ 0x7832)) - 0.5) * 1.16,
                     corners: 0.21 + 0.15 * fraction(mix(key ^ 0xfe86)),
+                    profile: main_profile,
                 };
                 let first_bank = if key & 1 == 0 { -1.0 } else { 1.0 };
                 for side in [first_bank, -first_bank] {
@@ -204,6 +231,7 @@ impl CaprockMesa {
                         level: butte_level,
                         tilt: mesa.tilt * -0.5,
                         corners: 0.29 + 0.17 * fraction(mix(key ^ 0x8772)),
+                        profile: companion_profile,
                     };
                     let [a, b, c, d] = mesa.bounds();
                     let [e, f, g, h] = butte.bounds();
@@ -235,6 +263,10 @@ impl CaprockMesa {
 
     pub fn centers(&self) -> [[f32; 2]; 2] {
         self.remnants.map(|remnant| remnant.center)
+    }
+
+    pub fn profiles(&self) -> [MesaProfile; 2] {
+        self.remnants.map(|remnant| remnant.profile)
     }
 
     pub fn downhill(&self) -> [f32; 2] {
@@ -275,7 +307,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn both_remnants_have_level_dry_caps_and_keep_the_saddle_open() {
+    fn both_remnants_keep_dry_caps_and_the_saddle_open() {
         for (seed, [tx, tz]) in [(1, [1, -1]), (1, [-4, -12]), (2, [1, 5])] {
             let world = World::new(seed);
             let mesa = CaprockMesa::generate(&world, seed, tx, tz).unwrap();
@@ -290,14 +322,15 @@ mod tests {
                 let raw = world.sample(x, z);
                 let fill = mesa.overlay(x, z, raw);
                 assert!(fill.elevation > raw.elevation + 5.5);
-                assert_eq!(fill.surface, Surface::Gravel);
+                assert_eq!(fill.surface, Surface::MesaCap);
                 for along in [-5.0, 0.0, 5.0] {
                     for across in [-5.0, 0.0, 5.0] {
                         let [x, z] = shifted(remnant.center, remnant.axis, along, across);
                         let raw = world.sample(x, z);
                         let lift = mesa.overlay(x, z, raw);
                         assert_eq!(raw.surface, Surface::Desert);
-                        assert!((lift.elevation - remnant.level).abs() < 0.41);
+                        assert!(lift.elevation >= raw.elevation);
+                        assert!(lift.elevation <= remnant.level + 0.80);
                     }
                 }
             }
@@ -322,5 +355,33 @@ mod tests {
             }
             assert!(altered > 6000);
         }
+    }
+
+    #[test]
+    fn all_profiles_make_distinct_heightfields_and_blend_to_the_footprint_edge() {
+        use std::collections::HashSet;
+
+        let mut profiles = HashSet::new();
+        for index in 0..MesaProfile::COUNT {
+            let profile = MesaProfile::from_index(index).unwrap();
+            let mut levels = [0_u8; 25 * 25];
+            for (point, level) in levels.iter_mut().enumerate() {
+                let u = (point % 25) as f32 / 12.0 - 1.0;
+                let v = (point / 25) as f32 / 12.0 - 1.0;
+                let [a, b] = [u.abs(), v.abs()];
+                let rim = a.max(b) + 0.28 * a.min(b);
+                if let Some((lift, surface)) = profile.study(u, v) {
+                    assert!(rim < 1.0 && (0.0..=1.0).contains(&lift));
+                    assert!(surface.sandstone_color().is_some());
+                    *level = (lift * 18.0) as u8;
+                } else if rim < 1.0 {
+                    assert!(profile.relief(u, v, rim).0 < 0.018);
+                }
+            }
+            assert!(levels.iter().any(|&height| height >= 16), "{}", profile.name());
+            assert!(profiles.insert(levels), "Duplicate profile {}", profile.name());
+            assert_eq!(profile.relief(1.0, 0.0, 1.0).0, 0.0);
+        }
+        assert_eq!(profiles.len(), 25);
     }
 }

@@ -48,7 +48,7 @@ pub mod natural_stream;
 pub mod outwash_fans;
 pub mod ports;
 mod point_bars;
-mod river_islands;
+pub mod river_islands;
 
 pub mod quayside;
 pub mod rail;

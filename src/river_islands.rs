@@ -1,8 +1,11 @@
 //! Small vegetated sediment islands with a surveyed wet passage on each side.
 
 use crate::math::{fraction, mix, smoothstep};
-use crate::watershed::{Reach, RiverSample, Watershed, REGION_SIZE};
-use crate::world::{Sample, Surface, World, SEA_LEVEL};
+use crate::watershed::{REGION_SIZE, Reach, RiverSample, Watershed};
+use crate::world::{SEA_LEVEL, Sample, Surface, World};
+
+mod profiles;
+pub use profiles::IslandProfile;
 
 const MIN_HALF_CHANNEL: f32 = 3.65;
 const WATER_PASSAGE: f32 = 1.55;
@@ -16,6 +19,8 @@ pub(crate) struct RiverIsland {
     inverse_width: f32,
     bend: f32,
     crest: f32,
+    profile: IslandProfile,
+    mirrored: f32,
     bounds: [f32; 4],
 }
 
@@ -77,9 +82,17 @@ impl RiverIsland {
         let axis = [dx / length, dz / length];
         let center = [(first[0] + last[0]) * 0.5, (first[1] + last[1]) * 0.5];
         let bend = (middle[1] - center[1]) * axis[0] - (middle[0] - center[0]) * axis[1];
+        let profile = IslandProfile::choose(mix(key ^ 0x570a_d26b));
+        let spec = profile.spec();
         let half_length = length * (0.42 + 0.075 * fraction(key));
-        let half_width = wet.half_width * (0.46 + 0.09 * fraction(mix(key)));
-        let spread = bend.abs() + half_width;
+        let half_width = wet.half_width * (0.43 + 0.08 * fraction(mix(key)));
+        let extent = spec
+            .width
+            .into_iter()
+            .zip(spec.shift)
+            .map(|(w, s)| w + s.abs())
+            .fold(0.0, f32::max);
+        let spread = bend.abs() + extent * half_width;
         let width = axis[0].abs() * half_length + axis[1].abs() * spread;
         let depth = axis[1].abs() * half_length + axis[0].abs() * spread;
         let bounds = [
@@ -100,14 +113,27 @@ impl RiverIsland {
             inverse_length: 1.0 / half_length,
             inverse_width: 1.0 / half_width,
             bend,
-            crest: 0.62 + 0.33 * fraction(mix(key ^ 0x2a98)),
+            crest: spec.crest,
+            profile,
+            mirrored: if key & 1 == 0 { -1.0 } else { 1.0 },
             bounds,
         })
     }
 
+    pub(crate) fn profile(&self) -> IslandProfile {
+        self.profile
+    }
+
+    pub(crate) fn center(&self) -> [f32; 2] {
+        self.center
+    }
+
     fn point(&self, along: f32, lateral: f32) -> [f32; 2] {
         let forward = along / self.inverse_length;
-        let across = self.bend * (1.0 - along * along) + lateral;
+        let (_, shift) = cross_section(self.profile, along);
+        let across = self.bend * (1.0 - along * along)
+            + shift * self.mirrored / self.inverse_width
+            + lateral;
         [
             self.center[0] + self.axis[0] * forward - self.axis[1] * across,
             self.center[1] + self.axis[1] * forward + self.axis[0] * across,
@@ -127,7 +153,7 @@ impl RiverIsland {
         for row in 0..=rows {
             pulse();
             let along = 2.0 * row as f32 / rows as f32 - 1.0;
-            let width = (1.0 - along * along) / self.inverse_width;
+            let width = cross_section(self.profile, along).0 / self.inverse_width;
             let center = self.point(along, 0.0);
             let Some(level) = channel_level(water, center, world, reserved) else {
                 return false;
@@ -175,8 +201,11 @@ impl RiverIsland {
                     | Surface::Sand
                     | Surface::Desert
                     | Surface::Rock
-                    | Surface::TreeCanopy | Surface::SpruceCanopy | Surface::AspenCanopy
-                    | Surface::MapleCanopy | Surface::JuniperCanopy
+                    | Surface::TreeCanopy
+                    | Surface::SpruceCanopy
+                    | Surface::AspenCanopy
+                    | Surface::MapleCanopy
+                    | Surface::JuniperCanopy
                     | Surface::WetMeadow
             )
         {
@@ -185,25 +214,64 @@ impl RiverIsland {
         let dx = x - self.center[0];
         let dz = z - self.center[1];
         let along = (dx * self.axis[0] + dz * self.axis[1]) * self.inverse_length;
-        let taper = 1.0 - along * along;
-        let across = dz * self.axis[0] - dx * self.axis[1] - self.bend * taper;
-        let inset = taper - across.abs() * self.inverse_width;
-        if inset <= 0.0 {
-            return covered;
-        }
-        let rise = self.crest * smoothstep(inset);
-        let surface = if inset > 0.51 {
-            Surface::ReedMarsh
-        } else if inset > 0.29 {
-            Surface::WetMeadow
-        } else {
-            Surface::RiverSilt
-        };
-        Sample {
-            elevation: covered.elevation + rise,
-            surface,
-        }
+        let lateral = (dz * self.axis[0] - dx * self.axis[1] - self.bend * (1.0 - along * along))
+            * self.inverse_width;
+        form_sample(
+            self.profile,
+            along,
+            lateral * self.mirrored,
+            covered.elevation,
+            self.crest,
+        )
+        .unwrap_or(covered)
     }
+}
+
+impl IslandProfile {
+    /// Height and material of a normalized island for the artwork projection.
+    pub fn artwork(self, along: f32, lateral: f32) -> Option<Sample> {
+        form_sample(self, along, lateral, 0.0, self.spec().crest)
+    }
+}
+
+fn cross_section(profile: IslandProfile, along: f32) -> (f32, f32) {
+    let spec = profile.spec();
+    let t = (along + 1.0).clamp(0.0, 2.0) * 2.0;
+    let i = (t as usize).min(3);
+    let fraction = t - i as f32;
+    let width = spec.width[i] + (spec.width[i + 1] - spec.width[i]) * fraction;
+    let shift = spec.shift[i] + (spec.shift[i + 1] - spec.shift[i]) * fraction;
+    (width, shift)
+}
+
+fn form_sample(
+    profile: IslandProfile,
+    along: f32,
+    lateral: f32,
+    level: f32,
+    crest: f32,
+) -> Option<Sample> {
+    if along.abs() >= 1.0 {
+        return None;
+    }
+    let spec = profile.spec();
+    let (width, shift) = cross_section(profile, along);
+    let inset = width - (lateral - shift).abs();
+    if inset <= 0.0 {
+        return None;
+    }
+    let lift = smoothstep(inset);
+    let surface = if inset > 0.53 {
+        spec.core
+    } else if inset > 0.28 {
+        spec.cover
+    } else {
+        spec.rim
+    };
+    Some(Sample {
+        elevation: level + crest * lift,
+        surface,
+    })
 }
 
 fn channel_level(
@@ -265,7 +333,7 @@ mod tests {
         assert_eq!(island.bounds(), bounds);
         for row in -112..=112 {
             let along = row as f32 * 0.009;
-            let half_width = (1.0 - along * along).max(0.0) / island.inverse_width;
+            let half_width = cross_section(island.profile, along).0 / island.inverse_width;
             for sign in [-1.0, 1.0] {
                 for lane in 1..=6 {
                     let [x, z] = island.point(along, sign * (half_width + lane as f32 * 0.23));

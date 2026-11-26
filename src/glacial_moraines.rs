@@ -4,6 +4,9 @@ use crate::alpine_lakes::ALPINE_TILE_SIZE;
 use crate::math::{fraction, mix, sin_cos, smoothstep};
 use crate::world::{Sample, Surface, World};
 
+mod profiles;
+pub use profiles::MoraineProfile;
+
 const S: f32 = 0.866_025_4;
 const DIRECTIONS: [[f32; 2]; 12] = [
     [1.0, 0.0],
@@ -32,6 +35,7 @@ pub struct GlacialMoraine {
     outlet: [f32; 2],
     base_height: f32,
     relief: f32,
+    design: MoraineProfile,
 }
 
 impl GlacialMoraine {
@@ -136,6 +140,7 @@ impl GlacialMoraine {
                     outlet,
                     base_height: ground,
                     relief: 5.9 + 3.4 * fraction(mix(design ^ 0xbe32)),
+                    design: MoraineProfile::choose(mix(design ^ 0xaa1f)),
                 };
                 if plan.prove_banks(at, ground, pulse) {
                     return Some(plan);
@@ -143,6 +148,10 @@ impl GlacialMoraine {
             }
         }
         None
+    }
+
+    pub fn design(&self) -> MoraineProfile {
+        self.design
     }
 
     pub fn center(&self) -> [f32; 2] {
@@ -215,20 +224,62 @@ impl GlacialMoraine {
         }
         let arc = smoothstep((1.0 - cross.abs()) * 3.35)
             * smoothstep((from_outlet - 11.0) * (1.0 / 12.0));
-        // Meltwater reshapes the downhill face. Leave the upstream apron longer.
-        let profile = smoothstep(1.0 - offset.abs()) * (1.0 - 0.24 * offset);
+        let (profile, gravel) = self.design.shape(cross, offset);
         let support = smoothstep((ground.elevation - 65.0) * (1.0 / 5.0))
             * smoothstep((self.base_height + 30.0 - ground.elevation) * (1.0 / 8.0));
         let amplitude = arc * profile * support;
         let rise = self.relief * amplitude;
         Sample {
             elevation: ground.elevation + rise,
-            surface: if amplitude > 0.50 {
+            surface: if gravel && amplitude > 0.45 {
                 Surface::Gravel
+            } else if amplitude > 0.55 {
+                Surface::ScreeFine
             } else {
                 ground.surface
             },
         }
+    }
+}
+
+impl MoraineProfile {
+    fn shape(self, cross: f32, offset: f32) -> (f32, bool) {
+        let shape = self.spec();
+        let [shift, height] = shape.section(cross);
+        let at = offset - shift;
+        let main = smoothstep(1.0 - at.abs() / shape.shoulder) * (1.0 - shape.steepness * at);
+        // A lower parallel ridge leaves a shallow hollow instead of filling
+        // the surveyed notch. Both profiles fade inside the original bounds.
+        let outer = smoothstep(1.0 - (at - 0.62).abs() * (1.0 / 0.32)) * shape.twin;
+        let trough = if shape.twin > 0.0 {
+            1.0 - 0.5 * smoothstep(1.0 - (at - 0.37).abs() * 5.5)
+        } else {
+            1.0
+        };
+        let envelope = smoothstep((1.0 - offset.abs()) * 5.5);
+        let profile = (main * trough).max(outer) * height * envelope;
+        (profile, main * trough >= outer)
+    }
+
+    /// Sample the same ridges and the open meltwater notch for the artwork atlas.
+    pub fn artwork(self, cross: f32, along: f32) -> Option<Sample> {
+        let forward = along + 0.52 * cross * cross;
+        let open = cross.abs() - 0.23;
+        if cross.abs() >= 1.0 || forward.abs() >= 1.0 || open <= 0.0 {
+            return None;
+        }
+        let (profile, gravel) = self.shape(cross, forward);
+        let relief = profile * smoothstep(open * 4.0) * smoothstep((1.0 - cross.abs()) * 3.35);
+        (relief > 0.045).then_some(Sample {
+            elevation: relief * 6.5,
+            surface: if gravel && relief > 0.38 {
+                Surface::Gravel
+            } else if relief > 0.40 {
+                Surface::ScreeFine
+            } else {
+                Surface::AlpineMeadow
+            },
+        })
     }
 }
 

@@ -1,8 +1,12 @@
 //! Raised bridge plans fitted to saved road alignments and water geometry.
 
-use crate::roads::{RoadNetwork, RoadPoint, ROAD_HALF_WIDTH};
+use crate::roads::{ROAD_HALF_WIDTH, RoadNetwork, RoadPoint};
 use crate::watershed::Watershed;
-use crate::world::{World, SEA_LEVEL};
+use crate::world::{SEA_LEVEL, World};
+
+mod designs;
+pub use designs::BridgeDesign;
+use designs::Web;
 
 const BRIDGE_LIMIT: usize = 3;
 const HALF_WIDTH: f32 = ROAD_HALF_WIDTH + 0.18;
@@ -54,6 +58,7 @@ pub struct Bridge {
     axis: [f32; 2],
     bank_floor: [f32; 2],
     high_water: f32,
+    design: BridgeDesign,
 }
 
 impl Bridge {
@@ -65,6 +70,7 @@ impl Bridge {
         axis: [0.0; 2],
         bank_floor: [0.0; 2],
         high_water: SEA_LEVEL,
+        design: BridgeDesign::DEFAULT,
     };
 
     /// Fit one short coastal crossing to a straight chord between dry approaches.
@@ -81,13 +87,26 @@ impl Bridge {
             return None;
         }
         let line = Line::between(
-            RoadPoint { x: start[0], z: start[1], elevation: SEA_LEVEL },
-            RoadPoint { x: end[0], z: end[1], elevation: SEA_LEVEL },
+            RoadPoint {
+                x: start[0],
+                z: start[1],
+                elevation: SEA_LEVEL,
+            },
+            RoadPoint {
+                x: end[0],
+                z: end[1],
+                elevation: SEA_LEVEL,
+            },
         )?;
         if line.length > COASTAL_MAX_CHORD {
             return None;
         }
-        let fit = Fit { world, watershed: None, allow_sea_narrows: true, coastal: true };
+        let fit = Fit {
+            world,
+            watershed: None,
+            allow_sea_narrows: true,
+            coastal: true,
+        };
         let [a, b] = fit.single_coastal_run(line, &mut pulse)?;
         let bridge = fit.bridge(line, a, b, BridgeWater::SeaNarrows, &mut pulse)?;
         if !bridge.prove_coastal_footprint(world, &mut blocked, &mut pulse)
@@ -96,6 +115,61 @@ impl Bridge {
             return None;
         }
         Some(bridge)
+    }
+
+    pub fn design(&self) -> BridgeDesign {
+        self.design
+    }
+
+    /// The rendered sidework also supplies the horizon outline and clearance.
+    pub(crate) fn sidework_height(&self) -> f32 {
+        let spec = self.design.spec();
+        match self.style {
+            BridgeStyle::LowGirder => spec.height,
+            BridgeStyle::SmallTruss => (self.span() * spec.height).clamp(1.10, 4.55),
+        }
+    }
+
+    pub(crate) fn sidework_outline(&self, fraction: f32) -> [f32; 3] {
+        let spec = self.design.spec();
+        let p = fraction * 6.0;
+        let segment = (p as usize).min(5);
+        let a = spec.nodes[segment];
+        let height = a + (spec.nodes[segment + 1] - a) * (p - segment as f32);
+        self.vertex(
+            self.along[1] + fraction * self.span(),
+            0.0,
+            self.sections[1][1] + height * self.sidework_height(),
+        )
+    }
+
+    pub(crate) fn sidework_color(&self) -> [u8; 3] {
+        self.design.spec().color
+    }
+
+    /// Render the live construction geometry in the project's artwork atlas.
+    pub fn artwork(design: BridgeDesign) -> Self {
+        let span = if design.style() == BridgeStyle::LowGirder {
+            12.0
+        } else {
+            23.0
+        };
+        let half = span * 0.5;
+        Self {
+            water: BridgeWater::River,
+            style: design.style(),
+            sections: [
+                [-half - 1.0, 0.85, 0.0],
+                [-half, 1.15, 0.0],
+                [half, 1.15, 0.0],
+                [half + 1.0, 0.85, 0.0],
+            ],
+            along: [0.0, 1.0, span + 1.0, span + 2.0],
+            axis: [1.0, 0.0],
+            bank_floor: [0.25; 2],
+            high_water: 0.0,
+            design,
+        }
     }
 
     pub fn sections(&self) -> &[[f32; 3]; 4] {
@@ -130,12 +204,8 @@ impl Bridge {
         let low = (self.sections[1][1] - DECK_THICKNESS)
             .min(self.sections[0][1].min(self.sections[3][1]))
             .min(self.bank_floor[0].min(self.bank_floor[1]) - 0.10);
-        let rise = match self.style {
-            BridgeStyle::LowGirder => 0.58,
-            BridgeStyle::SmallTruss => (self.span() * 0.10).clamp(1.35, 2.55) + 0.13,
-        };
-        let top = (self.sections[1][1] + rise)
-            .max(self.sections[0][1].max(self.sections[3][1]));
+        let rise = self.sidework_height() + 0.15;
+        let top = (self.sections[1][1] + rise).max(self.sections[0][1].max(self.sections[3][1]));
         [[left, low, near], [right, top, far]]
     }
 
@@ -145,15 +215,18 @@ impl Bridge {
 
     /// Fade the detailed geometry only when a matching distant silhouette exists.
     pub fn draw_fading(&self, mesh: &mut crate::world_mesh::WorldMesh<'_>, opacity: f32) {
-        if opacity <= 0.02 { return; }
+        if opacity <= 0.02 {
+            return;
+        }
+        let sidework = self.sidework_color();
         self.triangles(|triangle| {
             let color = match triangle.part {
                 BridgePart::Approach => [106, 103, 95],
                 BridgePart::Deck => [119, 119, 114],
                 BridgePart::Girder => [61, 80, 86],
                 BridgePart::Abutment => [129, 122, 105],
-                BridgePart::Guardrail => [177, 178, 163],
-                BridgePart::Truss => [166, 91, 71],
+                BridgePart::Guardrail if self.style == BridgeStyle::SmallTruss => [177, 178, 163],
+                BridgePart::Guardrail | BridgePart::Truss => sidework,
             };
             if opacity >= 1.0 {
                 mesh.lit_triangle(triangle.corners, color);
@@ -233,56 +306,87 @@ impl Bridge {
             self.abutment(&mut emit, end, bank);
         }
         for hand in [-1.0, 1.0] {
-            let side = hand * (HALF_WIDTH - 0.12);
-            let rail = height + 0.51;
-            self.side_member(
-                &mut emit,
+            self.sidework(&mut emit, hand * (HALF_WIDTH - 0.12));
+        }
+    }
+
+    fn sidework(&self, emit: &mut impl FnMut(BridgeTriangle), side: f32) {
+        let spec = self.design.spec();
+        let truss = self.style == BridgeStyle::SmallTruss;
+        let part = if truss {
+            BridgePart::Truss
+        } else {
+            BridgePart::Guardrail
+        };
+        let rise = self.sidework_height();
+        let height = self.sections[1][1];
+        let start = self.along[1];
+        let span = self.span();
+        let top: [[f32; 2]; 7] = core::array::from_fn(|i| {
+            [
+                start + span * (i as f32 / 6.0),
+                height + rise * spec.nodes[i],
+            ]
+        });
+        let base = |column: usize| [top[column][0], height + 0.02];
+        let member =
+            |e: &mut _, part, from, to, width| self.side_member(e, part, side, from, to, width);
+        if truss {
+            member(
+                emit,
                 BridgePart::Guardrail,
-                side,
-                [deck_start, rail],
-                [deck_end, rail],
+                [start, height + 0.50],
+                [self.along[2], height + 0.50],
                 0.12,
             );
-            if self.style == BridgeStyle::SmallTruss {
-                let top = height + (self.span() * 0.10).clamp(1.35, 2.55);
-                let bay = self.span() / 6.0;
-                self.side_member(
-                    &mut emit,
-                    BridgePart::Truss,
-                    side,
-                    [deck_start + bay, top],
-                    [deck_end - bay, top],
-                    0.25,
+        }
+        for i in 0..6 {
+            let [a, b] = [top[i], top[i + 1]];
+            if matches!(spec.web, Web::Panel) {
+                quad(
+                    emit,
+                    part,
+                    [
+                        self.vertex(a[0], side, a[1]),
+                        self.vertex(b[0], side, b[1]),
+                        self.vertex(b[0], side, height + 0.02),
+                        self.vertex(a[0], side, height + 0.02),
+                    ],
                 );
-                for i in 0..6 {
-                    let a = deck_start + i as f32 * bay;
-                    let b = deck_start + (i + 1) as f32 * bay;
-                    let section = if i % 2 == 0 {
-                        [a, height + 0.10, b, top]
-                    } else {
-                        [a, top, b, height + 0.10]
-                    };
-                    self.side_member(
-                        &mut emit,
-                        BridgePart::Truss,
-                        side,
-                        [section[0], section[1]],
-                        [section[2], section[3]],
-                        0.24,
+                continue;
+            }
+            member(emit, part, a, b, spec.member);
+            let [left, right] = [base(i), base(i + 1)];
+            match spec.web {
+                Web::Posts | Web::Vertical => {}
+                Web::Pickets => {
+                    let station = (a[0] + b[0]) * 0.5;
+                    member(
+                        emit,
+                        part,
+                        [station, height + 0.02],
+                        [station, (a[1] + b[1]) * 0.5],
+                        spec.member,
                     );
                 }
-            } else {
-                for i in 0..=4 {
-                    let at = deck_start + self.span() * (i as f32 * 0.25);
-                    self.side_member(
-                        &mut emit,
-                        BridgePart::Guardrail,
-                        side,
-                        [at, height],
-                        [at, rail],
-                        0.078,
-                    );
+                Web::Crossed => {
+                    member(emit, part, left, b, spec.member);
+                    member(emit, part, a, right, spec.member);
                 }
+                Web::Pratt if i < 3 => member(emit, part, a, right, spec.member),
+                Web::Howe if i >= 3 => member(emit, part, a, right, spec.member),
+                Web::Warren | Web::Diagonals if i % 2 != 0 => {
+                    member(emit, part, a, right, spec.member)
+                }
+                Web::Pratt | Web::Howe | Web::Warren | Web::Diagonals => {
+                    member(emit, part, left, b, spec.member)
+                }
+                Web::Panel => unreachable!(),
+            }
+        }
+        if !matches!(spec.web, Web::Panel) {
+            for (i, tip) in top.into_iter().enumerate() {
+                member(emit, part, base(i), tip, spec.member);
             }
         }
     }
@@ -306,7 +410,9 @@ impl Bridge {
             let distance = pair[1] - start;
             let steps = (distance / 0.34) as usize + 1;
             for step in 0..=steps {
-                if step & 3 == 0 { pulse(); }
+                if step & 3 == 0 {
+                    pulse();
+                }
                 let t = step as f32 / steps as f32;
                 let station = start + distance * t;
                 let a = self.sections[segment][1];
@@ -336,7 +442,11 @@ impl Bridge {
             for offset in [-0.58, -0.29, 0.0, 0.29, 0.58] {
                 pulse();
                 for side in -10..=10 {
-                    let [x, _, z] = self.vertex(bank + offset, side as f32 * ((HALF_WIDTH + 0.25) / 10.0), 0.0);
+                    let [x, _, z] = self.vertex(
+                        bank + offset,
+                        side as f32 * ((HALF_WIDTH + 0.25) / 10.0),
+                        0.0,
+                    );
                     if world.elevation(x, z) < SEA_LEVEL + COASTAL_FOOTING || blocked(x, z) {
                         return false;
                     }
@@ -435,8 +545,11 @@ impl Crossings {
     }
 
     pub(crate) fn fit_cooperatively(
-        world: &World, road: &RoadNetwork, watershed: Option<&Watershed>,
-        allow_sea_narrows: bool, pulse: &mut impl FnMut(),
+        world: &World,
+        road: &RoadNetwork,
+        watershed: Option<&Watershed>,
+        allow_sea_narrows: bool,
+        pulse: &mut impl FnMut(),
     ) -> Self {
         Self::fit_alignment(world, road.polyline(), watershed, allow_sea_narrows, pulse)
     }
@@ -534,9 +647,7 @@ fn length(x: f32, z: f32) -> f32 {
     estimate
 }
 
-fn reaches_marine_water(
-    world: &World, line: Line, middle: f32, pulse: &mut impl FnMut(),
-) -> bool {
+fn reaches_marine_water(world: &World, line: Line, middle: f32, pulse: &mut impl FnMut()) -> bool {
     const SIDE: usize = 41;
     const MID: usize = SIDE / 2;
     const STEP: f32 = 6.0;
@@ -557,7 +668,9 @@ fn reaches_marine_water(
     let mut deep = false;
     let mut open = false;
     while head < tail {
-        if head & 7 == 0 { pulse(); }
+        if head & 7 == 0 {
+            pulse();
+        }
         let index = usize::from(queue[head]);
         head += 1;
         let row = index / SIDE;
@@ -568,8 +681,10 @@ fn reaches_marine_water(
             return true;
         }
         for (r, c) in [
-            (row.wrapping_sub(1), column), (row + 1, column),
-            (row, column.wrapping_sub(1)), (row, column + 1),
+            (row.wrapping_sub(1), column),
+            (row + 1, column),
+            (row, column.wrapping_sub(1)),
+            (row, column + 1),
         ] {
             if r >= SIDE || c >= SIDE || seen[r] & (1 << c) != 0 {
                 continue;
@@ -625,7 +740,9 @@ impl Fit<'_> {
         let mut first = None;
         let mut span = None;
         for i in 0..=steps {
-            if i & 7 == 0 { pulse(); }
+            if i & 7 == 0 {
+                pulse();
+            }
             let at = i as f32 * step;
             let [x, z] = line.point(at, 0.0);
             if self.world.coast_signal(x, z) <= 0.0 {
@@ -648,7 +765,9 @@ impl Fit<'_> {
         let step = line.length / steps as f32;
         let mut run = None;
         for i in 0..=steps {
-            if i & 7 == 0 { pulse(); }
+            if i & 7 == 0 {
+                pulse();
+            }
             let along = i as f32 * step;
             let [x, z] = line.point(along, 0.0);
             let wet = self.wet(x, z);
@@ -698,7 +817,11 @@ impl Fit<'_> {
     }
 
     fn landing(
-        &self, line: Line, bank: f32, side: f32, pulse: &mut impl FnMut(),
+        &self,
+        line: Line,
+        bank: f32,
+        side: f32,
+        pulse: &mut impl FnMut(),
     ) -> Option<(f32, f32)> {
         let setbacks: &[f32] = if self.coastal {
             &[1.25, 2.25, 3.4, 4.7, 6.2, 8.0, 10.0]
@@ -706,7 +829,9 @@ impl Fit<'_> {
             &[1.25, 2.25, 3.4, 4.7]
         };
         for &setback in setbacks {
-            if self.coastal { pulse(); }
+            if self.coastal {
+                pulse();
+            }
             let at = bank + side * setback;
             if at < 0.65 || at > line.length - 0.65 {
                 continue;
@@ -743,7 +868,11 @@ impl Fit<'_> {
         } else {
             24.0
         };
-        let wet_limit = if self.coastal { COASTAL_MAX_WET } else { span_limit - 2.5 };
+        let wet_limit = if self.coastal {
+            COASTAL_MAX_WET
+        } else {
+            span_limit - 2.5
+        };
         if !(2.0..=wet_limit).contains(&wet_width) {
             return None;
         }
@@ -762,13 +891,17 @@ impl Fit<'_> {
             let [x, z] = line.point(distances[i], 0.0);
             [x, heights[i], z]
         });
+        let style = if span >= 14.0 && wet_width >= 7.0 {
+            BridgeStyle::SmallTruss
+        } else {
+            BridgeStyle::LowGirder
+        };
+        let [x, _, z] = sections[1];
+        let key = crate::math::mix((u64::from(x.to_bits()) << 32) | u64::from(z.to_bits()));
         Some(Bridge {
             water: kind,
-            style: if span >= 14.0 && wet_width >= 7.0 {
-                BridgeStyle::SmallTruss
-            } else {
-                BridgeStyle::LowGirder
-            },
+            style,
+            design: BridgeDesign::select(style, key),
             sections,
             along: distances.map(|s| s - start),
             axis: line.axis,
@@ -778,14 +911,21 @@ impl Fit<'_> {
     }
 
     fn deck_height(
-        &self, line: Line, a: f32, b: f32, kind: BridgeWater, pulse: &mut impl FnMut(),
+        &self,
+        line: Line,
+        a: f32,
+        b: f32,
+        kind: BridgeWater,
+        pulse: &mut impl FnMut(),
     ) -> Option<(f32, f32)> {
         let steps = ((b - a) / 0.90) as usize + 1;
         let mut peak_water = f32::NEG_INFINITY;
         let mut peak_dry = f32::NEG_INFINITY;
         let mut spans_channel = false;
         for step in 0..=steps {
-            if self.coastal && step & 7 == 0 { pulse(); }
+            if self.coastal && step & 7 == 0 {
+                pulse();
+            }
             let at = a + (b - a) * step as f32 / steps as f32;
             let mut all_wet = true;
             for cross in [
@@ -826,10 +966,17 @@ impl Fit<'_> {
     }
 
     fn approach(
-        &self, line: Line, deck: f32, deck_height: f32, side: f32, pulse: &mut impl FnMut(),
+        &self,
+        line: Line,
+        deck: f32,
+        deck_height: f32,
+        side: f32,
+        pulse: &mut impl FnMut(),
     ) -> Option<(f32, f32)> {
         for distance in [2.5, 3.5, 5.0, 7.0, 9.5, 12.0, 15.0, 18.5] {
-            if self.coastal { pulse(); }
+            if self.coastal {
+                pulse();
+            }
             let outer = deck + side * distance;
             if !(0.0..=line.length).contains(&outer) {
                 continue;
@@ -871,10 +1018,13 @@ mod tests {
         ] {
             let world = World::new(seed);
             let mut pulses = 0;
-            let bridge = Bridge::fit_sea_narrows(&world, a, b, |_, _| false, || pulses += 1)
-                .unwrap();
+            let bridge =
+                Bridge::fit_sea_narrows(&world, a, b, |_, _| false, || pulses += 1).unwrap();
             assert!(pulses > 0 && pulses < 500, "{pulses} pulses");
-            assert_eq!(bridge, Bridge::fit_sea_narrows(&world, a, b, |_, _| false, || {}).unwrap());
+            assert_eq!(
+                bridge,
+                Bridge::fit_sea_narrows(&world, a, b, |_, _| false, || {}).unwrap()
+            );
             assert_eq!(bridge.water, BridgeWater::SeaNarrows);
             assert_eq!(bridge.style, BridgeStyle::SmallTruss);
             assert!((45.0..=COASTAL_MAX_SPAN).contains(&bridge.span()));
@@ -886,8 +1036,8 @@ mod tests {
             }
             for (i, segment) in bridge.sections.windows(2).enumerate() {
                 let [start, end] = [segment[0], segment[1]];
-                let distance = length(end[0]-start[0], end[2]-start[2]);
-                assert!((end[1]-start[1]).abs() <= distance * APPROACH_GRADE + 0.001);
+                let distance = length(end[0] - start[0], end[2] - start[2]);
+                assert!((end[1] - start[1]).abs() <= distance * APPROACH_GRADE + 0.001);
                 let steps = (distance / 0.22) as usize + 1;
                 let mut wet = 0;
                 for step in 0..=steps {
@@ -897,7 +1047,10 @@ mod tests {
                         if world.coast_signal(x, z) <= 0.0 {
                             assert_eq!(i, 1);
                             assert!(world.coast_signal(x, z) >= -0.105);
-                            assert!(bridge.road_height(x, z).unwrap() - DECK_THICKNESS >= FREEBOARD - 0.001);
+                            assert!(
+                                bridge.road_height(x, z).unwrap() - DECK_THICKNESS
+                                    >= FREEBOARD - 0.001
+                            );
                             wet += 1;
                         }
                     }
@@ -928,22 +1081,50 @@ mod tests {
         let a = [778.5, -820.74365];
         let b = [778.5, -742.7678];
         let line = Line::between(
-            RoadPoint { x: a[0], z: a[1], elevation: 0.0 },
-            RoadPoint { x: b[0], z: b[1], elevation: 0.0 },
-        ).unwrap();
-        let fit = Fit { world: &world, watershed: None, allow_sea_narrows: true, coastal: true };
+            RoadPoint {
+                x: a[0],
+                z: a[1],
+                elevation: 0.0,
+            },
+            RoadPoint {
+                x: b[0],
+                z: b[1],
+                elevation: 0.0,
+            },
+        )
+        .unwrap();
+        let fit = Fit {
+            world: &world,
+            watershed: None,
+            allow_sea_narrows: true,
+            coastal: true,
+        };
         let [near, far] = fit.single_coastal_run(line, &mut || {}).unwrap();
-        assert!(fit.bridge(line, near, far, BridgeWater::SeaNarrows, &mut || {}).is_some());
+        assert!(
+            fit.bridge(line, near, far, BridgeWater::SeaNarrows, &mut || {})
+                .is_some()
+        );
         assert!(Bridge::fit_sea_narrows(&world, a, b, |_, _| false, || {}).is_none());
         assert!(Bridge::fit_sea_narrows(&world, a, [778.5, -600.0], |_, _| false, || {}).is_none());
-        assert!(Bridge::fit_sea_narrows(&world, [f32::NAN, a[1]], b, |_, _| false, || {}).is_none());
+        assert!(
+            Bridge::fit_sea_narrows(&world, [f32::NAN, a[1]], b, |_, _| false, || {}).is_none()
+        );
 
         let world = World::new(67);
         let a = [-1002.4393, 7594.4517];
         let b = [-880.4628, 7562.8647];
-        let dry_road = |[x, z]: [f32; 2]| RoadPoint { x, z, elevation: world.elevation(x, z) };
+        let dry_road = |[x, z]: [f32; 2]| RoadPoint {
+            x,
+            z,
+            elevation: world.elevation(x, z),
+        };
         let line = Line::between(dry_road(a), dry_road(b)).unwrap();
-        let fit = Fit { world: &world, watershed: None, allow_sea_narrows: true, coastal: true };
+        let fit = Fit {
+            world: &world,
+            watershed: None,
+            allow_sea_narrows: true,
+            coastal: true,
+        };
         let [near, far] = fit.single_coastal_run(line, &mut || {}).unwrap();
         assert!((40.0..42.0).contains(&(far - near)));
         assert!(Bridge::fit_sea_narrows(&world, a, b, |_, _| false, || {}).is_none());
@@ -964,9 +1145,11 @@ mod tests {
             let plans = Crossings::fit(&world, &road, Some(&water), false);
             assert_eq!(plans.bridges().len(), count);
             assert_eq!(plans, Crossings::fit(&world, &road, Some(&water), false));
-            assert!(Crossings::fit(&world, &road, None, false)
-                .bridges()
-                .is_empty());
+            assert!(
+                Crossings::fit(&world, &road, None, false)
+                    .bridges()
+                    .is_empty()
+            );
             for bridge in plans.bridges() {
                 assert_eq!(bridge.water, BridgeWater::River);
                 assert!(bridge.freeboard() >= FREEBOARD - 0.001);

@@ -1,6 +1,6 @@
 [package]
 name = "scenic-flight"
-version = "0.1.84"
+version = "0.1.94"
 edition = "2021"
 description = "Procedural scenic flight for desktop and embedded displays"
 

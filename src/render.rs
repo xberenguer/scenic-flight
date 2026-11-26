@@ -1978,6 +1978,9 @@ fn ground_color(
         Surface::IndustryBrick => ([135.0, 92.0, 76.0], false),
         Surface::IndustryConcrete => ([190.0, 182.0, 160.0], false),
         Surface::IndustryMetal => ([117.0, 145.0, 149.0], false),
+        Surface::MesaCap | Surface::MesaCliff | Surface::MesaApron => {
+            (surface.sandstone_color().unwrap().map(f32::from), false)
+        }
         Surface::RailTimber => ([174.0, 99.0, 52.0], false),
         Surface::RailMetal => ([226.0, 231.0, 212.0], false),
         Surface::RailGlass => ([58.0, 123.0, 167.0], false),
@@ -2455,13 +2458,18 @@ fn surface_detail(surface: Surface, [x, y, z]: [f32; 3], fade: f32) -> f32 {
             // Wide blue-white bands stay readable without turning distant crevasses into noise.
             (bands - 0.51) * if surface == Surface::GlacierIce { 0.32 } else { 0.19 }
         }
+        Surface::MesaCliff => {
+            let height = y * 0.28 + x * 0.013 - z * 0.009;
+            let strata = height - floor_i32(height) as f32;
+            0.31 * (smoothstep((strata - 0.14) * 4.0) * smoothstep((1.0 - strata) * 5.0) - 0.51)
+        }
         Surface::Snow => {
             let drifts = surface_noise(x * 0.075 + y * 0.081 + z * 0.021, z * 0.046 - y * 0.067);
             (drifts - 0.46) * 0.21
         }
         Surface::Rock | Surface::Desert | Surface::Sand
         | Surface::SaltCrust | Surface::DuneSand | Surface::DryWash
-        | Surface::GlacierMoraine => {
+        | Surface::GlacierMoraine | Surface::MesaCap | Surface::MesaApron => {
             // Samples are anchored to the terrain so the bands do not crawl under the camera.
             let layers = surface_noise(x * 0.049 + y * 0.13, z * 0.072 - y * 0.04);
             let grain = cloud_hash(floor_i32(x * 0.45), floor_i32(z * 0.45));

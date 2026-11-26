@@ -2,7 +2,7 @@
 
 use crate::math::{mix, smoothstep};
 use crate::point_bars::PointBar;
-use crate::river_islands::RiverIsland;
+use crate::river_islands::{IslandProfile, RiverIsland};
 use crate::watershed::{Reach, RiverSample, Watershed, REGION_SIZE};
 use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
@@ -114,6 +114,10 @@ impl Floodplain {
 
     pub(crate) fn island_bounds(&self) -> Option<Area> {
         self.island.as_ref().map(RiverIsland::bounds)
+    }
+
+    pub fn island_profile(&self) -> Option<(IslandProfile, [f32; 2])> {
+        self.island.as_ref().map(|site| (site.profile(), site.center()))
     }
 
     pub fn sites(&self) -> impl Iterator<Item = (FloodplainKind, Area)> + '_ {

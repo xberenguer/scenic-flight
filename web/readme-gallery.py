@@ -11,14 +11,14 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PAGES = "https://xberenguer.github.io/scenic-flight/"
-FEATURED = ("glacier-ice-pass", "eagle-wet-meadow", "linked-downtown", "high-cruise", "tram-carhouse-flyover")
+FEATURED = ('bowed-blue-icefall', 'sedge-strand-tarn', 'linked-downtown', 'high-cruise', 'paired-mountain-gondolas')
 AIRCRAFT = ("Bush Plane", "Racer", "Sport Jet", "Ultralight", "Glider",
             "F/A-18 Fighter", "SR-71 Blackbird", "Bald Eagle")
-ARTWORK = (("Floodplain details", "floodplain-details", 25), ("Industrial landmarks", "industrial-landmarks", 25), ("Alpine ground details", "alpine-ground-details", 25), ("Headland details", "headland-details", 25), ("Grassland details", "grassland-details", 25), ("Dryland details", "dryland-details", 25), ("Woodland details", "woodland-details", 25), ("Airfield buildings", "airfield-buildings", 25), ("Street buildings", "street-buildings", 25), ("Freshwater details", "freshwater-details", 25), ("Mountain details", "mountain-details", 25), ("Roadside models", "roadside-models", 30), ("Harbor models", "harbor-models", 30), ("Railway fixtures", "rail-stations", 25), ("Farm details", "farm-details", 25), ("Coastal details", "coastal-details", 25), ("Skyline landmarks", "skyline-landmarks", 50), ("Summit landmarks", "summit-landmarks", 25), ("Town landmarks", "town-landmarks", 25),
+ARTWORK = (("Glacial moraines", "moraines", 25), ("Mountain lake shores", "tarns", 25), ("Alpine glaciers", "glaciers", 25), ("River islands", "river-islands", 25), ("River and coastal bridges", "bridges", 25), ("Mountain cableways", "cableways", 25), ("Lighthouses", "lighthouses", 25), ("Coastal rock formations", "coastal-rocks", 25), ("Countryside buildings", "countryside-buildings", 25), ("Sandstone mesas", "mesa-profiles", 25), ("Floodplain details", "floodplain-details", 25), ("Industrial landmarks", "industrial-landmarks", 25), ("Alpine ground details", "alpine-ground-details", 25), ("Headland details", "headland-details", 25), ("Grassland details", "grassland-details", 25), ("Dryland details", "dryland-details", 25), ("Woodland details", "woodland-details", 25), ("Airfield buildings", "airfield-buildings", 25), ("Street buildings", "street-buildings", 25), ("Freshwater details", "freshwater-details", 25), ("Mountain details", "mountain-details", 25), ("Roadside models", "roadside-models", 30), ("Harbor models", "harbor-models", 30), ("Railway fixtures", "rail-stations", 25), ("Farm details", "farm-details", 25), ("Coastal details", "coastal-details", 25), ("Skyline landmarks", "skyline-landmarks", 50), ("Summit landmarks", "summit-landmarks", 25), ("Town landmarks", "town-landmarks", 25),
            ("Neighborhood buildings", "neighborhood-buildings", 27),
            ("Habitat details", "habitat-details", 30), ("City towers", "towers", 250), ("Trees", "trees", 256), ("Rocks", "rocks", 256), ("Bushes", "bushes", 256),
            ("Cacti", "cacti", 256), ("Freight wagons", "wagons", 250), ("Vessels", "vessels", 250), ("Service vessels", "service-vessels", 25),
-           ("Wetland plants", "wetlands", 256), ("Lighthouse forms", "lighthouses", 3),
+           ("Wetland plants", "wetlands", 256),
            ("Locomotives", "locomotives", 6), ("Waterfront landmarks", "waterfront-landmarks", 4))
 
 
@@ -88,7 +88,7 @@ def render(entries):
     for title, slug, count in ARTWORK:
         path = f"docs/assets/artwork/{slug}.png"
         sections.extend((f"#### {title} · {count} variants", preview(title, path, width=780)))
-        if slug in {"floodplain-details", "industrial-landmarks", "alpine-ground-details", "town-landmarks", "summit-landmarks", "service-vessels", "headland-details", "grassland-details", "dryland-details", "woodland-details", "airfield-buildings", "street-buildings", "freshwater-details", "mountain-details", "skyline-landmarks", "coastal-details", "farm-details", "rail-stations", "harbor-models", "roadside-models"}:
+        if slug in {"moraines", "tarns", "glaciers", "river-islands", "bridges", "cableways", "lighthouses", "coastal-rocks", "countryside-buildings", "mesa-profiles", "floodplain-details", "industrial-landmarks", "alpine-ground-details", "town-landmarks", "summit-landmarks", "service-vessels", "headland-details", "grassland-details", "dryland-details", "woodland-details", "airfield-buildings", "street-buildings", "freshwater-details", "mountain-details", "skyline-landmarks", "coastal-details", "farm-details", "rail-stations", "harbor-models", "roadside-models"}:
             sections.append(preview(f"{title} rotating", f"docs/assets/artwork/{slug}.gif", width=550))
     return "\n\n".join(sections)
 

@@ -78,13 +78,16 @@ impl Feature {
             Surface::Desert | Surface::DryWash | Surface::Forest | Surface::Grass |
             Surface::Rock | Surface::Snow | Surface::AlpineMeadow | Surface::ScreeEdge |
             Surface::ScreeFine | Surface::ScreeCoarse | Surface::GlacierMoraine |
-            Surface::WetMeadow | Surface::ReedMarsh => true,
+            Surface::WetMeadow | Surface::ReedMarsh | Surface::MesaCap | Surface::MesaApron => true,
             _ => false,
         }
     }
 
     pub(super) fn on(ground: Sample, key: u64, region: u64) -> Option<Self> {
         let plants = match ground.surface {
+            Surface::MesaCap | Surface::MesaApron => {
+                return DrylandFeature::choose(ground, key, region).map(Self::Dryland);
+            }
             Surface::Desert | Surface::DryWash | Surface::DuneSand => {
                 if key >> 54 & 3 != 0 {
                     if let Some(form) = DrylandFeature::choose(ground, key, region) {

@@ -1143,7 +1143,8 @@ impl DesertProps {
                     && (next_to_water || matches!(surface, Surface::Grass | Surface::Forest | Surface::Rock
                         | Surface::Desert | Surface::DryWash | Surface::DuneSand | Surface::Sand
                         | Surface::AlpineMeadow | Surface::ScreeEdge | Surface::ScreeFine
-                        | Surface::ScreeCoarse | Surface::GlacierMoraine | Surface::GlacierIce | Surface::Snow));
+                        | Surface::ScreeCoarse | Surface::GlacierMoraine | Surface::GlacierIce | Surface::Snow
+                        | Surface::MesaCap | Surface::MesaApron));
                 let farm_candidate = habitats && surface == Surface::Grass && key >> 45 & 3 <= 1
                     && forward > 0.0;
                 // A glacier may cross only a couple of cells in a narrow trough.
@@ -1212,7 +1213,8 @@ impl DesertProps {
                             Surface::GlacierIce => 0.86,
                             _ => 1.25,
                         },
-                        Feature::Dryland(_) if ground.surface == Surface::DryWash => 0.89,
+                        Feature::Dryland(_) if matches!(ground.surface, Surface::DryWash | Surface::MesaCap
+                            | Surface::MesaApron) => 0.89,
                         Feature::Dryland(form) => form.scale(),
                         _ => 1.08,
                     };

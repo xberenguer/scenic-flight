@@ -4,6 +4,9 @@ use crate::math::mix;
 use crate::waterfall::Waterfall;
 use crate::world::{Sample, Surface, World};
 
+mod shorelines;
+pub use shorelines::TarnShoreline;
+
 pub const ALPINE_TILE_SIZE: i32 = 384;
 const COARSE: usize = 32;
 const CELLS: usize = COARSE * COARSE;
@@ -21,6 +24,7 @@ pub enum AlpineSurface {
     TarnShallows,
     Meadow,
     OutletGravel,
+    Shore(Surface),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -45,6 +49,10 @@ pub struct AlpineLake {
     meadow: [u64; FINE],
     outlet: Option<AlpineOutlet>,
     waterfall: Option<Waterfall>,
+    shoreline: TarnShoreline,
+    shore_center: [f32; 2],
+    shore_axis: [f32; 2],
+    shore_inverse: [f32; 2],
 }
 
 impl AlpineLake {
@@ -82,12 +90,27 @@ impl AlpineLake {
                 base[0] + f32::from(local_x) - 48.0,
                 base[1] + f32::from(local_z) - 48.0,
             ];
-            if let Some(mut lake) = work.prepare(world, origin, pulse) {
+            let shore_key = mix(roll ^ (u64::from(local_x) << 32) ^ u64::from(local_z));
+            let shoreline = TarnShoreline::choose(shore_key);
+            if let Some(mut lake) = work.prepare(world, origin, shoreline, pulse) {
                 lake.waterfall = Waterfall::survey(world, &lake, seed, pulse);
                 return Some(lake);
             }
         }
         None
+    }
+
+    pub fn shoreline(&self) -> TarnShoreline {
+        self.shoreline
+    }
+
+    fn shore_coordinates(&self, x: f32, z: f32) -> [f32; 2] {
+        let [dx, dz] = [x - self.shore_center[0], z - self.shore_center[1]];
+        let [ux, uz] = self.shore_axis;
+        [
+            (dx * ux + dz * uz) * self.shore_inverse[0],
+            (dz * ux - dx * uz) * self.shore_inverse[1],
+        ]
     }
 
     pub fn level(&self) -> f32 {
@@ -162,7 +185,12 @@ impl AlpineLake {
         let [u, v] = [px - ix as f32, pz - iz as f32];
         let depth = self.level - ground.elevation;
         if depth > 0.0 && weight(&self.wet, ix, iz, u, v) >= 0.48 {
-            let surface = if depth < 0.83 {
+            let surface = if depth
+                < self
+                    .shoreline
+                    .spec()
+                    .shallow_depth(self.shore_coordinates(x, z))
+            {
                 AlpineSurface::TarnShallows
             } else {
                 AlpineSurface::Tarn
@@ -185,9 +213,28 @@ impl AlpineLake {
             && (-6.8..=-0.13).contains(&depth)
             && weight(&self.meadow, ix, iz, u, v) >= 0.55
         {
-            return Some(AlpineSample {
-                elevation: ground.elevation,
-                surface: AlpineSurface::Meadow,
+            let (surface, relief) = self
+                .shoreline
+                .spec()
+                .bench(self.shore_coordinates(x, z), -depth);
+            let under_cascade = self.waterfall.as_ref().is_some_and(|fall| {
+                let [lo, hi] = fall.bounds();
+                (lo[0] - 2.0..=hi[0] + 2.0).contains(&x) && (lo[2] - 2.0..=hi[2] + 2.0).contains(&z)
+            });
+            return Some(if under_cascade {
+                AlpineSample {
+                    elevation: ground.elevation,
+                    surface: AlpineSurface::Meadow,
+                }
+            } else {
+                AlpineSample {
+                    elevation: ground.elevation + relief,
+                    surface: if surface == Surface::AlpineMeadow {
+                        AlpineSurface::Meadow
+                    } else {
+                        AlpineSurface::Shore(surface)
+                    },
+                }
             });
         }
         None
@@ -268,6 +315,7 @@ impl Work {
         &mut self,
         world: &World,
         origin: [f32; 2],
+        shoreline: TarnShoreline,
         pulse: &mut impl FnMut(),
     ) -> Option<AlpineLake> {
         for (i, h) in self.bed.iter_mut().enumerate() {
@@ -318,8 +366,13 @@ impl Work {
         let anchor = [floor % COARSE * 2, floor / COARSE * 2];
         let [x, z] = point(origin, anchor[0], anchor[1], SPACING);
         let floor_height = world.elevation(x, z);
-        for drawdown in [0, 22, 45] {
-            let level = f32::from(desired - drawdown) / QUANTUM;
+        let preferred = if open { 0 } else { shoreline.spec().drawdown };
+        let drawdowns = [preferred, 0, 22, 45];
+        for (i, drawdown) in drawdowns.into_iter().enumerate() {
+            if drawdowns[..i].contains(&drawdown) {
+                continue;
+            }
+            let level = (i32::from(desired) - i32::from(drawdown)) as f32 / QUANTUM;
             if level - floor_height < 1.50 {
                 continue;
             }
@@ -345,6 +398,7 @@ impl Work {
             } else {
                 None
             };
+            let (shore_center, shore_axis, shore_inverse) = shore_frame(origin, &wet, outlet);
             return Some(AlpineLake {
                 origin,
                 level,
@@ -353,6 +407,10 @@ impl Work {
                 meadow,
                 outlet,
                 waterfall: None,
+                shoreline,
+                shore_center,
+                shore_axis,
+                shore_inverse,
             });
         }
         None
@@ -561,6 +619,45 @@ fn meadow_benches(
     meadow
 }
 
+fn shore_frame(
+    origin: [f32; 2],
+    mask: &[u64; FINE],
+    outlet: Option<AlpineOutlet>,
+) -> ([f32; 2], [f32; 2], [f32; 2]) {
+    let mut lo = [FINE; 2];
+    let mut hi = [0; 2];
+    for (z, &row) in mask.iter().enumerate().filter(|(_, row)| **row != 0) {
+        lo[0] = lo[0].min(row.trailing_zeros() as usize);
+        hi[0] = hi[0].max(63 - row.leading_zeros() as usize);
+        lo[1] = lo[1].min(z);
+        hi[1] = hi[1].max(z);
+    }
+    let center = core::array::from_fn(|i| origin[i] + (lo[i] + hi[i]) as f32 * SPACING * 0.5);
+    let extent =
+        core::array::from_fn::<_, 2, _>(|i| ((hi[i] - lo[i]) as f32 * SPACING * 0.5).max(5.0));
+    let fallback = if extent[0] >= extent[1] {
+        [1.0, 0.0]
+    } else {
+        [0.0, 1.0]
+    };
+    let axis = outlet.map_or(fallback, |outlet| {
+        let d = [outlet.crest[0] - center[0], outlet.crest[2] - center[1]];
+        let scale = d[0].abs().max(d[1].abs());
+        if scale < 0.05 {
+            return fallback;
+        }
+        let [x, z] = d.map(|v| v / scale);
+        let square = x * x + z * z;
+        let root = (1.0 + square) * 0.5;
+        [x, z].map(|v| v / (0.5 * (root + square / root)))
+    });
+    let inv = [
+        1.0 / (axis[0].abs() * extent[0] + axis[1].abs() * extent[1]),
+        1.0 / (axis[1].abs() * extent[0] + axis[0].abs() * extent[1]),
+    ];
+    (center, axis, inv)
+}
+
 fn count(mask: &[u64; FINE]) -> usize {
     mask.iter().map(|row| row.count_ones() as usize).sum()
 }
@@ -617,8 +714,8 @@ mod tests {
             let [fx, floor, fz] = lake.floor();
             assert!(floor >= 65.0 && lake.level() - floor >= 1.50);
             assert!(lake.conflicts_with(|x, z| (x - fx).abs() < 0.01 && (z - fz).abs() < 0.01));
-            assert!(lake
-                .sample(
+            assert!(
+                lake.sample(
                     fx,
                     fz,
                     Sample {
@@ -626,7 +723,8 @@ mod tests {
                         surface: Surface::Pavement
                     }
                 )
-                .is_none());
+                .is_none()
+            );
 
             let anchor = [
                 ((fx - min_x) / SPACING) as usize,
@@ -686,8 +784,14 @@ mod tests {
                             );
                         }
                         if let Some(sample) = lake.sample(px, pz, ground) {
-                            if sample.surface == AlpineSurface::Meadow {
-                                assert_eq!(sample.elevation, ground.elevation);
+                            if matches!(
+                                sample.surface,
+                                AlpineSurface::Meadow | AlpineSurface::Shore(_)
+                            ) {
+                                assert!(
+                                    (ground.elevation..=ground.elevation + 0.46)
+                                        .contains(&sample.elevation)
+                                );
                                 meadow_count += 1;
                             }
                         }

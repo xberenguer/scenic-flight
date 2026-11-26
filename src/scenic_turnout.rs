@@ -5,7 +5,9 @@ use crate::math::{fraction, mix, smoothstep};
 use crate::roads::{RoadNetwork, ROAD_HALF_WIDTH, ROAD_REGION_SIZE};
 use crate::world::{Sample, Surface, World};
 
+mod buildings;
 mod fixtures;
+pub use buildings::RoadsideBuilding;
 use fixtures::RoadsideFixture;
 
 const INNER: f32 = ROAD_HALF_WIDTH - 0.22;
@@ -161,6 +163,12 @@ impl ScenicTurnout {
         self.center
     }
 
+    pub fn roadside_building(&self) -> Option<(RoadsideBuilding, [f32; 3])> {
+        let [along, across, ..] = self.building_pad()?;
+        let [x, z] = self.place(along, across);
+        Some((RoadsideBuilding::select(self.kind, self.variant), [x, self.deck(along), z]))
+    }
+
     pub fn downhill(&self) -> [f32; 2] {
         [-self.axis[1] * self.side, self.axis[0] * self.side]
     }
@@ -278,11 +286,34 @@ impl ScenicTurnout {
         (across - half_depth >= INNER + 3.0).then_some([along, across, half_length, half_depth])
     }
 
+    fn building_pad(&self) -> Option<[f32; 4]> {
+        let overlook = self.kind == TurnoutKind::Overlook;
+        // Place the main building on the other side of the bay from its
+        // smaller fixture and keep the approach tapers and wall clear.
+        let side = if overlook || self.variant & 1 != 0 { 1.0 } else { -1.0 };
+        let along = self.half_length * side * 0.22;
+        let reach = (self.half_length * 0.20).clamp(1.78, 3.18);
+        let depth = if overlook { 1.15 } else { 1.62 };
+        let margin = if overlook { WALL_HALF + 0.15 } else { 0.56 };
+        let edge = self.outer(along.abs() + reach) - depth - margin;
+        let across = (INNER + if overlook { 5.18 } else { 6.13 }).min(edge);
+        (across - depth >= INNER + 3.04).then_some([along, across, reach, depth])
+    }
+
     fn amenity(&self, along: f32, across: f32, edge: f32, deck: f32) -> Option<Sample> {
         // Leave the through lane and both tapers clear. All furnishings stay
         // inside the strip whose foundations the turnout survey approved.
         if edge > -0.4 || across < INNER + 3.0 {
             return None;
+        }
+        let building = self.building_pad();
+        if let Some([center_u, center_v, reach, depth]) = building {
+            let u = along - center_u;
+            let v = across - center_v;
+            if u.abs() <= reach && v.abs() <= depth {
+                return RoadsideBuilding::select(self.kind, self.variant).profile([u / reach, v / depth])
+                    .map(|(height, surface)| Sample { elevation: deck + height, surface });
+            }
         }
         let fixture = self.fixture_pad();
         if let Some([center_u, center_v, reach, depth]) = fixture {
@@ -312,6 +343,7 @@ impl ScenicTurnout {
                     None
                 }
             }
+            _ if building.is_some() => None,
             _ => stop_roof(self.kind, self.variant, u, v)
                 .and_then(|(height, surface)| strip(height, surface))
                 .or_else(|| {
@@ -390,24 +422,17 @@ mod tests {
             let [x, h, z] = site.road_contact();
             assert!(road.proximity(x, z).is_some());
             assert!(site.sample(x, z, world.sample(x, z)).is_none());
-            let roof = match kind {
-                TurnoutKind::Overlook => Surface::Boardwalk,
-                TurnoutKind::Trailhead | TurnoutKind::RestStop => {
-                    let ink = stop_roof(kind, site.variant, 0.6, 0.0).unwrap().1;
-                    assert!(matches!(ink, Surface::PitchedRoof | Surface::FlatRoof));
-                    ink
-                }
-            };
-            let direction = if site.variant & 1 == 0 { -1.0 } else { 1.0 };
-            let pos = if kind == TurnoutKind::Overlook {
-                site.place(site.half_length * 0.31, INNER + 3.55)
-            } else {
-                site.place(direction * site.half_length * 0.13 + 0.6, INNER + 5.5)
-            };
-            let property = site.sample(pos[0], pos[1], world.sample(pos[0], pos[1])).unwrap();
-            assert_eq!(property.surface, roof);
-            assert!(property.elevation > h);
-            assert!(world.elevation(pos[0], pos[1]) > 6.0);
+            let [along, across, half, depth] = site.building_pad().expect("surveyed building pad");
+            let design = RoadsideBuilding::select(kind, site.variant);
+            let [u, v] = [-0.72, -0.3, 0.0, 0.3, 0.72].into_iter()
+                .flat_map(|u| [-0.5, 0.0, 0.5].into_iter().map(move |v| [u, v]))
+                .find(|point| design.profile(*point).is_some_and(|(height, _)| height > 2.0))
+                .expect("roof on building pad");
+            let [px, pz] = site.place(along + u * half, across + v * depth);
+            let raw = world.sample(px, pz);
+            let property = site.sample(px, pz, raw).unwrap();
+            assert_eq!(property.surface, design.profile([u, v]).unwrap().1);
+            assert!(property.elevation > h && raw.elevation > 6.0);
         }
     }
 
@@ -462,6 +487,50 @@ mod tests {
             }
         }
         assert_eq!(forms.len(), 30);
+    }
+
+    #[test]
+    fn twenty_five_buildings_fit_surveyed_turnouts_and_have_distinct_roofs() {
+        use std::collections::HashSet;
+
+        let seed = 4;
+        let world = World::new(seed);
+        let mut shapes = HashSet::new();
+        for (region, kind, count) in [
+            ([4, -4], TurnoutKind::Overlook, 5),
+            ([1, -2], TurnoutKind::Trailhead, 10),
+            ([-3, -4], TurnoutKind::RestStop, 10),
+        ] {
+            let road = RoadNetwork::generate(&world, region[0], region[1]).unwrap();
+            let mut site = ScenicTurnout::survey(&world, seed, region, &road, |_, _| false, || {}).unwrap();
+            assert_eq!(site.kind(), kind);
+            for index in 0..count {
+                site.variant = index * (250 / count);
+                let [along, across, half, depth] = site.building_pad().expect("surveyed building pad");
+                if let Some([fixture, _, reach, _]) = site.fixture_pad() {
+                    assert!((along - fixture).abs() > half + reach);
+                }
+                let form = RoadsideBuilding::select(kind, site.variant);
+                let mut shape = [0_u8; 21 * 21];
+                for (index, height_bucket) in shape.iter_mut().enumerate() {
+                    let point = |i| (i as f32 + 0.5) * (2.0 / 21.0) - 1.0;
+                    let [x, z] = site.place(along + point(index % 21) * half, across + point(index / 21) * depth);
+                    let [dx, dz] = [x - site.center[0], z - site.center[2]];
+                    let [ax, az] = site.axis;
+                    let local_u = dx * ax + dz * az;
+                    let local_v = site.side * (dz * ax - dx * az);
+                    let Some((height, material)) = form.profile([(local_u - along) / half, (local_v - across) / depth]) else { continue; };
+                    assert!(road.proximity(x, z).is_none_or(|hit| hit.distance_squared >= ROAD_HALF_WIDTH * ROAD_HALF_WIDTH));
+                    let observed = site.sample(x, z, world.sample(x, z)).expect("published roof");
+                    assert_eq!(observed.surface, material);
+                    assert!((observed.elevation - site.deck(local_u) - height).abs() < 0.001);
+                    *height_bucket = (height * 20.0) as u8;
+                }
+                assert!(shape.iter().any(|&sample| sample >= 45));
+                assert!(shapes.insert(shape), "duplicated building {}", form.name());
+            }
+        }
+        assert_eq!(shapes.len(), RoadsideBuilding::COUNT);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 use core::cell::RefCell;
 
-use crate::crossings::{Bridge, BridgeStyle};
+use crate::crossings::Bridge;
 use crate::facilities::RegionalFacilities;
 use crate::facility_stream::FacilityStream;
 use crate::floodplain::FloodplainKind;
@@ -512,11 +512,7 @@ impl<const ACTIVE: usize> RiverStream<ACTIVE> {
             .flat_map(|plan| plan.crossings().bridges())
             .filter_map(|bridge| {
                 bridge.road_height(x, z).map(|height| {
-                    let top = match bridge.style {
-                        BridgeStyle::LowGirder => 0.60,
-                        BridgeStyle::SmallTruss => (bridge.span() * 0.10).clamp(1.35, 2.55) + 0.15,
-                    };
-                    height + top
+                    height + bridge.sidework_height() + 0.15
                 })
             })
             .fold(0.0, f32::max)

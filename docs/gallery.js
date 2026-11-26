@@ -21,7 +21,7 @@ const events = [
 ];
 
 const categories = ['All', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Sky & Weather', 'Interface'];
-const featuredIds = ['glacier-ice-pass', 'eagle-wet-meadow', 'linked-downtown', 'high-cruise', 'tram-carhouse-flyover'];
+const featuredIds = ['bowed-blue-icefall', 'sedge-strand-tarn', 'linked-downtown', 'high-cruise', 'paired-mountain-gondolas'];
 const qs = selector => document.querySelector(selector);
 const cards = qs('#cards');
 const dialog = qs('#viewer');

@@ -5,11 +5,6 @@ const cactusSpecies = ['Saguaro', 'Organ pipe', 'Prickly pear', 'Golden barrel']
 const rockForms = ['Tumbled granite', 'Sandstone ledge', 'Basalt shards', 'Pale scree'];
 const shrubForms = ['Sagebrush', 'Bunchgrass', 'Saltbush', 'Flowering yucca'];
 const wetlandForms = ['Bulrush', 'Cattail', 'Iris', 'Willow scrub'];
-const lighthouseTypes = [
-  ['Masonry tower', 'Tapered shaft on a solid coastal footing'],
-  ['Keeper tower', 'Square shaft and compact lantern room'],
-  ['Steel lattice', 'Open bracing with a compact grounded footprint'],
-];
 const waterfrontLandmarks = [
   ['Boat shed', 'Gabled shed and timber landing'],
   ['Picnic pavilion', 'Clipped-corner shelter beside the boardwalk'],
@@ -223,8 +218,95 @@ const floodplainNames = [
   'Bog myrtle', 'Leatherleaf mat', 'Dwarf willow', 'Buckthorn fen clump', 'Cranberry runner',
 ];
 const floodplainFamilies = ['Wet ground', 'Meadow flowers', 'Emergent plants', 'Flood deposits', 'Wetland shrubs'];
+const mesaNames = await fetch('assets/artwork/mesa-profiles.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const mesaFamilies = ['Broad caps', 'Incised rims', 'Terraces', 'Narrow divides', 'Pillars and fins'];
+const countrysideNames = await fetch('assets/artwork/countryside-buildings.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const countrysideFamilies = ['Overlooks', 'Forest services', 'Trail access', 'Regional road services', 'Highway rest stops'];
+
+const coastalRockNames = await fetch('assets/artwork/coastal-rocks.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const coastalRockFamilies = ['Sea stacks', 'Skerries and reefs', 'Sea arches'];
+
+const lighthouseNames = await fetch('assets/artwork/lighthouses.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const lighthouseFamilies = ['Masonry', 'Keeper towers', 'Open-frame towers'];
+
+const cablewayNames = await fetch('assets/artwork/cableways.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const cablewayFamilies = ['Timber', 'Brick', 'Stone', 'Aluminum', 'Enamel'];
+
+const bridgeNames = await fetch('assets/artwork/bridges.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+
+const riverIslandNames = await fetch('assets/artwork/river-islands.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const riverIslandFamilies = ['Reed', 'Gravel', 'Sand', 'Meadow', 'Stone'];
+
+const glacierNames = await fetch('assets/artwork/glaciers.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const glacierFamilies = ['Snow basins', 'Crevasse fields', 'Ice termini', 'Moraine streaks', 'Mixed forms'];
+
+const tarnNames = await fetch('assets/artwork/tarns.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const tarnFamilies = ['Sedge and reeds', 'Sand shelves', 'Gravel shores', 'Rock and moraine', 'Alpine meadows'];
+
+const moraineNames = await fetch('assets/artwork/moraines.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const moraineFamilies = ['Terminal arcs', 'Asymmetric banks', 'Recessional ridges', 'Debris aprons', 'Scalloped ridges'];
 
 const categories = [
+  { title: 'Glacial moraines', label: 'Moraine', atlas: 'moraines.png',
+    columns: 5, rows: 5, name: index => moraineNames[index],
+    family: index => moraineFamilies[Math.floor(index / 5)], animation: 'moraines.gif' },
+  { title: 'Mountain lake shores', label: 'Lake shore', atlas: 'tarns.png',
+    columns: 5, rows: 5, name: index => tarnNames[index],
+    family: index => tarnFamilies[Math.floor(index / 5)], animation: 'tarns.gif' },
+  { title: 'Alpine glaciers', label: 'Glacier', atlas: 'glaciers.png',
+    columns: 5, rows: 5, name: index => glacierNames[index],
+    family: index => glacierFamilies[Math.floor(index / 5)], animation: 'glaciers.gif' },
+  { title: 'River islands', label: 'River island', atlas: 'river-islands.png',
+    columns: 5, rows: 5, name: index => riverIslandNames[index],
+    family: index => riverIslandFamilies[Math.floor(index / 5)], animation: 'river-islands.gif' },
+  { title: 'River and coastal bridges', label: 'Bridge', atlas: 'bridges.png',
+    columns: 5, rows: 5, name: index => bridgeNames[index],
+    family: index => index < 10 ? 'Low girder and parapet' : 'Open truss and arch', animation: 'bridges.gif' },
+  { title: 'Mountain cableways', label: 'Cableway', atlas: 'cableways.png',
+    columns: 5, rows: 5, name: index => cablewayNames[index],
+    family: index => cablewayFamilies[Math.floor(index / 5)], animation: 'cableways.gif' },
+  { title: 'Lighthouses', label: 'Lighthouse', atlas: 'lighthouses.png',
+    columns: 5, rows: 5, name: index => lighthouseNames[index],
+    family: index => lighthouseFamilies[index < 9 ? 0 : index < 17 ? 1 : 2], animation: 'lighthouses.gif' },
+  { title: 'Coastal rock formations', label: 'Coastal rock formation', atlas: 'coastal-rocks.png',
+    columns: 5, rows: 5, name: index => coastalRockNames[index],
+    family: index => coastalRockFamilies[index < 9 ? 0 : index < 17 ? 1 : 2], animation: 'coastal-rocks.gif' },
+  { title: 'Countryside buildings', label: 'Countryside building', atlas: 'countryside-buildings.png',
+    columns: 5, rows: 5, name: index => countrysideNames[index],
+    family: index => countrysideFamilies[Math.floor(index / 5)], animation: 'countryside-buildings.gif' },
+  { title: 'Sandstone mesas', label: 'Sandstone mesa', atlas: 'mesa-profiles.png',
+    columns: 5, rows: 5, name: index => mesaNames[index],
+    family: index => mesaFamilies[Math.floor(index / 5)], animation: 'mesa-profiles.gif' },
   { title: 'Floodplain details', label: 'Floodplain detail', atlas: 'floodplain-details.png',
     columns: 5, rows: 5, name: index => floodplainNames[index],
     family: index => floodplainFamilies[Math.floor(index / 5)], animation: 'floodplain-details.gif' },
@@ -314,8 +396,6 @@ const categories = [
       .filter(Boolean).join(' · ') },
   { title: 'Wetland plants', label: 'Wetland plant', atlas: 'wetlands.png',
     family: index => wetlandForms[index >> 6], traits: ['Width', 'Height', 'Spread'] },
-  { title: 'Lighthouses', label: 'Lighthouse', atlas: 'lighthouses.png', columns: 3, rows: 1,
-    family: index => lighthouseTypes[index][0], detail: index => lighthouseTypes[index][1] },
   { title: 'Waterfront landmarks', label: 'Landmark', atlas: 'waterfront-landmarks.png', columns: 4, rows: 1,
     name: index => waterfrontLandmarks[index][0], family: index => waterfrontLandmarks[index][0],
     detail: index => waterfrontLandmarks[index][1] },

@@ -4,6 +4,10 @@ use crate::alpine_lakes::ALPINE_TILE_SIZE;
 use crate::math::{fraction, mix, smoothstep};
 use crate::world::{Sample, Surface, World};
 
+mod profiles;
+pub use profiles::GlacierProfile;
+use profiles::Profile;
+
 const STATIONS: usize = 19;
 const STEP: f32 = 8.0;
 const ICE_END: usize = 13;
@@ -134,6 +138,7 @@ pub struct AlpineGlacier {
     bounds: [f32; 4],
     crack_phase: f32,
     confined: usize,
+    design: GlacierProfile,
 }
 
 impl AlpineGlacier {
@@ -225,6 +230,8 @@ impl AlpineGlacier {
             let [x, z] = point(head, axis, i * STEP, lateral);
             world.elevation(x, z)
         };
+        let design = GlacierProfile::choose(mix(key ^ 0x96d3_5f81));
+        let profile = design.spec();
         let mut confined = 0;
         let mut bounds = [
             f32::INFINITY,
@@ -262,8 +269,8 @@ impl AlpineGlacier {
             let width = if i <= ICE_END {
                 let opening = (14.0 + 0.45 * (wall - 3.0)).clamp(12.0, 24.0);
                 let expansion = smoothstep(i as f32 * 0.48);
-                let tongue = 1.0 - 0.52 * smoothstep((i as f32 - 9.0) * 0.27);
-                (opening * (0.77 + 0.23 * expansion) * tongue).max(7.0)
+                (opening * (0.77 + 0.23 * expansion) * profile.width_at(i as f32 / ICE_END as f32))
+                    .clamp(5.8, 23.8)
             } else {
                 3.5
             };
@@ -308,7 +315,12 @@ impl AlpineGlacier {
             bounds,
             crack_phase: 0.9 + fraction(key) * 3.0,
             confined,
+            design,
         })
+    }
+
+    pub fn design(&self) -> GlacierProfile {
+        self.design
     }
 
     pub fn bounds(&self) -> [f32; 4] {
@@ -355,43 +367,18 @@ impl AlpineGlacier {
         if along < melt {
             let width = lerp(a.width, b.width, u);
             let side = across.abs() / width;
-            let end = melt - along;
-            if side >= 1.0 || signed_high > 7.0 || signed_high < -3.5 || end < 6.0 * side * side {
-                return ground;
-            }
-            let upper = smoothstep(along * (1.0 / 12.0));
-            let weight = upper
-                * smoothstep((1.0 - side) * 3.5)
-                * smoothstep(end * 0.095)
-                * smoothstep((7.0 - signed_high) * 0.37);
-            if weight < 0.035 {
-                return ground;
-            }
-            let snow_head = 1.0 - smoothstep((along - 13.0) * (1.0 / 25.0));
-            let bend = 6.6 * side * side - 0.21 * across
-                + 5.0 * (along * (1.0 / 104.0) - 0.4).abs() * side;
-            let crack = (along + bend + self.crack_phase) * (1.0 / 10.2);
-            let rift = (crack - (crack as i32) as f32 - 0.5).abs();
             let steep = smoothstep((a.floor - b.floor - 1.2) * 0.19);
-            let open = upper
-                * smoothstep((along - 8.0) * 0.058)
-                * smoothstep(end * 0.1)
-                * (0.65 + 0.35 * steep);
-            let cut = (1.0 - smoothstep((rift - 0.05) * 8.5)) * open * weight;
-            let ridge = 4.8 * (0.68 + 0.32 * upper) * weight;
-            let surface = if cut > 0.27 && (across + 0.07 * along).abs() < width * 0.82 {
-                Surface::GlacierCrevasse
-            } else if snow_head > 0.62 && ground.surface == Surface::Snow {
-                Surface::Snow
-            } else if side > 0.83 && along > 49.0 && weight > 0.13 {
-                Surface::GlacierMoraine
-            } else {
-                Surface::GlacierIce
-            };
-            Sample {
-                elevation: ground.elevation + (ridge - 0.52 * cut).max(0.0),
-                surface,
-            }
+            ice_sample(
+                self.design.spec(),
+                along,
+                across,
+                side,
+                signed_high,
+                steep,
+                self.crack_phase,
+                ground,
+            )
+            .unwrap_or(ground)
         } else {
             let clear_tail = XZ_LENGTH - along;
             let width = 2.2 + 0.8 * smoothstep((along - melt) * 0.10);
@@ -415,6 +402,84 @@ impl AlpineGlacier {
             }
         }
     }
+}
+
+impl GlacierProfile {
+    /// A glacier on a sloped sample bed, using the same ice and debris rules as flight.
+    pub fn artwork(self, along: f32, across: f32) -> Option<Sample> {
+        let t = (along + 1.0) * 0.5;
+        let distance = t * (ICE_END as f32 * STEP);
+        let source = self.spec();
+        let width = source.width_at(t);
+        let side = across.abs() / width;
+        let ground = Sample {
+            elevation: (1.0 - t) * 3.0,
+            surface: if t < 0.39 {
+                Surface::Snow
+            } else {
+                Surface::Rock
+            },
+        };
+        ice_sample(
+            source,
+            distance,
+            across * 16.0,
+            side,
+            0.0,
+            0.52,
+            2.3,
+            ground,
+        )
+    }
+}
+
+fn ice_sample(
+    profile: &Profile,
+    along: f32,
+    across: f32,
+    side: f32,
+    signed_high: f32,
+    steep: f32,
+    phase: f32,
+    ground: Sample,
+) -> Option<Sample> {
+    let end = ICE_END as f32 * STEP - along;
+    if side >= 1.0 || signed_high > 7.0 || signed_high < -3.5 || end < profile.nose * side * side {
+        return None;
+    }
+    let upper = smoothstep(along * (1.0 / 12.0));
+    let weight = upper
+        * smoothstep((1.0 - side) * 3.5)
+        * smoothstep(end * 0.095)
+        * smoothstep((7.0 - signed_high) * 0.37);
+    if weight < 0.035 {
+        return None;
+    }
+    let bend = profile.arc * side * side
+        + profile.shear * across
+        + 5.0 * (along * (1.0 / 104.0) - 0.4).abs() * side;
+    let crack = (along + bend + phase) / profile.spacing;
+    let rift = (crack - (crack as i32) as f32 - 0.5).abs();
+    let open =
+        upper * smoothstep((along - 8.0) * 0.058) * smoothstep(end * 0.1) * (0.65 + 0.35 * steep);
+    let cut = (1.0 - smoothstep((rift - 0.05) * 8.5)) * open * weight;
+    let ridge = profile.thickness * (0.68 + 0.32 * upper) * weight;
+    let medial = profile.medial > 0.0
+        && along > 41.0
+        && (across - profile.shear * (along - 45.0) * 0.49).abs() < profile.medial * 1.9;
+    let surface = if cut > 0.26 && side < 0.79 {
+        Surface::GlacierCrevasse
+    } else if along < profile.snow && ground.surface == Surface::Snow {
+        Surface::Snow
+    } else if (side > 0.83 || medial) && along > 45.0 && weight > 0.13 {
+        Surface::GlacierMoraine
+    } else {
+        Surface::GlacierIce
+    };
+    Some(Sample {
+        elevation: ground.elevation + (ridge - 0.52 * cut).max(0.0),
+        surface,
+    })
 }
 
 fn trace(

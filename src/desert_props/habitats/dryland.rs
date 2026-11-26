@@ -72,6 +72,9 @@ impl DrylandFeature {
         ];
 
         let forms = match ground.surface {
+            Surface::MesaCap => &STONE,
+            Surface::MesaApron if district >> 16 & 3 != 0 => &SCRUB,
+            Surface::MesaApron => &STONE,
             Surface::DryWash => &WASH,
             Surface::DuneSand if ground.elevation >= 1.4 => &DUNE,
             Surface::Desert => match (district >> 26) % 3 {
