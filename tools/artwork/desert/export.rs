@@ -23,14 +23,14 @@ mod artwork {
     const BACKGROUND: [u8; 3] = [19, 24, 30];
 
     fn render_variant(kind: PropKind, variant: u8) -> [u16; SIDE * SIDE] {
-        // The fixed view and scale retain the proportions of all three kinds.
-        let camera = if matches!(kind, PropKind::Habitat(Feature::Farm(_))) {
+        // The fixed view and scale retain the proportions of the models within each sheet.
+        let camera = if matches!(kind, PropKind::Habitat(Feature::Farm(_) | Feature::Mountain(_) | Feature::Freshwater(_) | Feature::Woodland(_))) {
             Camera { x: 3.7, z: -5.13, altitude: 3.80, heading: -0.624, pitch: 0.36, bank: 0.0 }
         } else {
             Camera { x: 3.1, z: -4.3, altitude: 3.35, heading: -0.624, pitch: 0.36, bank: 0.0 }
         };
         let daylight = crate::sky::Sky::from_time(41, 0, 0.5);
-        let prop = Prop { origin: [0.0; 3], size: 1.0, kind, variant, opacity: 1.0 };
+        let prop = Prop { origin: [0.0; 3], grade: [0.0; 2], size: 1.0, kind, variant, opacity: 1.0 };
         let mut scene = DesertProps { props: [None; 72], region: None };
         scene.props[0] = Some(prop);
         let mut pixels = [0; SIDE * SIDE];
@@ -74,9 +74,50 @@ mod artwork {
         model_atlas(out, "farm", forms.map(Feature::Farm))
     }
 
+    pub fn mountain(out: &Path) -> std::io::Result<()> {
+        use habitats::mountain::MountainFeature::*;
+        let forms = [
+            CreepingJuniper, StuntedSpruce, MountainMahogany, SplitPineSnag, RootPlate,
+            HeatherBank, AlpineAvens, DwarfWillow, BunchgrassRing, GentianSpikes,
+            QuartzSeam, SlateBlades, RockStep, SplitGranite, BasaltColumns,
+            SnowCornice, RimIceFin, SnowPocket, WindCrust, RimedBoulder,
+            BoulderTrain, GlacialPavement, PairedErratics, MoraineCrest, MeltwaterCobbles,
+        ];
+        model_atlas(out, "mountain", forms.map(Feature::Mountain))
+    }
+
+    pub fn freshwater(out: &Path) -> std::io::Result<()> {
+        use habitats::freshwater::FreshwaterFeature::*;
+        let forms = [
+            CobbleRidge, SandRipple, ShaleShingle, FloodWrack, RootWad,
+            RiverLog, ForkedDriftwood, SiltButte, PebbleFan, ChannelBoulders,
+            CattailStand, BulrushUmbels, SweetFlag, BurReed, ReedWall,
+            MarshMarigold, IrisStand, Meadowsweet, Loosestrife, WaterMint,
+            WillowStool, AlderSaplings, RedOsierThicket, BrackenBreak, RushTussocks,
+        ];
+        model_atlas(out, "freshwater", forms.map(Feature::Freshwater))
+    }
+
+    pub fn woodland(out: &Path) -> std::io::Result<()> {
+        use habitats::woodland::WoodlandFeature::*;
+        let forms = [
+            SpruceSeedling, HemlockWhorls, YewBush, HazelCoppice, BirchSaplings,
+            OstrichFern, WoodSedge, BroadleafHellebore, FoamflowerMat, EvergreenHolly,
+            NurseLog, SplitStump, WindthrowPit, BarkHeap, BranchTangle,
+            ShelfFungi, ParasolPatch, MorelCluster, PuffballRing, CoralFungi,
+            BrackenFronds, Foxglove, RoseHipBramble, BilberryMound, HoneysuckleArch,
+        ];
+        model_atlas(out, "woodland", forms.map(Feature::Woodland))
+    }
+
     fn model_atlas(out: &Path, name: &str, forms: [Feature; 25]) -> std::io::Result<()> {
         const COLUMNS: usize = 5;
-        let (tile, left, top) = if name == "farm" { (64, 16, 20) } else { (SIDE, 0, 0) };
+        let (tile, left, top) = match name {
+            "farm" => (64, 16, 20),
+            "mountain" | "freshwater" => (54, 21, 23),
+            "woodland" => (57, 20, 20),
+            _ => (SIDE, 0, 0),
+        };
         let width = COLUMNS * tile;
         for angle in 0..16 {
             let mut atlas = vec![0; width * width * 3];
@@ -162,10 +203,16 @@ fn main() -> std::io::Result<()> {
     match mode.as_deref().and_then(std::ffi::OsStr::to_str) {
         Some("--shore-only") => artwork::shore(output),
         Some("--farm-only") => artwork::farm(output),
+        Some("--mountain-only") => artwork::mountain(output),
+        Some("--freshwater-only") => artwork::freshwater(output),
+        Some("--woodland-only") => artwork::woodland(output),
         None => {
             artwork::write(output)?;
             artwork::shore(output)?;
-            artwork::farm(output)
+            artwork::farm(output)?;
+            artwork::mountain(output)?;
+            artwork::freshwater(output)?;
+            artwork::woodland(output)
         }
         _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unknown artwork mode")),
     }

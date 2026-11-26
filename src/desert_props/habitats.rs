@@ -4,9 +4,15 @@
 use crate::world::{Sample, Surface};
 
 mod farm;
+mod freshwater;
+mod mountain;
 mod shore;
+mod woodland;
 use farm::FarmFeature;
+use freshwater::FreshwaterFeature;
+use mountain::MountainFeature;
 use shore::ShoreFeature;
+use woodland::WoodlandFeature;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(super) enum Feature {
@@ -18,6 +24,9 @@ pub(super) enum Feature {
     BogCotton, SkunkCabbage, TussockSedge, Horsetail, MudHummock,
     Shore(ShoreFeature),
     Farm(FarmFeature),
+    Mountain(MountainFeature),
+    Freshwater(FreshwaterFeature),
+    Woodland(WoodlandFeature),
 }
 
 const DRYLAND: [Feature; 5] = [
@@ -47,6 +56,21 @@ const WETLAND: [Feature; 5] = [
 
 impl Feature {
     pub(super) fn on(ground: Sample, key: u64, region: u64) -> Option<Self> {
+        if ground.surface == Surface::Snow || key >> 50 & 3 != 0 {
+            if let Some(form) = MountainFeature::choose(ground, key, region) {
+                return Some(Self::Mountain(form));
+            }
+        }
+        if (key >> 60) & 3 != 0 {
+            if let Some(form) = FreshwaterFeature::choose(ground, key, region) {
+                return Some(Self::Freshwater(form));
+            }
+        }
+        if key >> 58 & 3 != 0 {
+            if let Some(form) = WoodlandFeature::choose(ground, key, region) {
+                return Some(Self::Woodland(form));
+            }
+        }
         let plants = match ground.surface {
             Surface::Desert | Surface::DryWash => &DRYLAND,
             Surface::DuneSand if ground.elevation > 10.0 => &DRYLAND,
@@ -95,6 +119,9 @@ impl Feature {
         match self {
             Shore(form) => form.draw(&mut model),
             Farm(form) => form.draw(&mut model),
+            Mountain(form) => form.draw(&mut model),
+            Freshwater(form) => form.draw(&mut model),
+            Woodland(form) => form.draw(&mut model),
             Ocotillo => {
                 for [x, z, y] in [[-0.8, -0.4, 2.9], [-0.4, 0.8, 2.3], [0.3, -0.7, 2.5], [0.9, 0.5, 2.75], [0.1, 0.15, 3.35]] {
                     model.stalk([x * 0.12, 0.0, z * 0.12], [x, y, z], 0.10, [96, 119, 65]);

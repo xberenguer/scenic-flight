@@ -141,6 +141,8 @@ fn cover_airfield(piece: AirfieldSample, ground: Sample) -> Sample {
         AirfieldMaterial::RunwayMarking => Surface::RunwayMarking,
         AirfieldMaterial::EdgeLight => Surface::RunwayLight,
         AirfieldMaterial::HangarRoof => Surface::FlatRoof,
+        AirfieldMaterial::PitchedHangarRoof => Surface::PitchedRoof,
+        AirfieldMaterial::GlazedAirfieldRoof => Surface::TowerRoof,
     };
     Sample { elevation: piece.elevation.unwrap_or(ground.elevation), surface }
 }

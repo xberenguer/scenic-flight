@@ -979,9 +979,11 @@ impl Boroughs {
         if shed.contains(x, z) {
             let design = (part >> 8) as usize;
             let style = if use_kind == Use::Warehouse {
-                [0, 1, 2, 3, 5, 8, 11][design % 7]
+                const WAREHOUSES: [u8; 10] = [0, 1, 2, 3, 5, 8, 11, 12, 14, 16];
+                WAREHOUSES[design % WAREHOUSES.len()]
             } else {
-                [4, 6, 7, 9, 10][design % 5]
+                const WORKS: [u8; 7] = [4, 6, 7, 9, 10, 13, 15];
+                WORKS[design % WORKS.len()]
             };
             return Building::new(shed, base, height, Form::Industrial(frontage, style))
             .sample(x, z);
@@ -1112,7 +1114,7 @@ impl Boroughs {
                 }
             };
             use crate::skyline::{
-                COTTAGE_GROUP, DUPLEX_GROUP, INDUSTRIAL_GROUP, ROWHOUSE_GROUP, SHOP_GROUP,
+                BOROUGH_ALT_OFFSET, COTTAGE_GROUP, DUPLEX_GROUP, INDUSTRIAL_GROUP, ROWHOUSE_GROUP, SHOP_GROUP,
             };
             let use_kind = self.pad_uses[index];
             let (profile, height) = match use_kind {
@@ -1121,6 +1123,11 @@ impl Boroughs {
                 Use::Warehouse | Use::Works | Use::Shops => (SHOP_GROUP, 7.2),
                 Use::Homes if group & 3 == 0 => (DUPLEX_GROUP, 6.0),
                 _ => (COTTAGE_GROUP, 5.15),
+            };
+            let profile = profile + if block_key(self.key, index) >> 25 & 1 == 0 {
+                BOROUGH_ALT_OFFSET
+            } else {
+                0
             };
             let (x, z) = local.world(lot.x, lot.z);
             Some(crate::skyline::SkylineTower {

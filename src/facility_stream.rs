@@ -524,6 +524,31 @@ mod quarry_tests {
     use crate::watershed::WatershedWork;
 
     #[test]
+    fn country_strip_is_published_as_part_of_normal_regional_scenery() {
+        use crate::airfield::AirfieldKind;
+        use crate::world::Surface;
+
+        let world = World::new(1);
+        let view = Camera {
+            x: 5415.244, z: -2393.766, altitude: 45.0, heading: 1.829, pitch: 0.15, bank: 0.0,
+        };
+        let mut land = LandStream::<8>::new();
+        land.reset(world);
+        assert!(land.preflight(view, true));
+        let mut facilities = FacilityStream::<8>::new(world, 1);
+        facilities.preflight(&land);
+        let strip = facilities.planned((5, -3)).and_then(RegionalFacilities::airfield)
+            .expect("approved country strip");
+        assert_eq!(strip.kind, AirfieldKind::Country);
+        assert!(facilities.airfields().any(|field| core::ptr::eq(field, strip)));
+        let (x, z) = strip.center();
+        let ground = world.sample(x, z);
+        let runway = facilities.sampler().overlay(x, z, ground, ground);
+        assert_eq!(runway.surface, Surface::GrassRunway);
+        assert_eq!(runway.elevation, ground.elevation);
+    }
+
+    #[test]
     fn inland_elevator_and_its_road_publish_a_moving_non_passenger_grain_train() {
         use crate::ground_details::GroundDetails;
         use crate::rail::{GrainTerminal, RailAnchorKind, RailMaterial, RailService};

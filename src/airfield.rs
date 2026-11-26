@@ -11,6 +11,9 @@ const REGIONAL_GRADE: f32 = 0.038;
 const CLEARANCE: f32 = SEA_LEVEL + 4.0;
 const ACCESS_HALF_WIDTH: f32 = 1.65;
 
+mod buildings;
+const BUILDING_SLOTS: usize = 4;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AirfieldKind {
     Country,
@@ -28,6 +31,8 @@ pub enum AirfieldMaterial {
     RunwayMarking,
     EdgeLight,
     HangarRoof,
+    PitchedHangarRoof,
+    GlazedAirfieldRoof,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -44,7 +49,7 @@ pub struct AirfieldSite {
     runway: Rect,
     apron: Rect,
     taxiway: Rect,
-    hangars: [Option<Hangar>; 2],
+    buildings: [Option<Building>; BUILDING_SLOTS],
     access: [Option<AccessLeg>; 2],
     bounds: Bounds,
 }
@@ -52,12 +57,44 @@ pub struct AirfieldSite {
 impl AirfieldSite {
     /// Find one isolated country strip, when a tile has suitable open ground.
     pub fn generate(world: &World, seed: u64, tile_x: i32, tile_z: i32) -> Option<Self> {
-        let tile = Tile::new(tile_x, tile_z)?;
+        Self::generate_country(
+            world,
+            seed,
+            Tile::new(tile_x, tile_z)?,
+            |_| true,
+            &mut || {},
+        )
+    }
+
+    pub(crate) fn country_for_road(
+        world: &World,
+        seed: u64,
+        road: &RoadNetwork,
+        pulse: &mut impl FnMut(),
+    ) -> Option<Self> {
+        let tile = Tile::at(Point::from_road(*road.polyline().first()?))?;
+        Self::generate_country(
+            world,
+            seed,
+            tile,
+            |p| road.proximity(p.x, p.z).is_none(),
+            pulse,
+        )
+    }
+
+    fn generate_country(
+        world: &World,
+        seed: u64,
+        tile: Tile,
+        clear: impl Fn(Point) -> bool,
+        pulse: &mut impl FnMut(),
+    ) -> Option<Self> {
         let layout = country_layout(seed, tile);
         if layout & 15 >= 3 {
             return None;
         }
         for attempt in 0..16 {
+            pulse();
             let key = mix(layout ^ attempt);
             let location = Point {
                 x: tile.x + 129.0 + fraction(key) * 766.0,
@@ -76,7 +113,7 @@ impl AirfieldSite {
                     origin: location,
                     direction: dir,
                 };
-                if let Some(site) = shape.place(world, basis, tile, None, &mut || {}) {
+                if let Some(site) = shape.place(world, basis, tile, key, None, &clear, pulse) {
                     return Some(site);
                 }
             }
@@ -90,7 +127,10 @@ impl AirfieldSite {
     }
 
     pub(crate) fn for_road_cooperatively(
-        world: &World, seed: u64, road: &RoadNetwork, pulse: &mut impl FnMut(),
+        world: &World,
+        seed: u64,
+        road: &RoadNetwork,
+        pulse: &mut impl FnMut(),
     ) -> Option<Self> {
         let points = road.polyline();
         let termini = [
@@ -155,7 +195,9 @@ impl AirfieldSite {
                         outward,
                         apron,
                     };
-                    if let Some(site) = geometry.place(world, basis, tile, Some(access), pulse) {
+                    if let Some(site) =
+                        geometry.place(world, basis, tile, key, Some(access), |_| true, pulse)
+                    {
                         return Some(site);
                     }
                 }
@@ -200,13 +242,23 @@ impl AirfieldSite {
         if self.apron.contains(along, across) {
             return Some(mark_ground(AirfieldMaterial::Apron));
         }
-        for hangar in self.hangars.iter().flatten() {
-            if hangar.area.contains(along, across) {
-                let slope = (across - hangar.area.across).abs() / hangar.area.half_width;
-                return Some(AirfieldSample {
-                    material: AirfieldMaterial::HangarRoof,
-                    elevation: Some(hangar.base + hangar.wall + 1.3 * (1.0 - slope)),
-                });
+        for building in self.buildings.iter().flatten() {
+            if building.area.contains(along, across) {
+                let u = (along - building.area.along) / building.area.half_length;
+                let v = (across - building.area.across) / building.area.half_width;
+                if let Some((roof, rise)) =
+                    buildings::sample(building.design, u, v * self.apron.across.signum())
+                {
+                    let material = match roof {
+                        buildings::Roof::Flat => AirfieldMaterial::HangarRoof,
+                        buildings::Roof::Pitched => AirfieldMaterial::PitchedHangarRoof,
+                        buildings::Roof::Glazed => AirfieldMaterial::GlazedAirfieldRoof,
+                    };
+                    return Some(AirfieldSample {
+                        material,
+                        elevation: Some(building.base + building.height * rise),
+                    });
+                }
             }
         }
         self.access
@@ -354,10 +406,31 @@ impl Rect {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Hangar {
+struct Building {
     area: Rect,
     base: f32,
-    wall: f32,
+    height: f32,
+    design: u8,
+}
+
+#[derive(Clone, Copy)]
+enum BuildingRole {
+    CountryHangar = 0,
+    RegionalHangar = 1,
+    Terminal = 2,
+    Operations = 3,
+    Service = 4,
+}
+
+#[derive(Clone, Copy)]
+struct BuildingLot {
+    area: Rect,
+    height: f32,
+    role: BuildingRole,
+}
+
+fn design_for(role: BuildingRole, key: u64, slot: usize) -> u8 {
+    role as u8 * 5 + (mix(key ^ ((slot as u64 + 1) << 33)) % 5) as u8
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -569,7 +642,7 @@ struct Layout {
     runway: Rect,
     apron: Rect,
     taxiway: Rect,
-    buildings: [Option<Rect>; 2],
+    buildings: [Option<BuildingLot>; BUILDING_SLOTS],
 }
 
 impl Layout {
@@ -581,7 +654,21 @@ impl Layout {
         let apron_length = if regional { 13.0 } else { 8.5 };
         let apron_position = -half_length * 0.28;
         let apron_across = side * (half_width + taxi_length + apron_width);
-        let building_side = apron_across + side * (apron_width + 3.25);
+        let building_setback = if regional { 4.0 } else { 3.35 };
+        let building_side = apron_across + side * (apron_width + building_setback);
+        let lot = |along, across, half_length, half_width, height, role| {
+            Some(BuildingLot {
+                area: Rect {
+                    along: apron_position + along,
+                    across,
+                    half_length,
+                    half_width,
+                },
+                height,
+                role,
+            })
+        };
+        use BuildingRole::*;
         Self {
             kind,
             runway: Rect {
@@ -602,20 +689,21 @@ impl Layout {
                 half_length: if regional { 2.1 } else { 1.65 },
                 half_width: taxi_length * 0.5 + 0.55,
             },
-            buildings: [
-                Some(Rect {
-                    along: apron_position - if regional { 6.2 } else { 2.0 },
-                    across: building_side,
-                    half_length: if regional { 4.6 } else { 3.0 },
-                    half_width: if regional { 3.5 } else { 3.1 },
-                }),
-                regional.then_some(Rect {
-                    along: apron_position + 6.4,
-                    across: building_side,
-                    half_length: 4.0,
-                    half_width: 3.2,
-                }),
-            ],
+            buildings: if regional {
+                [
+                    lot(-6.2, building_side, 4.6, 3.5, 6.1, RegionalHangar),
+                    lot(6.4, building_side, 4.0, 3.2, 5.5, Terminal),
+                    lot(6.0, building_side + side * 7.0, 2.5, 2.5, 7.9, Operations),
+                    lot(-5.2, building_side + side * 7.0, 3.8, 2.6, 4.5, Service),
+                ]
+            } else {
+                [
+                    lot(-2.0, building_side, 3.0, 3.1, 4.7, CountryHangar),
+                    lot(5.3, building_side, 2.45, 2.35, 3.4, Service),
+                    None,
+                    None,
+                ]
+            },
         }
     }
 
@@ -624,10 +712,12 @@ impl Layout {
         world: &World,
         basis: Basis,
         tile: Tile,
+        key: u64,
         road: Option<RoadLink<'_>>,
+        clear: impl Fn(Point) -> bool,
         pulse: &mut impl FnMut(),
     ) -> Option<AirfieldSite> {
-        let check = |p| tile.contains(p) && road.is_none_or(|link| link.keep_clear(p));
+        let check = |p| tile.contains(p) && clear(p) && road.is_none_or(|link| link.keep_clear(p));
         let mut bounds = Bounds::at(basis.origin);
         for rect in [self.runway, self.taxiway, self.apron] {
             for corner in rect.corners(basis) {
@@ -652,7 +742,16 @@ impl Layout {
             check,
             pulse,
         )?;
-        footprint(world, basis, self.taxiway, 0.082, 0.093, !paved, check, pulse)?;
+        footprint(
+            world,
+            basis,
+            self.taxiway,
+            0.082,
+            0.093,
+            !paved,
+            check,
+            pulse,
+        )?;
         footprint(world, basis, self.apron, 0.058, 0.066, !paved, check, pulse)?;
         let access = if let Some(link) = road {
             link.access(world, tile, basis, self.runway, self.taxiway, pulse)?
@@ -663,26 +762,29 @@ impl Layout {
             bounds.include(leg.start, ACCESS_HALF_WIDTH);
             bounds.include(leg.end, ACCESS_HALF_WIDTH);
         }
-        let mut hangars = [None, None];
-        for (i, area) in self.buildings.into_iter().enumerate() {
-            if let Some(area) = area {
-                if access
-                    .iter()
-                    .flatten()
-                    .any(|leg| leg.intersects(basis, area))
-                {
-                    continue;
+        let mut buildings = [None; BUILDING_SLOTS];
+        for (index, lot) in self.buildings.into_iter().enumerate() {
+            let Some(BuildingLot { area, height, role }) = lot else {
+                continue;
+            };
+            if access
+                .iter()
+                .flatten()
+                .any(|leg| leg.intersects(basis, area))
+            {
+                continue;
+            }
+            if let Some(base) = footprint(world, basis, area, 0.11, 0.11, !paved, check, pulse) {
+                for corner in area.corners(basis) {
+                    bounds.include(corner, 0.0);
                 }
-                if let Some(base) = footprint(world, basis, area, 0.11, 0.11, !paved, check, pulse) {
-                    for corner in area.corners(basis) {
-                        bounds.include(corner, 0.0);
-                    }
-                    hangars[i] = Some(Hangar {
-                        area,
-                        base,
-                        wall: if paved { 4.8 } else { 3.4 },
-                    });
-                }
+                let design = design_for(role, key, index);
+                buildings[index] = Some(Building {
+                    area,
+                    base,
+                    height,
+                    design,
+                });
             }
         }
         Some(AirfieldSite {
@@ -691,7 +793,7 @@ impl Layout {
             runway: self.runway,
             apron: self.apron,
             taxiway: self.taxiway,
-            hangars,
+            buildings,
             access,
             bounds,
         })
@@ -886,12 +988,120 @@ mod tests {
                     &mut || {},
                 )
                 .is_some());
-                assert!(
-                    footprint(&world, site.local, site.apron, 0.058, 0.066, false, |_| true, &mut || {})
-                    .is_some()
-                );
+                assert!(footprint(
+                    &world,
+                    site.local,
+                    site.apron,
+                    0.058,
+                    0.066,
+                    false,
+                    |_| true,
+                    &mut || {}
+                )
+                .is_some());
             }
         }
+    }
+
+    #[test]
+    fn all_airfield_plans_are_distinct_and_surveyed_buildings_stay_off_pavement() {
+        use std::collections::HashSet;
+
+        let mut signatures = HashSet::new();
+        let mut selected = HashSet::new();
+        for (slot, role) in [
+            BuildingRole::CountryHangar,
+            BuildingRole::RegionalHangar,
+            BuildingRole::Terminal,
+            BuildingRole::Operations,
+            BuildingRole::Service,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            selected.extend((0..128).map(|key| design_for(role, key, slot)));
+        }
+        assert_eq!(selected.len(), 25);
+        for design in selected {
+            let mut shape = [0; 21 * 21];
+            for (i, value) in shape.iter_mut().enumerate() {
+                let along = (i % 21) as f32 * 0.1 - 1.0;
+                let across = (i / 21) as f32 * 0.1 - 1.0;
+                if let Some((_, height)) = buildings::sample(design, along, across) {
+                    assert!((0.0..=1.0001).contains(&height));
+                    *value = (height * 100.0) as u8;
+                }
+            }
+            assert!(shape.iter().filter(|&&value| value > 0).count() > 90);
+            assert!(
+                signatures.insert(shape),
+                "duplicated airfield design {design}"
+            );
+        }
+        let intersects = |a: Rect, b: Rect| {
+            (a.along - b.along).abs() < a.half_length + b.half_length
+                && (a.across - b.across).abs() < a.half_width + b.half_width
+        };
+        let mut roles = HashSet::new();
+        for ((seed, x, z), regional) in COUNTRY
+            .map(|fixture| (fixture, false))
+            .into_iter()
+            .chain(REGIONAL.map(|fixture| (fixture, true)))
+        {
+            let world = World::new(seed);
+            let site = if regional {
+                let road = RoadNetwork::generate(&world, x, z).unwrap();
+                AirfieldSite::for_road(&world, seed, &road).unwrap()
+            } else {
+                AirfieldSite::generate(&world, seed, x, z).unwrap()
+            };
+            for (slot, building) in site.buildings.iter().enumerate() {
+                let Some(building) = building else {
+                    continue;
+                };
+                assert!([site.runway, site.taxiway, site.apron]
+                    .into_iter()
+                    .all(|paved| !intersects(paved, building.area)));
+                assert!(site
+                    .access
+                    .iter()
+                    .flatten()
+                    .all(|leg| !leg.intersects(site.local, building.area)));
+                assert!(site.buildings[slot + 1..]
+                    .iter()
+                    .flatten()
+                    .all(|other| !intersects(other.area, building.area)));
+                let mut sampled_roof = false;
+                for row in 0..=8 {
+                    for col in 0..=8 {
+                        let u = col as f32 * 0.25 - 1.0;
+                        let v = row as f32 * 0.25 - 1.0;
+                        let pos = site.local.world(
+                            building.area.along + building.area.half_length * u * 0.98,
+                            building.area.across + building.area.half_width * v * 0.98,
+                        );
+                        if let Some(elevation) =
+                            site.sample(pos.x, pos.z).and_then(|part| part.elevation)
+                        {
+                            assert!(elevation > world.elevation(pos.x, pos.z));
+                            assert!(elevation <= building.base + building.height + 0.001);
+                            sampled_roof = true;
+                        }
+                    }
+                }
+                assert!(
+                    sampled_roof,
+                    "No roof pixels for design {}",
+                    building.design
+                );
+                roles.insert(building.design / 5);
+            }
+        }
+        assert_eq!(
+            roles.len(),
+            5,
+            "Published airfield building roles: {roles:?}"
+        );
     }
 
     #[test]

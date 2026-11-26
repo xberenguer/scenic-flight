@@ -368,6 +368,10 @@ impl RegionalFacilityPlanner {
                                 && airfield_material(field, x, z)
                                     == Some(AirfieldMaterial::AccessRoad)
                         }) && !airfield_conflicts(field, ports, &districts, pulse)
+                    })
+                    .or_else(|| {
+                        AirfieldSite::country_for_road(&self.world, self.seed, road, pulse)
+                            .filter(|field| !airfield_conflicts(field, ports, &districts, pulse))
                     });
                 Rail
             }

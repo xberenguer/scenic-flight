@@ -15,10 +15,18 @@ mod habitats;/' "$game/src/desert_props.rs" > "$scratch/desert_props.rs"
 sed -e 's/^mod shore;$/#[path = "shore.rs"]\
 pub(super) mod shore;/' \
     -e 's/^mod farm;$/#[path = "farm.rs"]\
-pub(super) mod farm;/' "$game/src/desert_props/habitats.rs" > "$scratch/habitats.rs"
+pub(super) mod farm;/' \
+    -e 's/^mod mountain;$/#[path = "mountain.rs"]\
+pub(super) mod mountain;/' \
+    -e 's/^mod freshwater;$/#[path = "freshwater.rs"]\
+pub(super) mod freshwater;/' \
+    -e 's/^mod woodland;$/#[path = "woodland.rs"]\
+pub(super) mod woodland;/' "$game/src/desert_props/habitats.rs" > "$scratch/habitats.rs"
 sed 's/pub(in crate::desert_props) enum ShoreFeature/pub(crate) enum ShoreFeature/' \
     "$game/src/desert_props/habitats/shore.rs" > "$scratch/shore.rs"
-cp "$game/src/desert_props/habitats/farm.rs" "$scratch/farm.rs"
+cp "$game/src/desert_props/habitats/farm.rs" "$game/src/desert_props/habitats/mountain.rs" \
+    "$game/src/desert_props/habitats/freshwater.rs" \
+    "$game/src/desert_props/habitats/woodland.rs" "$scratch/"
 sed -n '/^pub(crate) fn floor_i32(/,/^}/p' "$game/src/render.rs" > "$scratch/floor.rs"
 
 cargo build --manifest-path "$game/Cargo.toml" --locked --release --lib \
@@ -50,10 +58,28 @@ case "${1:-}" in
         render_atlas farm farm-details
         exit
         ;;
+    --mountain-only)
+        "$scratch/export" "$scratch" --mountain-only
+        render_atlas mountain mountain-details
+        exit
+        ;;
+    --freshwater-only)
+        "$scratch/export" "$scratch" --freshwater-only
+        render_atlas freshwater freshwater-details
+        exit
+        ;;
+    --woodland-only)
+        "$scratch/export" "$scratch" --woodland-only
+        render_atlas woodland woodland-details
+        exit
+        ;;
 esac
 "$scratch/export" "$scratch" > "$scratch/render-verification.txt"
 render_atlas shore coastal-details
 render_atlas farm farm-details
+render_atlas mountain mountain-details
+render_atlas freshwater freshwater-details
+render_atlas woodland woodland-details
 for name in desert-rocks desert-bushes desert-cacti wetland-plants; do
     ffmpeg -hide_banner -loglevel error -y -i "$scratch/$name.ppm" -frames:v 1 "$scratch/$name.png"
     ffmpeg -hide_banner -loglevel error -y -i "$scratch/$name.png" -frames:v 1 "$scratch/$name.decoded.ppm"

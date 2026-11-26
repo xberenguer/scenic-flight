@@ -11,10 +11,10 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PAGES = "https://xberenguer.github.io/scenic-flight/"
-FEATURED = ("mountain-pass", "coastal-soaring", "city-approach", "high-cruise", "river-valley")
+FEATURED = ("ultralight-ridge", "eagle-forest-edge", "neighborhood-avenue", "high-cruise", "river-valley")
 AIRCRAFT = ("Bush Plane", "Racer", "Sport Jet", "Ultralight", "Glider",
             "F/A-18 Fighter", "SR-71 Blackbird", "Bald Eagle")
-ARTWORK = (("Roadside models", "roadside-models", 30), ("Harbor models", "harbor-models", 30), ("Railway fixtures", "rail-stations", 25), ("Farm details", "farm-details", 25), ("Coastal details", "coastal-details", 25), ("Skyline landmarks", "skyline-landmarks", 25),
+ARTWORK = (("Woodland details", "woodland-details", 25), ("Airfield buildings", "airfield-buildings", 25), ("Street buildings", "street-buildings", 25), ("Freshwater details", "freshwater-details", 25), ("Mountain details", "mountain-details", 25), ("Roadside models", "roadside-models", 30), ("Harbor models", "harbor-models", 30), ("Railway fixtures", "rail-stations", 25), ("Farm details", "farm-details", 25), ("Coastal details", "coastal-details", 25), ("Skyline landmarks", "skyline-landmarks", 25),
            ("Neighborhood buildings", "neighborhood-buildings", 27),
            ("Habitat details", "habitat-details", 30), ("City towers", "towers", 250), ("Trees", "trees", 256), ("Rocks", "rocks", 256), ("Bushes", "bushes", 256),
            ("Cacti", "cacti", 256), ("Freight wagons", "wagons", 250), ("Vessels", "vessels", 250),
@@ -88,7 +88,7 @@ def render(entries):
     for title, slug, count in ARTWORK:
         path = f"docs/assets/artwork/{slug}.png"
         sections.extend((f"#### {title} · {count} variants", preview(title, path, width=780)))
-        if slug in {"skyline-landmarks", "coastal-details", "farm-details", "rail-stations", "harbor-models", "roadside-models"}:
+        if slug in {"woodland-details", "airfield-buildings", "street-buildings", "freshwater-details", "mountain-details", "skyline-landmarks", "coastal-details", "farm-details", "rail-stations", "harbor-models", "roadside-models"}:
             sections.append(preview(f"{title} rotating", f"docs/assets/artwork/{slug}.gif", width=550))
     return "\n\n".join(sections)
 

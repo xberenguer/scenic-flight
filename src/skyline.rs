@@ -21,6 +21,7 @@ pub(crate) const DUPLEX_GROUP: u16 = 5;
 pub(crate) const ROWHOUSE_GROUP: u16 = 6;
 pub(crate) const INDUSTRIAL_GROUP: u16 = 7;
 pub(crate) const SHOP_GROUP: u16 = 8;
+pub(crate) const BOROUGH_ALT_OFFSET: u16 = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SkylineTower {
@@ -444,7 +445,7 @@ impl Glyph {
                 value
             }
             Form::Hall => overlap(u, -self.half, self.half) * overlap(v, -self.height, 0.0),
-            Form::Neighborhood if (COTTAGE_GROUP..=SHOP_GROUP).contains(&self.profile) => {
+            Form::Neighborhood if (COTTAGE_GROUP..=SHOP_GROUP + BOROUGH_ALT_OFFSET).contains(&self.profile) => {
                 borough_roof_coverage(u, v, self.half, self.height, self.profile)
             }
             Form::Neighborhood => {
@@ -485,12 +486,22 @@ const fn roof_mass(left: f32, right: f32, eave: f32, ridge: f32, crest: f32) -> 
     [left, right, eave, ridge, crest, 1.0 / (ridge - eave)]
 }
 
-const BOROUGH_ROOFS: [[[f32; 6]; 3]; 5] = [
+const BOROUGH_ROOFS: [[[f32; 6]; 3]; 10] = [
     [roof_mass(-0.96, -0.41, 0.49, 0.68, 0.47), roof_mass(-0.31, 0.27, 0.61, 0.90, 0.50), roof_mass(0.39, 0.90, 0.52, 0.76, 0.54)],
     [roof_mass(-0.96, -0.40, 0.57, 0.81, 0.57), roof_mass(-0.39, 0.16, 0.65, 0.91, 0.44), roof_mass(0.30, 0.93, 0.59, 0.80, 0.49)],
     [roof_mass(-0.97, -0.34, 0.69, 0.78, 0.47), roof_mass(-0.32, 0.32, 0.78, 0.92, 0.56), roof_mass(0.33, 0.96, 0.64, 0.76, 0.52)],
     [roof_mass(-0.98, -0.35, 0.57, 0.86, 0.84), roof_mass(-0.34, 0.33, 0.57, 0.86, 0.84), roof_mass(0.34, 0.98, 0.53, 0.81, 0.85)],
     [roof_mass(-0.96, -0.42, 0.58, 0.68, 0.45), roof_mass(-0.40, 0.25, 0.70, 0.85, 0.53), roof_mass(0.34, 0.97, 0.72, 0.79, 0.41)],
+    // Cross-gable cottages beside a lower split-level cluster.
+    [roof_mass(-0.97, -0.34, 0.54, 0.93, 0.66), roof_mass(-0.23, 0.31, 0.63, 0.67, 0.50), roof_mass(0.42, 0.92, 0.40, 0.71, 0.37)],
+    // Stepped duplexes with a narrow paired roof deck.
+    [roof_mass(-0.92, -0.27, 0.74, 0.81, 0.29), roof_mass(-0.10, 0.40, 0.57, 0.91, 0.47), roof_mass(0.41, 0.96, 0.68, 0.95, 0.66)],
+    // Staggered terraced rows and a tall corner pavilion.
+    [roof_mass(-0.97, -0.30, 0.59, 0.69, 0.50), roof_mass(-0.29, 0.33, 0.48, 0.57, 0.47), roof_mass(0.34, 0.92, 0.85, 0.99, 0.60)],
+    // Low cross-docks alongside a raised monitor and kiln stack.
+    [roof_mass(-0.98, -0.11, 0.49, 0.72, 0.54), roof_mass(-0.08, 0.96, 0.52, 0.62, 0.50), roof_mass(0.64, 0.83, 0.96, 0.99, 0.50)],
+    // A low market roof, a corner marquee, and a stepped small hotel.
+    [roof_mass(-0.96, -0.28, 0.43, 0.68, 0.60), roof_mass(-0.19, 0.24, 0.73, 0.82, 0.59), roof_mass(0.26, 0.93, 0.66, 0.99, 0.42)],
 ];
 
 #[inline(never)]
@@ -1074,6 +1085,42 @@ mod tests {
         let final_frame = sample(&mut skyline, 120);
         assert!(final_frame.glyphs.iter().flatten().any(|entry| entry.center == visible.center));
         assert!(!skyline.neighborhoods.iter().flatten().any(|entry| entry.tower == foreground));
+    }
+
+    #[test]
+    fn alternate_borough_profiles_have_distinct_coverage_at_board_scale() {
+        const SIDE: usize = 60;
+        let view = camera(0.0, 0.0, 48.0, 0.0, 0.065);
+        let sky = sky_at(view);
+        let projection = Projection::new(view, (SIDE, SIDE));
+        for profile in COTTAGE_GROUP..=SHOP_GROUP {
+            let mask = |profile| {
+                let mut rendered = std::vec::Vec::new();
+                for distance in [540.0, 710.0, 930.0] {
+                    let tower = SkylineTower {
+                        center: [0.0, distance], footprint: [24.0, 19.0],
+                        direction: [0.0, 1.0], base: 10.0, height: 9.0, profile,
+                    };
+                    if let Some(mut glyph) = projection.glyph(tower, Form::Neighborhood, 1.0, &sky, &mut |_, _| 10.0) {
+                        glyph.color = u16::MAX;
+                        let mut frame = SkylineFrame {
+                            glyphs: [None; GLYPHS], dimensions: (SIDE, SIDE), roll: projection.roll,
+                            rect: Some(glyph.screen_rect()), len: 0,
+                        };
+                        frame.insert(glyph);
+                        let mut pixels = [0; SIDE * SIDE];
+                        frame.draw(&mut pixels, &[glyph.support_depth; SIDE * SIDE]);
+                        rendered.extend(pixels);
+                    }
+                }
+                rendered
+            };
+            let original = mask(profile);
+            let alternate = mask(profile + BOROUGH_ALT_OFFSET);
+            assert!(original.iter().any(|&pixel| pixel != 0), "{profile}");
+            assert!(alternate.iter().any(|&pixel| pixel != 0), "{profile}");
+            assert!(original != alternate, "Identical board-scale silhouettes for group {profile}");
+        }
     }
 
     #[test]

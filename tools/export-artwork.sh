@@ -7,6 +7,7 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/scenic-artwork.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 
 SCENIC_ARTWORK_OUTPUT="$scratch" python3 "$tools/artwork/trees/export_tree_crowns.py"
+SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/streets/export.sh"
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/desert/export.sh"
 game=$(CDPATH='' cd -- "$tools/.." && pwd)
 SCENIC_WAGON_SOURCE="$game/src/train_art/wagons.rs" \
@@ -68,6 +69,11 @@ cp "$scratch/harbor-models.png" "$scratch/harbor-models.gif" "$assets/"
 cp "$scratch/roadside-models.png" "$scratch/roadside-models.gif" "$assets/"
 cp "$scratch/coastal-details.png" "$scratch/coastal-details.gif" "$assets/"
 cp "$scratch/farm-details.png" "$scratch/farm-details.gif" "$assets/"
+cp "$scratch/mountain-details.png" "$scratch/mountain-details.gif" "$assets/"
+cp "$scratch/freshwater-details.png" "$scratch/freshwater-details.gif" "$assets/"
+cp "$scratch/street-buildings.png" "$scratch/street-buildings.gif" "$assets/"
+cp "$scratch/airfield-buildings.png" "$scratch/airfield-buildings.gif" "$assets/"
+cp "$scratch/woodland-details.png" "$scratch/woodland-details.gif" "$assets/"
 for category in rocks bushes cacti; do
     cp "$scratch/desert-$category.png" "$assets/$category.png"
 done

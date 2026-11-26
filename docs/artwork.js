@@ -119,7 +119,67 @@ const roadsideNames = [
 ];
 const roadsideFamilies = ['Scenic overlooks', 'Trailheads', 'Rest stops'];
 
+const mountainNames = [
+  'Creeping juniper', 'Stunted spruce', 'Mountain mahogany', 'Split pine snag', 'Uprooted pine',
+  'Heather bank', 'Alpine avens', 'Dwarf willow', 'Bunchgrass ring', 'Gentian spikes',
+  'Quartz seam', 'Slate blades', 'Rock step', 'Split granite', 'Basalt columns',
+  'Snow cornice', 'Rim ice fin', 'Snow pocket', 'Wind crust', 'Rimed boulder',
+  'Boulder train', 'Glacial pavement', 'Paired erratics', 'Moraine crest', 'Meltwater cobbles',
+];
+const mountainFamilies = ['Upper forest', 'Alpine meadow', 'Exposed rock', 'Snowfields', 'Scree and glacial deposits'];
+
+const freshwaterNames = [
+  'Cobble ridge', 'Sand ripples', 'Shale shingle', 'Flood wrack', 'Root wad',
+  'River log', 'Forked driftwood', 'Silt butte', 'Pebble fan', 'Channel boulders',
+  'Cattail stand', 'Bulrush umbels', 'Sweet flag', 'Bur-reed', 'Reed wall',
+  'Marsh marigold', 'Iris stand', 'Meadowsweet', 'Loosestrife', 'Water mint',
+  'Willow stool', 'Alder saplings', 'Red-osier thicket', 'Bracken break', 'Rush tussocks',
+];
+const freshwaterFamilies = ['Exposed bars', 'Exposed bars', 'Reedbeds', 'Wet-meadow flowers', 'Wet-meadow foliage'];
+
+const streetBuildingNames = [
+  'Cross-gable house', 'Staggered split-level house', 'Courtyard studio house', 'Hip-roof home with garage', 'Desert terrace house',
+  'Stepped duplex', 'Offset gable duplex', 'Mansard duplex', 'Barrel-roof duplex', 'Opposed shed-roof duplex',
+  'Veranda row', 'Terrace corner row', 'Drum-front row', 'Staggered gable row', 'Recessed walk-up flats',
+  'Barrel shed', 'Monitor-roof factory', 'Distribution cross-dock', 'Kilnhouse', 'Lumber shed',
+  'Corner pharmacy', 'Neighborhood cinema', 'Stall market', 'Street hotel', 'Bakery with service wing',
+];
+const streetBuildingFamilies = ['Detached homes', 'Duplexes', 'Terraced rows', 'Industrial', 'Main street'];
+
+const airfieldBuildingNames = [
+  'Gabled hangar with lean-to', 'Paired barrel hangars', 'Shed-roof hangar', 'Hipped hangar with workshop', 'Barrel hangar with raised skylight',
+  'Monitor-roof hangar', 'Three-bay sawtooth hangar', 'Wide-span hangar with office wing', 'Split maintenance bays', 'Flat-roof hangar with clerestory',
+  'Terminal with glazed canopy', 'Open-court terminal', 'Terminal with round concourse', 'Twin-vault terminal', 'Stepped regional concourse',
+  'Capped control tower', 'Round tower and operations hall', 'Stepped operations tower', 'Radio tower compound', 'Fire and operations station',
+  'Maintenance shed with side bay', 'Paired fuel tanks', 'Twin-vault storehouse', 'Service station with rear bay', 'Courtyard workshops',
+];
+const airfieldBuildingFamilies = ['Country hangars', 'Regional hangars', 'Terminals', 'Operations', 'Airport services'];
+
+const woodlandNames = [
+  'Spruce seedling', 'Hemlock whorls', 'Yew bush', 'Hazel coppice', 'Birch saplings',
+  'Ostrich fern', 'Wood sedge', 'Broadleaf hellebore', 'Foamflower mat', 'Evergreen holly',
+  'Nurse log', 'Split stump', 'Windthrow and roots', 'Bark heap', 'Branch tangle',
+  'Shelf fungi', 'Parasol patch', 'Morel cluster', 'Puffball ring', 'Coral fungi',
+  'Bracken fronds', 'Foxglove', 'Rose-hip bramble', 'Bilberry mound', 'Honeysuckle arch',
+];
+const woodlandFamilies = ['Young trees and shrubs', 'Shade plants', 'Fallen wood', 'Fungi', 'Woodland edges'];
+
 const categories = [
+  { title: 'Woodland details', label: 'Woodland detail', atlas: 'woodland-details.png', columns: 5, rows: 5,
+    name: index => woodlandNames[index], family: index => woodlandFamilies[Math.floor(index / 5)],
+    animation: 'woodland-details.gif' },
+  { title: 'Airfield buildings', label: 'Airfield building', atlas: 'airfield-buildings.png', columns: 5, rows: 5,
+    name: index => airfieldBuildingNames[index], family: index => airfieldBuildingFamilies[Math.floor(index / 5)],
+    animation: 'airfield-buildings.gif' },
+  { title: 'Street buildings', label: 'Street building', atlas: 'street-buildings.png', columns: 5, rows: 5,
+    name: index => streetBuildingNames[index], family: index => streetBuildingFamilies[Math.floor(index / 5)],
+    animation: 'street-buildings.gif' },
+  { title: 'Freshwater details', label: 'Freshwater detail', atlas: 'freshwater-details.png', columns: 5, rows: 5,
+    name: index => freshwaterNames[index], family: index => freshwaterFamilies[Math.floor(index / 5)],
+    animation: 'freshwater-details.gif' },
+  { title: 'Mountain details', label: 'Mountain detail', atlas: 'mountain-details.png', columns: 5, rows: 5,
+    name: index => mountainNames[index], family: index => mountainFamilies[Math.floor(index / 5)],
+    animation: 'mountain-details.gif' },
   { title: 'Roadside models', label: 'Roadside model', atlas: 'roadside-models.png', columns: 5, rows: 6,
     name: index => roadsideNames[index], family: index => roadsideFamilies[Math.floor(index / 10)],
     animation: 'roadside-models.gif' },
