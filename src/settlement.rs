@@ -8,9 +8,11 @@ use crate::world_mesh::{bounds_in_view, WorldMesh};
 mod neighborhoods;
 mod building_forms;
 mod expansion;
+pub mod town_landmarks;
 pub(crate) use expansion::{BoroughPaintCache, TownExpansion, WaterfrontVillage};
 
 use neighborhoods::Neighborhoods;
+use town_landmarks::TownLandmark;
 
 const COLS: usize = 7;
 const CORE_ROWS: usize = 6;
@@ -51,6 +53,9 @@ pub enum SettlementSurface {
     PitchedRoof,
     FlatRoof,
     TowerRoof,
+    IndustryBrick,
+    IndustryConcrete,
+    IndustryMetal,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -216,6 +221,14 @@ impl Settlement {
         self.tower_count
     }
 
+    pub fn town_landmarks(&self) -> impl Iterator<Item = ([f32; 2], TownLandmark)> + '_ {
+        self.parcels.iter().flat_map(|parcel| parcel.buildings()).filter_map(|building| {
+            let Form::TownLandmark(_, design) = building.form else { return None; };
+            let (x, z) = self.local.world(building.area.x, building.area.z);
+            Some(([x, z], design))
+        })
+    }
+
     pub fn skyline_towers(&self) -> impl Iterator<Item = crate::skyline::SkylineTower> + '_ {
         self.parcels.iter().take(if self.tower_count==0 {0}else{self.parcels.len()})
             .flat_map(|parcel| parcel.buildings()).filter(|building| matches!(building.form, Form::Tower(_)))
@@ -259,26 +272,40 @@ impl Settlement {
     }
 
     pub(crate) fn skyline_roofs(&self) -> impl Iterator<Item = crate::skyline::SkylineRoof> + '_ {
+        use crate::skyline::Form as SkylineForm;
         self.skyline_roofs.into_iter().filter(|&id| id != NO_ROOF).map(|id| {
             self.parcels[usize::from(id) / 2].buildings[usize::from(id) % 2]
         }).map(|building| {
             let area = building.area;
             let (x, z) = self.local.world(area.x, area.z);
-            let (height, pitched) = match building.form {
-                Form::House => (building.height + 1.7, true),
-                Form::Civic(_) => (building.height * 0.60, true),
-                _ => (building.height, false),
+            let mut direction = [self.local.fx, self.local.fz];
+            let mut footprint = [area.half_width, area.half_depth];
+            let (height, form, profile) = match building.form {
+                Form::House => (building.height + 1.7, SkylineForm::Gable, 0),
+                Form::Civic(_) => (building.height * 0.60, SkylineForm::Gable, 0),
+                Form::TownLandmark(frontage, design) => {
+                    let [east, north] = direction;
+                    direction = match frontage {
+                        Frontage::Near => [-east, -north],
+                        Frontage::Far => [east, north],
+                        Frontage::Left => [-north, east],
+                        Frontage::Right => [north, -east],
+                    };
+                    if matches!(frontage, Frontage::Left | Frontage::Right) { footprint.swap(0, 1); }
+                    (building.height, SkylineForm::TownLandmark, design.id())
+                }
+                _ => (building.height, SkylineForm::Hall, 0),
             };
             crate::skyline::SkylineRoof {
                 building: crate::skyline::SkylineTower {
                     center: [x, z],
-                    footprint: [area.half_width, area.half_depth],
-                    direction: [self.local.fx, self.local.fz],
+                    footprint,
+                    direction,
                     base: building.base,
                     height,
-                    profile: 0,
+                    profile,
                 },
-                pitched,
+                form,
             }
         })
     }
@@ -352,7 +379,6 @@ impl Settlement {
             let (x, z) = self.local.world(area.x, area.z);
             let fade = fade * fade_factor(x, z);
             if fade < 0.015 { continue; }
-            let mut previous = 0.0;
             let profile = tower.tower_profile();
             let landmark = crate::skyline::tower_forms::landmark(profile);
             let (masses, wall) = if let Some(form) = landmark {
@@ -362,8 +388,7 @@ impl Settlement {
                 (form.tiers.as_slice(), form.wall)
             };
             for &tier in masses {
-                let lower = tower.base + tower.height * previous;
-                if landmark.is_none() { previous = tier.top; }
+                let lower = tower.base + tower.height * tier.bottom;
                 let upper = tower.base + tower.height * tier.top;
                 let ring = [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]].map(|[x, z]| {
                     self.local.world(
@@ -375,6 +400,12 @@ impl Settlement {
                 let roof_color = wall.map(|channel| channel.saturating_add(24));
                 mesh.faded_triangle([a, b, c], roof_color, fade);
                 mesh.faded_triangle([a, c, d], roof_color, fade);
+                if landmark.is_some() && tier.bottom > 0.0 {
+                    let [a, b, c, d] = ring.map(|(x, z)| [x, lower, z]);
+                    let underside = wall.map(|channel| channel.saturating_sub(26));
+                    mesh.faded_triangle([a, c, b], underside, fade);
+                    mesh.faded_triangle([a, d, c], underside, fade);
+                }
                 for side in 0..4 {
                     let (x0, z0) = ring[side];
                     let (x1, z1) = ring[(side + 1) % 4];
@@ -621,6 +652,8 @@ impl Settlement {
     fn site_blocks(&mut self, world: &World, road: &RoadNetwork, layout: u32, pulse: &mut impl FnMut()) {
         let metropolitan = self.street_count >= 32 && layout & 0x30 != 0;
         let mut civic_available = layout & 0x1800_0000 != 0;
+        let mut landmark_count = 0;
+        let mut industry_count = 0;
         let mut parks = 0;
         let mut waterfront = false;
         for row in 0..CORE_ROWS - 1 {
@@ -671,19 +704,58 @@ impl Settlement {
                     use crate::skyline::tower_forms;
                     let regular = tower_forms::select_regular(layout, key, self.tower_count);
                     let design = tower_forms::design(regular);
-                    let tower = frontage.lot(x, z, 0.0, 0.5, 5.15 * design.size[0], 4.85 * design.size[1]);
-                    if let Some(base) = frontage.site(world, road, self.local, tower, 1.35) {
-                        let profile = tower_forms::select(layout, key, self.tower_count);
-                        let height = tower_forms::landmark(profile).map_or(design.height, |form| form.height);
+                    let profile = tower_forms::select(layout, key, self.tower_count);
+                    let site = |size: [f32; 2], height, profile| {
+                        let tower = frontage.lot(x, z, 0.0, 0.5, 5.15 * size[0], 4.85 * size[1]);
+                        let base = frontage.site(world, road, self.local, tower, 1.35)?;
+                        Some((tower, base, height, profile))
+                    };
+                    let landmark = tower_forms::landmark(profile)
+                        .and_then(|form| site(form.size, form.height, profile));
+                    if let Some((tower, base, height, profile)) =
+                        landmark.or_else(|| site(design.size, design.height, regular))
+                    {
                         parcel.add(Building::new(tower, base, height, Form::Tower(profile)));
                         self.tower_count += 1;
+                    }
+                }
+                let height = 7.0 + (key >> 19 & 7) as f32;
+                let civic_candidate = middle && sides.count_ones() >= 2 && height >= 10.0;
+                if parcel.buildings().is_empty() && !middle && row >= CORE_ROWS - 3
+                    && industry_count < 2 && key >> 23 & 7 < 3
+                {
+                    let design = TownLandmark::industry(key.rotate_right(13));
+                    let [width, depth, height] = design.dimensions();
+                    let lot = frontage.lot(x, z, 0.0, 0.15, width, depth);
+                    if let Some(base) = frontage.site(world, road, self.local, lot, 1.95) {
+                        parcel.add(Building::new(lot, base, height, Form::TownLandmark(frontage, design)));
+                        industry_count += 1;
+                    }
+                }
+                if parcel.buildings().is_empty()
+                    && landmark_count < 2
+                    && key >> 25 & 7 < 2
+                    && !(civic_available && civic_candidate)
+                {
+                    let family = if !middle && row >= CORE_ROWS - 3 {
+                        3 + (key >> 17 & 1) as usize
+                    } else if middle {
+                        ((key >> 12 & 1) * 2) as usize
+                    } else {
+                        ((layout >> 21) + (key >> 15 & 1)) as usize % 3
+                    };
+                    let design = TownLandmark::select(family, key >> 6);
+                    let [width, depth, height] = design.dimensions();
+                    let lot = frontage.lot(x, z, 0.0, 0.20, width, depth);
+                    if let Some(base) = frontage.site(world, road, self.local, lot, 1.95) {
+                        parcel.add(Building::new(lot, base, height, Form::TownLandmark(frontage, design)));
+                        landmark_count += 1;
                     }
                 }
                 if parcel.buildings().is_empty() && (middle || key & 7 < 3) {
                     let hall = frontage.lot(x, z, 0.0, 1.25, 5.4, 3.7);
                     if let Some(base) = frontage.site(world, road, self.local, hall, 1.9) {
-                        let height = 7.0 + (key >> 19 & 7) as f32;
-                        let form = if civic_available && middle && sides.count_ones() >= 2 && height >= 10.0 {
+                        let form = if civic_available && civic_candidate {
                             civic_available = false;
                             Form::Civic(frontage)
                         } else {
@@ -816,6 +888,7 @@ enum Form {
     Hall,
     Tower(u16),
     Civic(Frontage),
+    TownLandmark(Frontage, TownLandmark),
     Terrace(Frontage),
     CourtWing(Frontage),
     Workshop(Frontage),
@@ -875,6 +948,12 @@ impl Building {
                 )
             }
             Form::Hall => (SettlementSurface::FlatRoof, self.height),
+            Form::TownLandmark(frontage, design) => {
+                let [face, mut side] = frontage.roof_axes(self.area, x, z);
+                if matches!(frontage, Frontage::Near | Frontage::Right) { side = -side; }
+                let (surface, profile) = design.roof([side, face])?;
+                (surface, self.height * profile)
+            }
             Form::Cottage(variant) => {
                 let (surface, profile) = building_forms::cottage(variant, self.detached_axes(x, z, false))?;
                 (surface, self.height * profile)
@@ -1486,6 +1565,53 @@ mod tests {
     ];
 
     #[test]
+    fn industrial_landmarks_have_distinct_roofs_and_surveyed_frontages() {
+        use std::collections::HashSet;
+
+        let mut silhouettes = HashSet::new();
+        for index in 0..TownLandmark::INDUSTRY_COUNT {
+            let design = TownLandmark::industry_from_index(index).unwrap();
+            let silhouette: std::vec::Vec<_> = (0..25).flat_map(|z| (0..25).map(move |x| {
+                let p = |i| (i as f32 + 0.5) * 0.08 - 1.0;
+                design.roof([p(x), p(z)]).map_or(0, |(_, h)| (h * 10.0).ceil() as u8)
+            })).collect();
+            assert!(silhouette.iter().any(|&height| height > 0));
+            assert!(silhouettes.insert(silhouette), "Repeated roof for {}", design.name());
+        }
+
+        let mut placed = HashSet::new();
+        let mut skyline = HashSet::new();
+        'worlds: for seed in 0..16 {
+            let world = World::new(seed);
+            for z in -8..=8 {
+                for x in -8..=8 {
+                    let Some(road) = RoadNetwork::generate(&world, x, z) else { continue; };
+                    for end in [Terminus::Start, Terminus::End] {
+                        let Some(town) = Settlement::generate(&world, &road, end) else { continue; };
+                        for (index, parcel) in town.parcels.iter().enumerate() {
+                            for building in parcel.buildings() {
+                                let Form::TownLandmark(_, design) = building.form else { continue; };
+                                if !design.is_industry() { continue; }
+                                assert!(index / (COLS - 1) >= CORE_ROWS - 3);
+                                assert_ne!(frontages(&town.streets, index % (COLS - 1), index / (COLS - 1)), 0);
+                                assert_eq!(foundation(&world, town.local, building.area, 1.95), Some(building.base));
+                                assert!(!highway_overlaps(&road, town.local, building.area));
+                                placed.insert(design.id());
+                            }
+                        }
+                        skyline.extend(town.skyline_roofs().filter(|roof| roof.form == crate::skyline::Form::TownLandmark)
+                            .map(|roof| roof.building.profile)
+                            .filter(|&profile| TownLandmark::from_index(profile as usize).unwrap().is_industry()));
+                        if placed.len() == TownLandmark::INDUSTRY_COUNT && skyline.len() >= 20 { break 'worlds; }
+                    }
+                }
+            }
+        }
+        assert_eq!(placed.len(), TownLandmark::INDUSTRY_COUNT);
+        assert!(skyline.len() >= 20, "Industrial skyline profiles: {skyline:?}");
+    }
+
+    #[test]
     fn every_street_connects_to_the_regional_road() {
         assert!(core::mem::size_of::<Settlement>() <= 3000);
         for (seed, rx, rz, end) in FIXTURES {
@@ -1652,6 +1778,7 @@ mod tests {
                         Form::House | Form::Cottage(_) | Form::Duplex(_) => 2.15,
                         Form::Hall | Form::Civic(_) | Form::Rowhouse(_, _)
                         | Form::Shop(_, _) | Form::Industrial(_, _) => 1.9,
+                        Form::TownLandmark(_, _) => 1.95,
                         Form::Tower(_) => {
                             towers += 1;
                             1.35
@@ -1734,7 +1861,7 @@ mod tests {
                 let kind = match building.form {
                     Form::House | Form::Cottage(_) | Form::Duplex(_) => 0,
                     Form::Hall | Form::Civic(_) | Form::Rowhouse(_, _)
-                    | Form::Shop(_, _) | Form::Industrial(_, _) => 1,
+                    | Form::Shop(_, _) | Form::Industrial(_, _) | Form::TownLandmark(_, _) => 1,
                     Form::Tower(_) => 2,
                     _ => panic!("unexpected form in core: {:?}", building.form),
                 };

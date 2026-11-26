@@ -29,7 +29,7 @@ pub fn render_with_packed_terrain_fork(
     )
 }
 
-/// Render a 48-, 54-, 60-, or 466-pixel square through the packed terrain fork.
+/// Render a compact or native square through the packed terrain fork.
 ///
 /// Depth uses two full planes in `work`. The upright compact views copy
 /// the joined rows directly. Upright native frames keep the serial path.
@@ -49,7 +49,7 @@ pub fn render_with_packed_terrain_fork_sized<const SIDE: usize>(
     ready_sky_tile: impl FnMut(usize) -> Option<u16>,
     mut ground_horizon: impl FnMut(f32, f32) -> f32,
 ) -> Result<(), RenderError> {
-    if !matches!(SIDE, 48 | 54 | 60 | 466) {
+    if !matches!(SIDE, 36 | 42 | 48 | 54 | 60 | 466) {
         return Err(RenderError::InvalidDimensions);
     }
     let count = SIDE * SIDE;
@@ -459,6 +459,16 @@ mod tests {
     #[test]
     fn packed_forty_eight_matches_serial_color_and_depth() {
         check_adaptive_raster::<48>();
+    }
+
+    #[test]
+    fn packed_forty_two_matches_serial_color_and_depth() {
+        check_adaptive_raster::<42>();
+    }
+
+    #[test]
+    fn packed_thirty_six_matches_serial_color_and_depth() {
+        check_adaptive_raster::<36>();
     }
 
     fn check_adaptive_raster<const SIDE: usize>() {

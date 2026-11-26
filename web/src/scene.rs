@@ -12,7 +12,7 @@ use scenic_flight::horizon_cache::HorizonCache;
 use scenic_flight::land_stream::{LandBudget, LandStream};
 use scenic_flight::local_routes::{route_reservation, LocalRouteStream};
 use scenic_flight::natural_stream::{
-    highway_reservation_with_nature, scenery_reservation_with_highways, NaturalBudget,
+    highway_reservation_with_nature, scenery_reservation_with_highways, NaturalBudget, NaturalReservation,
     NaturalStream,
 };
 use scenic_flight::rail_art::{
@@ -27,6 +27,7 @@ use scenic_flight::river_stream::RiverStream;
 use scenic_flight::scenery::CoastalScenery;
 use scenic_flight::sky::Sky;
 use scenic_flight::skyline::Skyline;
+use scenic_flight::summit_stream::SummitStream;
 use scenic_flight::terrain_cache::TerrainCache;
 use scenic_flight::train_art::{Train, TRAIN_RENDER_REACH};
 use scenic_flight::watershed::WatershedWork;
@@ -55,6 +56,7 @@ pub(super) struct Scene {
     highways: HighwayStream<4>,
     highway_work: CoastalHighwayWork,
     natural: NaturalStream,
+    summits: SummitStream,
     skyline: Skyline,
     distant_roads: DistantRoads,
     distant_bridges: BridgeSilhouettes,
@@ -89,6 +91,7 @@ impl Scene {
             highways: HighwayStream::new(world, seed),
             highway_work: CoastalHighwayWork::new(),
             natural: NaturalStream::new(world, seed),
+            summits: SummitStream::new(),
             skyline: Skyline::new(),
             distant_roads: DistantRoads::new(),
             distant_bridges: BridgeSilhouettes::new(),
@@ -151,6 +154,7 @@ impl Scene {
                 )
             },
         );
+        scene.prepare_summits(view, true);
         scene.publish_roadside(view, true);
         scene
     }
@@ -180,6 +184,7 @@ impl Scene {
                 .max(self.cliffs.obstruction(x, z))
                 .max(self.rivers.obstruction(x, z))
                 .max(self.natural.obstruction(x, z))
+                .max(self.summits.obstruction(x, z))
                 .max(self.routes.obstruction(x, z))
                 .max(self.highways.obstruction(x, z))
         });
@@ -214,6 +219,7 @@ impl Scene {
                 self.rivers
                     .commit_avoiding(result, &self.land, view, |river| {
                         self.natural.reserves_river(river)
+                            || self.summits.conflicts_with(|bounds| river.intersects_scenery(bounds))
                             || self.facilities.reserves_roadside_river(river)
                             || self
                                 .regional_rail
@@ -229,7 +235,7 @@ impl Scene {
         }
         self.routes
             .service(&self.land, view, ticks % 16 == 12, |key, route| {
-                if route.ground_conflicts_with(|bounds| self.regional_rail.reserves(bounds)) {
+                if route.ground_conflicts_with(|bounds| self.regional_rail.reserves(bounds) || self.summits.reserves(bounds)) {
                     return scenic_flight::local_routes::Reservation::Blocked;
                 }
                 route_reservation(&self.world, &self.facilities, &self.rivers, key, route)
@@ -240,6 +246,7 @@ impl Scene {
                     if self
                         .regional_rail
                         .conflicts_with(|bounds| link.intersects_bounds(bounds))
+                        || self.summits.conflicts_with(|bounds| link.intersects_bounds(bounds))
                     {
                         return scenic_flight::highway_stream::Reservation::Blocked;
                     }
@@ -267,8 +274,8 @@ impl Scene {
                     dry_tiles: 1,
                 },
                 |bounds| {
-                    if self.regional_rail.reserves(bounds) {
-                        return scenic_flight::natural_stream::NaturalReservation::Reserved;
+                    if self.regional_rail.reserves(bounds) || self.summits.reserves(bounds) {
+                        return NaturalReservation::Reserved;
                     }
                     scenery_reservation_with_highways(
                         &self.land,
@@ -285,13 +292,36 @@ impl Scene {
         if ticks % 32 == 30 {
             self.survey_rail(view);
         }
+        if ticks % 16 == 10 {
+            self.prepare_summits(view, false);
+        }
         self.publish_roadside(view, false);
         self.regional_rail.connect_quarries(&self.land, &self.facilities, view);
     }
 
+    fn prepare_summits(&mut self, view: Camera, launch: bool) {
+        let reserve = |bounds| {
+            if self.natural.reserves(bounds) || self.regional_rail.reserves(bounds) {
+                NaturalReservation::Reserved
+            } else {
+                scenery_reservation_with_highways(
+                    &self.land, &self.facilities, &self.rivers, &self.routes, &self.highways, bounds,
+                )
+            }
+        };
+        if launch {
+            self.summits.preflight(self.world, self.seed, view, reserve);
+        } else {
+            if let Some(request) = self.summits.request(self.world, view) {
+                self.summits.commit(request.prepare(|| {}), view);
+            }
+            self.summits.publish(view, DIMENSIONS, reserve);
+        }
+    }
+
     fn publish_roadside(&mut self, view: Camera, before_first_frame: bool) {
         self.facilities.publish_roadside_sites(view, before_first_frame, |bounds| {
-            if self.regional_rail.reserves(bounds) {
+            if self.regional_rail.reserves(bounds) || self.summits.reserves(bounds) {
                 RoadsideReservation::Reserved
             } else {
                 roadside_reservation(&self.land, &self.rivers, &self.routes, &self.highways, &self.natural, bounds)
@@ -302,6 +332,7 @@ impl Scene {
     fn service_rail(&mut self, view: Camera) {
         self.regional_rail.service(&self.land, view, |bounds| {
             self.facilities.reserves_roadside_site(bounds)
+                || self.summits.reserves(bounds)
                 || scene_blocks(
                     &self.land,
                     &self.rivers,
@@ -411,6 +442,7 @@ impl Scene {
         };
         let ribbons = || inland_ribbons.iter().chain(coast_ribbons.iter()).flatten();
         let waterfall_region = self.natural.waterfall_region(view, DIMENSIONS);
+        let summit_region = self.summits.region(view, DIMENSIONS);
         let route_region = self.routes.depth_region(view, DIMENSIONS);
         let tracks_region = self
             .facilities
@@ -514,6 +546,7 @@ impl Scene {
                 .chain(self.distant_roads.bounds())
                 .chain(ribbons().map(HighwayRibbon::depth_region))
                 .chain(waterfall_region)
+                .chain(summit_region)
                 .chain(route_region)
                 .chain(desert_props.region())
                 .chain(tracks_region)
@@ -578,6 +611,10 @@ impl Scene {
             }
             if waterfall_region.is_some() {
                 self.natural.draw_waterfalls(view, flight.ticks, &mut mesh);
+            }
+            if summit_region.is_some() {
+                self.summits.draw(view, sky.daylight, &mut mesh);
+                self.summits.draw_trails(view, &mut mesh, |x, z| sample(x, z).elevation);
             }
             if route_region.is_some() {
                 self.routes.draw(view, flight.ticks, &mut mesh);

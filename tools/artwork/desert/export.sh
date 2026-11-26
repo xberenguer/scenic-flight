@@ -21,12 +21,27 @@ pub(super) mod mountain;/' \
     -e 's/^mod freshwater;$/#[path = "freshwater.rs"]\
 pub(super) mod freshwater;/' \
     -e 's/^mod woodland;$/#[path = "woodland.rs"]\
-pub(super) mod woodland;/' "$game/src/desert_props/habitats.rs" > "$scratch/habitats.rs"
+pub(super) mod woodland;/' \
+    -e 's/^mod dryland;$/#[path = "dryland.rs"]\
+pub(super) mod dryland;/' \
+    -e 's/^mod grassland;$/#[path = "grassland.rs"]\
+pub(super) mod grassland;/' \
+    -e 's/^mod headland;$/#[path = "headland.rs"]\
+pub(super) mod headland;/' \
+    -e 's/^mod alpine_ground;$/#[path = "alpine_ground.rs"]\
+pub(super) mod alpine_ground;/' \
+    -e 's/^mod wetland;$/#[path = "wetland.rs"]\
+pub(super) mod wetland;/' "$game/src/desert_props/habitats.rs" > "$scratch/habitats.rs"
 sed 's/pub(in crate::desert_props) enum ShoreFeature/pub(crate) enum ShoreFeature/' \
     "$game/src/desert_props/habitats/shore.rs" > "$scratch/shore.rs"
+sed 's/pub(in crate::desert_props) enum HeadlandFeature/pub(crate) enum HeadlandFeature/' \
+    "$game/src/desert_props/habitats/headland.rs" > "$scratch/headland.rs"
 cp "$game/src/desert_props/habitats/farm.rs" "$game/src/desert_props/habitats/mountain.rs" \
     "$game/src/desert_props/habitats/freshwater.rs" \
-    "$game/src/desert_props/habitats/woodland.rs" "$scratch/"
+    "$game/src/desert_props/habitats/woodland.rs" \
+    "$game/src/desert_props/habitats/dryland.rs" \
+    "$game/src/desert_props/habitats/grassland.rs" "$game/src/desert_props/habitats/alpine_ground.rs" \
+    "$game/src/desert_props/habitats/wetland.rs" "$scratch/"
 sed -n '/^pub(crate) fn floor_i32(/,/^}/p' "$game/src/render.rs" > "$scratch/floor.rs"
 
 cargo build --manifest-path "$game/Cargo.toml" --locked --release --lib \
@@ -73,6 +88,31 @@ case "${1:-}" in
         render_atlas woodland woodland-details
         exit
         ;;
+    --dryland-only)
+        "$scratch/export" "$scratch" --dryland-only
+        render_atlas dryland dryland-details
+        exit
+        ;;
+    --grassland-only)
+        "$scratch/export" "$scratch" --grassland-only
+        render_atlas grassland grassland-details
+        exit
+        ;;
+    --headland-only)
+        "$scratch/export" "$scratch" --headland-only
+        render_atlas headland headland-details
+        exit
+        ;;
+    --alpine-ground-only)
+        "$scratch/export" "$scratch" --alpine-ground-only
+        render_atlas alpine-ground alpine-ground-details
+        exit
+        ;;
+    --wetland-only)
+        "$scratch/export" "$scratch" --wetland-only
+        render_atlas wetland floodplain-details
+        exit
+        ;;
 esac
 "$scratch/export" "$scratch" > "$scratch/render-verification.txt"
 render_atlas shore coastal-details
@@ -80,6 +120,11 @@ render_atlas farm farm-details
 render_atlas mountain mountain-details
 render_atlas freshwater freshwater-details
 render_atlas woodland woodland-details
+render_atlas dryland dryland-details
+render_atlas grassland grassland-details
+render_atlas headland headland-details
+render_atlas alpine-ground alpine-ground-details
+render_atlas wetland floodplain-details
 for name in desert-rocks desert-bushes desert-cacti wetland-plants; do
     ffmpeg -hide_banner -loglevel error -y -i "$scratch/$name.ppm" -frames:v 1 "$scratch/$name.png"
     ffmpeg -hide_banner -loglevel error -y -i "$scratch/$name.png" -frames:v 1 "$scratch/$name.decoded.ppm"

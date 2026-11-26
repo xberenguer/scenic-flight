@@ -214,10 +214,7 @@ impl SummitStream {
                 let [site_x, ground, site_z] = site.center();
                 let distance_squared = (x - site_x) * (x - site_x) + (z - site_z) * (z - site_z);
                 let clearance = 1.0 - crate::math::smoothstep((distance_squared - 49.0) / 480.0);
-                let height = match site.kind() {
-                    SummitKind::Watchtower => 20.0,
-                    SummitKind::SummitHut => 7.0,
-                };
+                let height = art(site).height();
                 let landmark = (ground + height + 1.0) * clearance;
                 let trail = resident
                     .active_trail()
@@ -251,6 +248,7 @@ fn art(site: &SummitSite) -> LookoutArt {
     let kind = match site.kind() {
         SummitKind::Watchtower => LookoutKind::Watchtower,
         SummitKind::SummitHut => LookoutKind::SummitHut,
+        SummitKind::Landmark(design) => LookoutKind::Landmark(design),
     };
     LookoutArt::new(site.center(), site.heading(), kind, site.variant())
 }
@@ -272,7 +270,11 @@ mod tests {
         };
         stream.preflight(World::new(6), 6, camera, |_| NaturalReservation::Clear);
         assert!(stream.region(camera, (144, 144)).is_some());
-        assert!(stream.obstruction(-2021.0, -229.0) > 196.0);
+        let site = stream.active().find(|site| site.center()[0] == -2021.0).unwrap();
+        assert_eq!(
+            stream.obstruction(-2021.0, -229.0),
+            site.center()[1] + art(site).height() + 1.0,
+        );
         assert_eq!(stream.obstruction(-1900.0, -229.0), 0.0);
 
         let moved = Camera {

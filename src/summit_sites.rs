@@ -1,6 +1,7 @@
 //! Sparse lookout sites sited on actual mountain crests and high benches.
 
 use crate::math::mix;
+use crate::lookout_art::SummitDesign;
 use crate::world::World;
 
 pub const SUMMIT_TILE_SIZE: i32 = 768;
@@ -24,6 +25,7 @@ const AXES: [[f32; 2]; 8] = {
 pub enum SummitKind {
     Watchtower,
     SummitHut,
+    Landmark(SummitDesign),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -115,7 +117,9 @@ impl SummitSite {
                 let [x, z] = point;
                 let variant =
                     mix(key ^ u64::from(x.to_bits()) ^ (u64::from(z.to_bits()) << 32)) as u32;
-                let kind = if key & 3 == 0 && hut_apron(world, point, grade) {
+                let kind = if key >> 5 & 3 != 0 {
+                    SummitKind::Landmark(SummitDesign::seeded(variant))
+                } else if key & 3 == 0 && hut_apron(world, point, grade) {
                     SummitKind::SummitHut
                 } else {
                     SummitKind::Watchtower

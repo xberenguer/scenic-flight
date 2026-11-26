@@ -124,6 +124,9 @@ pub(crate) fn cover_settlement(detail: crate::settlement::SettlementSample, grou
         SettlementSurface::PitchedRoof => Surface::PitchedRoof,
         SettlementSurface::FlatRoof => Surface::FlatRoof,
         SettlementSurface::TowerRoof => Surface::TowerRoof,
+        SettlementSurface::IndustryBrick => Surface::IndustryBrick,
+        SettlementSurface::IndustryConcrete => Surface::IndustryConcrete,
+        SettlementSurface::IndustryMetal => Surface::IndustryMetal,
     };
     Sample { surface, elevation: detail.elevation.unwrap_or(ground.elevation) }
 }

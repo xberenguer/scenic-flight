@@ -10,8 +10,6 @@ use std::io::{self, Write};
 const SIDE: usize = 112;
 const ACROSS: usize = 40;
 const ALONG: usize = 90;
-const COLUMNS: usize = 10;
-const ROWS: usize = 25;
 const BACKGROUND: [u8; 3] = [19, 24, 30];
 
 fn shade(material: DeckMaterial) -> [u8; 3] {
@@ -23,9 +21,10 @@ fn shade(material: DeckMaterial) -> [u8; 3] {
     }
 }
 
-fn render(ship: Anchorage, length: f32, width: f32) -> [u16; SIDE * SIDE] {
-    let x = length * 1.85;
-    let z = -length * 1.38;
+fn render(ship: Anchorage, length: f32, width: f32, turn: f32) -> [u16; SIDE * SIDE] {
+    let (sin, cos) = turn.sin_cos();
+    let x = length * (1.85 * cos - 1.38 * sin);
+    let z = length * (-1.38 * cos - 1.85 * sin);
     let altitude = length * 0.91;
     let camera = Camera {
         x, z, altitude,
@@ -99,41 +98,49 @@ fn rgb(pixel: u16) -> [u8; 3] {
 }
 
 fn main() -> io::Result<()> {
-    let width = SIDE * COLUMNS;
-    let height = SIDE * ROWS;
+    let mut args = std::env::args_os().skip(1);
+    let metadata_path = args.next().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "expected metadata output path")
+    })?;
+    let service = args.next().is_some_and(|flag| flag == "--service");
+    let turn = args.next().and_then(|angle| angle.to_str()?.parse().ok()).unwrap_or(0.0);
+    let vessels: Vec<_> = Vessel::ALL.into_iter()
+        .filter(|vessel| (*vessel == Vessel::Service) == service).collect();
+    let columns = if service { 5 } else { 10 };
+    let count: usize = vessels.iter().map(|vessel| usize::from(vessel.variants())).sum();
+    let width = SIDE * columns;
+    let height = SIDE * count.div_ceil(columns);
     let mut atlas = vec![0; width * height * 3];
     let mut images = BTreeSet::new();
     let mut metadata = Vec::new();
-    for (family, vessel) in Vessel::ALL.into_iter().enumerate() {
-        let fleet: Vec<_> = (0..Vessel::VARIANTS)
+    for vessel in vessels {
+        let fleet: Vec<_> = (0..vessel.variants())
             .map(|variant| Anchorage::catalog(vessel, variant).unwrap()).collect();
         let [length, beam] = fleet.iter().map(|ship| ship.half_extents())
             .fold([0.0_f32; 2], |[a, b], [l, w]| [a.max(l), b.max(w)]);
         for (variant, ship) in fleet.into_iter().enumerate() {
-            let pixels = render(ship, length, beam);
+            let [model_length, model_beam] = if service { ship.half_extents() } else { [length, beam] };
+            let pixels = render(ship, model_length, model_beam, turn);
+            let index = metadata.len();
             metadata.push(format!(r#"{{"family":{:?},"configuration":{:?}}}"#,
-                vessel.name(), vessel.configuration(variant as u8).unwrap()));
-            let index = family * usize::from(Vessel::VARIANTS) + variant;
-            let (col, row) = (index % COLUMNS, index / COLUMNS);
+                vessel.name(), ship.configuration()));
+            let (col, row) = (index % columns, index / columns);
             let mut visible = 0;
             for (i, pixel) in pixels.into_iter().enumerate() {
                 let (x, y) = (i % SIDE, i / SIDE);
                 if pixel != 0 {
                     assert!((2..SIDE - 2).contains(&x) && (2..SIDE - 2).contains(&y),
-                        "clipped vessel {family} / {variant}");
+                        "clipped vessel {vessel:?} / {variant}");
                     visible += 1;
                 }
                 let offset = ((row * SIDE + y) * width + col * SIDE + x) * 3;
                 atlas[offset..offset + 3].copy_from_slice(&rgb(pixel));
             }
-            assert!(visible >= 70, "empty vessel {family} / {variant}");
-            assert!(images.insert(pixels), "repeated vessel artwork {family} / {variant}");
+            assert!(visible >= 70, "empty vessel {vessel:?} / {variant}");
+            assert!(images.insert(pixels), "repeated vessel artwork {vessel:?} / {variant}");
         }
     }
 
-    let metadata_path = std::env::args_os().nth(1).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "expected metadata output path")
-    })?;
     std::fs::write(metadata_path, format!("[\n{}\n]\n", metadata.join(",\n")))?;
     eprintln!("Verified {} distinct vessel renders from production hull and deck sampling.", images.len());
     let mut out = io::BufWriter::new(io::stdout().lock());

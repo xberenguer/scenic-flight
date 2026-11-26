@@ -1610,7 +1610,8 @@ fn main() -> ! {
             let result = serial_terrain!();
             #[cfg(feature = "parallel-terrain")]
             let packed_60 = cfg!(feature = "packed-60-terrain")
-                && matches!(scene_side, scene_raster::REDUCED_SIDE | scene_raster::BALANCED_SIDE | scene_raster::FULL_SIDE);
+                && matches!(scene_side, scene_raster::MIN_SIDE | scene_raster::HEAVY_SIDE | scene_raster::REDUCED_SIDE
+                    | scene_raster::BALANCED_SIDE | scene_raster::FULL_SIDE);
             #[cfg(feature = "urban-background")]
             let packed_60 = {
                 // DMA and terrain both preempt surveys on the worker. Give a
@@ -1669,6 +1670,8 @@ fn main() -> ! {
                     };
                 }
                 match scene_side {
+                    scene_raster::MIN_SIDE if ADAPTIVE_SCENERY => packed_terrain!(scene_raster::MIN_SIDE),
+                    scene_raster::HEAVY_SIDE if ADAPTIVE_SCENERY => packed_terrain!(scene_raster::HEAVY_SIDE),
                     scene_raster::REDUCED_SIDE if ADAPTIVE_SCENERY => packed_terrain!(scene_raster::REDUCED_SIDE),
                     scene_raster::BALANCED_SIDE if ADAPTIVE_SCENERY => packed_terrain!(scene_raster::BALANCED_SIDE),
                     _ => packed_terrain!(LOGICAL_SIDE),

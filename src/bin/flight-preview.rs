@@ -25,7 +25,7 @@ use scenic_flight::land_stream::{LandBudget, LandStream, UrbanAuthorities, Urban
 use scenic_flight::lighthouses::{Lighthouse, LIGHTHOUSE_TILE};
 use scenic_flight::local_routes::{LocalRouteStream, route_reservation};
 use scenic_flight::maritime::{ANCHORAGE_TILE, Anchorage};
-use scenic_flight::natural_stream::{NaturalBudget, NaturalStream, highway_reservation_with_nature, scenery_reservation_with_highways};
+use scenic_flight::natural_stream::{NaturalBudget, NaturalReservation, NaturalStream, highway_reservation_with_nature, scenery_reservation_with_highways};
 use scenic_flight::ports::Port;
 use scenic_flight::rail_art::{corridor_screen_region, draw_rail, draw_rail_corridor, rail_screen_region};
 use scenic_flight::rail_stream::{RailStream, scene_blocks};
@@ -38,6 +38,7 @@ use scenic_flight::render::{
 use scenic_flight::scenery::{CoastalScenery, DistrictRegion, overlay_airfield, overlay_alpine, overlay_port, overlay_watershed};
 use scenic_flight::sky::Sky;
 use scenic_flight::skyline::Skyline;
+use scenic_flight::summit_stream::SummitStream;
 use scenic_flight::terrain_cache::TerrainCache;
 use scenic_flight::train_art::{Train, TRAIN_RENDER_REACH};
 use scenic_flight::ui;
@@ -523,6 +524,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     let mut weather = WeatherEffects::new();
     let mut valley_mist = ValleyMist::new();
     let mut natural = NaturalStream::new(world, seed);
+    let mut summits = SummitStream::new();
     let mut lights = FeatureTiles::<Lighthouse, 9, 12>::new(LIGHTHOUSE_TILE);
     let mut beaches = FeatureTiles::<BeachSite, 5, 16>::new(BEACH_TILE_SIZE);
     let start = advance * u64::from(TICKS_PER_SECOND);
@@ -546,6 +548,13 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     natural.preflight(first_view, NaturalBudget { alpine_tiles: 49, dry_tiles: 49 }, |bounds| {
         scenery_reservation_with_highways(&district, &facilities, &rivers, &routes, &highways, bounds)
     });
+    summits.preflight(world, seed, first_view, |bounds| {
+        if natural.reserves(bounds) {
+            NaturalReservation::Reserved
+        } else {
+            scenery_reservation_with_highways(&district, &facilities, &rivers, &routes, &highways, bounds)
+        }
+    });
     facilities.publish_roadside_sites(first_view, true, |bounds| {
         scenic_flight::facility_stream::roadside_reservation(&district, &rivers, &routes, &highways, &natural, bounds)
     });
@@ -558,7 +567,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         highways: &highways,
         rail: &regional_rail,
         natural: &natural,
-        summits: None,
+        summits: Some(&summits),
     };
     let started = std::time::Instant::now();
     let mut urban_districts = 0;
@@ -589,6 +598,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     let mut coastal_bridge_frames = 0;
     let mut rain_frames = 0;
     let mut skyline_frames = 0;
+    let mut summit_frames = 0;
     let mut distant_road_frames = 0;
     let mut distant_bridge_frames = 0;
     for frame in 0..(advance + duration) * u64::from(TICKS_PER_SECOND) {
@@ -598,6 +608,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
                     .max(urban.obstruction(&district, x, z))
                     .max(rivers.obstruction(x, z)).max(routes.obstruction(x, z)).max(natural.obstruction(x, z))
                     .max(highways.obstruction(x, z))
+                    .max(summits.obstruction(x, z))
                     .max(lights.at(x, z).map_or(0.0, |site| site.clearance(x, z)))
             });
         }
@@ -619,6 +630,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
                     let result = survey.certify_with_detour(land, facilities.planned(key), &mut river_work);
                     rivers.commit_avoiding(result, &district, view, |river| {
                         facilities.reserves_roadside_river(river)
+                            || summits.conflicts_with(|bounds| river.intersects_scenery(bounds))
                             || regional_rail.conflicts_with(|bounds| river.intersects_scenery(bounds))
                             || natural.reserves_river(river) || highways.reserves_river(river)
                             || routes.routes().any(|(_, route)| {
@@ -633,14 +645,16 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             }
         }
         routes.service(&district, view, frame % 16 == 12, |key, route| {
-            if route.ground_conflicts_with(|bounds| regional_rail.reserves(bounds)) {
+            if route.ground_conflicts_with(|bounds| regional_rail.reserves(bounds) || summits.reserves(bounds)) {
                 return scenic_flight::local_routes::Reservation::Blocked;
             }
             route_reservation(&world, &facilities, &rivers, key, route)
         });
         if frame % 16 == 8 {
             highways.service_with_reservations(&district, view, true, |pair, link| {
-                if regional_rail.conflicts_with(|bounds| link.intersects_bounds(bounds)) {
+                if regional_rail.conflicts_with(|bounds| link.intersects_bounds(bounds))
+                    || summits.conflicts_with(|bounds| link.intersects_bounds(bounds))
+                {
                     return scenic_flight::highway_stream::Reservation::Blocked;
                 }
                 highway_reservation_with_nature(&district, &facilities, &rivers, &routes, &natural, pair, link)
@@ -651,7 +665,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         }
         if frame % 4 == 0 {
             regional_rail.service(&district, view, |bounds| {
-                facilities.reserves_roadside_site(bounds)
+                facilities.reserves_roadside_site(bounds) || summits.reserves(bounds)
                     || scene_blocks(&district, &rivers, &routes, &natural, &highways, bounds)
             });
         }
@@ -678,7 +692,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
                 alpine_tiles: u8::from(frame % 4 == 0),
                 dry_tiles: u8::from(frame % 4 == 1),
             }, |bounds| {
-                if regional_rail.reserves(bounds) {
+                if regional_rail.reserves(bounds) || summits.reserves(bounds) {
                     scenic_flight::natural_stream::NaturalReservation::Reserved
                 } else {
                     scenery_reservation_with_highways(&district, &facilities, &rivers, &routes, &highways, bounds)
@@ -686,6 +700,18 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             }),
             2 => lights.follow(view.x, view.z, 1, |x, z| Lighthouse::generate(&world, seed, x, z)),
             _ => beaches.follow(view.x, view.z, 1, |x, z| BeachSite::generate(&world, seed, x, z)),
+        }
+        if frame % 16 == 10 {
+            if let Some(request) = summits.request(world, view) {
+                summits.commit(request.prepare(|| {}), view);
+            }
+            summits.publish(view, dimensions, |bounds| {
+                if natural.reserves(bounds) || regional_rail.reserves(bounds) {
+                    NaturalReservation::Reserved
+                } else {
+                    scenery_reservation_with_highways(&district, &facilities, &rivers, &routes, &highways, bounds)
+                }
+            });
         }
         facilities.publish_roadside_sites(view, false, |bounds| {
             if regional_rail.reserves(bounds) {
@@ -698,7 +724,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         if frame % u64::from(TICKS_PER_SECOND) == 0 {
             let authorities = UrbanAuthorities {
                 facilities: &facilities, rivers: &rivers, routes: &routes,
-                highways: &highways, rail: &regional_rail, natural: &natural, summits: None,
+                highways: &highways, rail: &regional_rail, natural: &natural, summits: Some(&summits),
             };
             let mask = |region| urban_reservations(&authorities, region, &world, seed, &cliffs, &lights);
             let publication = if let Some(region) = urban.pending_region() {
@@ -763,6 +789,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         let skyline_region = distant_skyline.bounds();
         let bridge_region = rivers.bridge_region(view, dimensions);
         let waterfall_region = natural.waterfall_region(view, dimensions);
+        let summit_region = summits.region(view, dimensions);
         let route_region = routes.depth_region(view, dimensions);
         let rail_region = facilities.rails(view, 78.0)
             .filter_map(|line| rail_screen_region(line, view, dimensions))
@@ -807,6 +834,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             .chain(distant_bridges.bounds())
             .chain(distant_airfields.depth_region())
             .chain(waterfall_region)
+            .chain(summit_region)
             .chain(mist.depth_region())
             .reduce(ScreenRect::union);
         let visible_natural = natural.has_visible_features(view);
@@ -894,6 +922,10 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             if waterfall_region.is_some() {
                 natural.draw_waterfalls(view, flight.ticks, &mut mesh);
             }
+            if summit_region.is_some() {
+                summits.draw(view, sky.daylight, &mut mesh);
+                summits.draw_trails(view, &mut mesh, |x, z| sample(x, z).elevation);
+            }
             if route_region.is_some() {
                 routes.draw(view, flight.ticks, &mut mesh);
             }
@@ -927,6 +959,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         river_frames += usize::from(has_river);
         wetland_frames += usize::from(rivers.wetland_sites(view).next().is_some());
         waterfall_frames += usize::from(waterfall_region.is_some());
+        summit_frames += usize::from(summit_region.is_some());
         bridge_frames += usize::from(bridge_region.is_some());
         route_frames += usize::from(route_region.is_some());
         natural_frames += usize::from(visible_natural);
@@ -941,7 +974,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
          {wetland_frames} floodplain frames, {waterfall_frames} cascade frames, \
          {route_frames} local-route frames, {portal_frames} open-portal frames, \
          {natural_frames} natural-landmark frames, {highway_frames} connected-highway frames, \
-         {coastal_bridge_frames} coastal-bridge frames, {rain_frames} rain frames, {skyline_frames} distant skyline frames, \
+         {coastal_bridge_frames} coastal-bridge frames, {rain_frames} rain frames, {skyline_frames} distant skyline frames, {summit_frames} summit frames, \
          {distant_road_frames} distant road frames, {distant_bridge_frames} distant bridge frames",
         flight.terrain_recoveries,
     );

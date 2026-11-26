@@ -3,6 +3,10 @@
 use crate::math::{sin_cos, smoothstep};
 use crate::world_mesh::WorldMesh;
 
+mod designs;
+pub use designs::SummitDesign;
+use designs::{Part, Profile};
+
 type Point = [f32; 3];
 type Color = [u8; 3];
 
@@ -18,6 +22,7 @@ const GLASS: Color = [58, 87, 101];
 pub enum LookoutKind {
     Watchtower,
     SummitHut,
+    Landmark(SummitDesign),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -41,9 +46,14 @@ impl LookoutArt {
     }
 
     pub fn mesh_bounds(&self) -> [Point; 2] {
-        let (half_x, half_z, height) = match self.kind {
-            LookoutKind::Watchtower => (4.7, 4.7, 19.6),
-            LookoutKind::SummitHut => (3.85, 5.15, 6.7),
+        let (half_x, half_z) = match self.kind {
+            LookoutKind::Watchtower => (4.7, 4.7),
+            LookoutKind::SummitHut => (3.85, 5.15),
+            LookoutKind::Landmark(design) => {
+                design.data().parts.iter().fold((0.0_f32, 0.0_f32), |(w, d), part| {
+                    (w.max(part.center[0].abs() + part.half[0]), d.max(part.center[1].abs() + part.half[1]))
+                })
+            }
         };
         let (sin, cos) = sin_cos(self.heading);
         let (x, y, z) = (self.center[0], self.center[1], self.center[2]);
@@ -51,8 +61,17 @@ impl LookoutArt {
         let along_z = half_x * sin.abs() + half_z * cos.abs();
         [
             [x - along_x, y + FOUNDATION_BOTTOM, z - along_z],
-            [x + along_x, y + height, z + along_z],
+            [x + along_x, y + self.height(), z + along_z],
         ]
+    }
+
+    pub(crate) fn height(&self) -> f32 {
+        match self.kind {
+            LookoutKind::Watchtower => 20.0,
+            LookoutKind::SummitHut => 7.0,
+            LookoutKind::Landmark(design) => design.data().parts.iter()
+                .map(|part| part.levels[1]).fold(0.0_f32, f32::max),
+        }
     }
 
     pub fn draw(&self, mesh: &mut WorldMesh<'_>, daylight: f32) {
@@ -92,6 +111,11 @@ impl LookoutArt {
         match self.kind {
             LookoutKind::Watchtower => art.tower(wall, roof, occupied),
             LookoutKind::SummitHut => art.hut(wall, roof, occupied),
+            LookoutKind::Landmark(design) => {
+                for part in design.data().parts {
+                    art.landmark_part(part);
+                }
+            }
         }
     }
 }
@@ -101,6 +125,46 @@ struct Builder<'a, F> {
 }
 
 impl<F: FnMut([Point; 3], Color, bool)> Builder<'_, F> {
+    fn landmark_part(&mut self, part: &Part) {
+        let [x, z] = part.center;
+        let [low, high] = part.levels;
+        let color = part.color;
+        match part.profile {
+            Profile::Box => self.block([x, low, z], part.half, high, color),
+            Profile::Gable => {
+                let [a, b, c, d] = ring([x, low, z], part.half);
+                let front = [x, high, a[2]];
+                let back = [x, high, d[2]];
+                self.quad([a, d, back, front], color, false);
+                self.quad([front, back, c, b], color, false);
+                (self.emit)([a, front, b], color, false);
+                (self.emit)([c, back, d], color, false);
+            }
+            Profile::Hip => {
+                let crest = ring([x, high, z], [part.half[0] * 0.21, part.half[1] * 0.29]);
+                self.shell(ring([x, low, z], part.half), crest, color);
+                self.top(crest, color);
+            }
+            Profile::Dome => {
+                const SECTION: [[f32; 2]; 8] = [
+                    [-0.414, -1.0], [0.414, -1.0], [1.0, -0.414], [1.0, 0.414],
+                    [0.414, 1.0], [-0.414, 1.0], [-1.0, 0.414], [-1.0, -0.414],
+                ];
+                let section = |rise, scale| SECTION.map(|[u, v]| {
+                    [x + u * part.half[0] * scale, low + (high - low) * rise, z + v * part.half[1] * scale]
+                });
+                let rim = section(0.0, 1.0);
+                let shoulder = section(0.46, 0.86);
+                let summit = section(0.82, 0.56);
+                self.shell(rim, shoulder, color);
+                self.shell(shoulder, summit, color);
+                for edge in 0..summit.len() {
+                    (self.emit)([summit[edge], [x, high, z], summit[(edge + 1) % summit.len()]], color, false);
+                }
+            }
+        }
+    }
+
     fn tower(&mut self, wall: Color, roof: Color, occupied: bool) {
         let bases = ring([0.0, 0.8, 0.0], [3.9, 3.9]);
         let cap = ring([0.0, 14.14, 0.0], [2.74, 2.74]);
@@ -302,9 +366,9 @@ impl<F: FnMut([Point; 3], Color, bool)> Builder<'_, F> {
         self.top(high, color);
     }
 
-    fn shell(&mut self, low: [Point; 4], high: [Point; 4], color: Color) {
-        for i in 0..4 {
-            let j = (i + 1) % 4;
+    fn shell<const N: usize>(&mut self, low: [Point; N], high: [Point; N], color: Color) {
+        for i in 0..N {
+            let j = (i + 1) % N;
             self.quad([low[i], high[i], high[j], low[j]], color, false);
         }
     }
@@ -339,7 +403,12 @@ mod tests {
     #[test]
     fn every_face_fits_the_surveyed_footprint_and_projected_bounds() {
         let center = [-2021.0, 176.7, -229.0];
-        for (kind, max_faces) in [(LookoutKind::Watchtower, 200), (LookoutKind::SummitHut, 88)] {
+        let designs = (0..SummitDesign::COUNT).map(|index| {
+            (LookoutKind::Landmark(SummitDesign::from_index(index).unwrap()), 150)
+        });
+        for (kind, max_faces) in [(LookoutKind::Watchtower, 200), (LookoutKind::SummitHut, 88)]
+            .into_iter().chain(designs)
+        {
             for heading in [0.0, 0.3, 1.57, 3.88, 5.98] {
                 for variation in [0, 1, 2, 13] {
                     let art = LookoutArt::new(center, heading, kind, variation);

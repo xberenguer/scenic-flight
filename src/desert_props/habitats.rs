@@ -3,15 +3,25 @@
 
 use crate::world::{Sample, Surface};
 
+mod alpine_ground;
+mod dryland;
 mod farm;
 mod freshwater;
+mod grassland;
+mod headland;
 mod mountain;
 mod shore;
+mod wetland;
 mod woodland;
+use dryland::DrylandFeature;
+use alpine_ground::AlpineGround;
 use farm::FarmFeature;
 use freshwater::FreshwaterFeature;
+use grassland::GrasslandFeature;
+use headland::HeadlandFeature;
 use mountain::MountainFeature;
 use shore::ShoreFeature;
+use wetland::WetlandFeature;
 use woodland::WoodlandFeature;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -27,6 +37,11 @@ pub(super) enum Feature {
     Mountain(MountainFeature),
     Freshwater(FreshwaterFeature),
     Woodland(WoodlandFeature),
+    Dryland(DrylandFeature),
+    Grassland(GrasslandFeature),
+    Headland(HeadlandFeature),
+    AlpineGround(AlpineGround),
+    Wetland(WetlandFeature),
 }
 
 const DRYLAND: [Feature; 5] = [
@@ -55,46 +70,116 @@ const WETLAND: [Feature; 5] = [
 ];
 
 impl Feature {
+    /// Test the material of a footprint edge without choosing a model.
+    pub(super) fn supports(ground: Sample) -> bool {
+        match ground.surface {
+            Surface::Sand | Surface::DuneSand => ground.elevation >= 0.42,
+            Surface::RiverSilt => ground.elevation >= 0.45,
+            Surface::Desert | Surface::DryWash | Surface::Forest | Surface::Grass |
+            Surface::Rock | Surface::Snow | Surface::AlpineMeadow | Surface::ScreeEdge |
+            Surface::ScreeFine | Surface::ScreeCoarse | Surface::GlacierMoraine |
+            Surface::WetMeadow | Surface::ReedMarsh => true,
+            _ => false,
+        }
+    }
+
     pub(super) fn on(ground: Sample, key: u64, region: u64) -> Option<Self> {
-        if ground.surface == Surface::Snow || key >> 50 & 3 != 0 {
-            if let Some(form) = MountainFeature::choose(ground, key, region) {
-                return Some(Self::Mountain(form));
-            }
-        }
-        if (key >> 60) & 3 != 0 {
-            if let Some(form) = FreshwaterFeature::choose(ground, key, region) {
-                return Some(Self::Freshwater(form));
-            }
-        }
-        if key >> 58 & 3 != 0 {
-            if let Some(form) = WoodlandFeature::choose(ground, key, region) {
-                return Some(Self::Woodland(form));
-            }
-        }
         let plants = match ground.surface {
-            Surface::Desert | Surface::DryWash => &DRYLAND,
-            Surface::DuneSand if ground.elevation > 10.0 => &DRYLAND,
-            Surface::Sand | Surface::DuneSand if ground.elevation >= 0.42 => {
-                if key >> 49 & 3 != 0 {
-                    if let Some(form) = ShoreFeature::choose(ground.elevation, key, region) {
-                        return Some(Self::Shore(form));
+            Surface::Desert | Surface::DryWash | Surface::DuneSand => {
+                if key >> 54 & 3 != 0 {
+                    if let Some(form) = DrylandFeature::choose(ground, key, region) {
+                        return Some(Self::Dryland(form));
                     }
                 }
-                &COAST
+                if ground.surface != Surface::DuneSand || ground.elevation > 10.0 {
+                    &DRYLAND
+                } else {
+                    return Self::shore(ground, key, region);
+                }
             }
-            Surface::Forest => &WOODLAND,
-            Surface::Grass if ground.elevation < 55.0 => &MEADOW,
-            Surface::Grass | Surface::Rock | Surface::AlpineMeadow | Surface::ScreeEdge
-            | Surface::ScreeFine | Surface::ScreeCoarse | Surface::GlacierMoraine => &ALPINE,
-            Surface::WetMeadow | Surface::ReedMarsh => &WETLAND,
-            Surface::RiverSilt if ground.elevation >= 0.45 => return Some(Self::MudHummock),
+            Surface::Sand => return Self::shore(ground, key, region),
+            Surface::Forest => {
+                if key >> 50 & 3 != 0 {
+                    if let Some(form) = MountainFeature::choose(ground, key, region) {
+                        return Some(Self::Mountain(form));
+                    }
+                }
+                if key >> 58 & 3 != 0 {
+                    if let Some(form) = WoodlandFeature::choose(ground, key, region) {
+                        return Some(Self::Woodland(form));
+                    }
+                }
+                &WOODLAND
+            }
+            Surface::Grass if ground.elevation < 55.0 => {
+                if key >> 57 & 3 != 0 {
+                    return Some(Self::Grassland(GrasslandFeature::choose(key, region)));
+                }
+                &MEADOW
+            }
+            Surface::Grass | Surface::Rock | Surface::Snow | Surface::AlpineMeadow | Surface::ScreeEdge
+            | Surface::ScreeFine | Surface::ScreeCoarse | Surface::GlacierMoraine => {
+                if ground.surface == Surface::Snow || key >> 50 & 3 != 0 {
+                    if let Some(form) = MountainFeature::choose(ground, key, region) {
+                        return Some(Self::Mountain(form));
+                    }
+                }
+                &ALPINE
+            }
+            Surface::WetMeadow | Surface::ReedMarsh | Surface::RiverSilt => {
+                if key >> 60 & 3 != 0 {
+                    if let Some(form) = FreshwaterFeature::choose(ground, key, region) {
+                        return Some(Self::Freshwater(form));
+                    }
+                }
+                if ground.surface == Surface::RiverSilt {
+                    return (ground.elevation >= 0.45).then_some(Self::MudHummock);
+                }
+                &WETLAND
+            }
             _ => return None,
         };
-        // Each patch favors a small group of related objects. The cell still
-        // provides an independent choice so an entire slope is not one model.
-        let rare = ((key >> 32) & 3) == 0;
-        let index = (if rare { key >> 35 } else { (region >> 12) + ((key >> 36) & 1) }) % 5;
-        Some(plants[index as usize])
+        Some(Self::patch_member(plants, key, region))
+    }
+
+    fn patch_member(plants: &[Self; 5], key: u64, region: u64) -> Self {
+        // Each patch favors two related objects, with occasional individual variations.
+        let rare = key >> 32 & 3 == 0;
+        let index = (if rare { key >> 35 } else { (region >> 12) + (key >> 36 & 1) }) % 5;
+        plants[index as usize]
+    }
+
+    fn shore(ground: Sample, key: u64, region: u64) -> Option<Self> {
+        if ground.elevation < 0.42 {
+            return None;
+        }
+        if key >> 49 & 3 != 0 {
+            if let Some(form) = ShoreFeature::choose(ground.elevation, key, region) {
+                return Some(Self::Shore(form));
+            }
+        }
+        Some(Self::patch_member(&COAST, key, region))
+    }
+
+    pub(super) fn beside_sea(
+        ground: Sample,
+        key: u64,
+        patch: u64,
+        water_nearby: impl FnOnce() -> bool,
+    ) -> Option<Self> {
+        (key >> 52 & 3 != 0 && HeadlandFeature::eligible(ground) && water_nearby())
+            .then(|| Self::Headland(HeadlandFeature::choose(ground, key, patch)))
+    }
+
+    pub(super) fn cold_ground(ground: Sample, key: u64, patch: u64) -> Option<Self> {
+        if ground.surface != Surface::GlacierIce && key >> 31 & 3 >= 2 {
+            return None;
+        }
+        AlpineGround::choose(ground, key, patch).map(Self::AlpineGround)
+    }
+
+    pub(super) fn wet_ground(ground: Sample, key: u64, patch: u64) -> Option<Self> {
+        WetlandFeature::choose(ground, key, patch).map(Self::Wetland)
     }
 
     pub(super) fn beside_crop(crop: Surface, key: u64, district: u64) -> Option<Self> {
@@ -122,6 +207,11 @@ impl Feature {
             Mountain(form) => form.draw(&mut model),
             Freshwater(form) => form.draw(&mut model),
             Woodland(form) => form.draw(&mut model),
+            Dryland(form) => form.draw(&mut model),
+            Grassland(form) => form.draw(&mut model),
+            Headland(form) => form.draw(&mut model),
+            AlpineGround(form) => form.draw(&mut model),
+            Wetland(form) => form.draw(&mut model),
             Ocotillo => {
                 for [x, z, y] in [[-0.8, -0.4, 2.9], [-0.4, 0.8, 2.3], [0.3, -0.7, 2.5], [0.9, 0.5, 2.75], [0.1, 0.15, 3.35]] {
                     model.stalk([x * 0.12, 0.0, z * 0.12], [x, y, z], 0.10, [96, 119, 65]);
@@ -424,5 +514,29 @@ impl<F: FnMut([[f32; 3]; 3], [u8; 3])> Mesh<F> {
         (self.0)([hi, high, end(b, 1.0)], tint(color, 15));
         (self.0)([hi, end(b, 1.0), end(a, 1.0)], tint(color, 22));
         (self.0)([low, end(b, 1.0), high], tint(color, 30));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn footprint_material_check_agrees_with_the_full_selector() {
+        use Surface::*;
+        let surfaces = [Sand, DuneSand, RiverSilt, Desert, DryWash, Forest, Grass, Rock, Snow,
+            AlpineMeadow, ScreeEdge, ScreeFine, ScreeCoarse, GlacierMoraine, WetMeadow, ReedMarsh,
+            DeepWater, Shallows, RiverWater, Pavement, FieldGold, Park, FlatRoof, GrassRunway];
+        for surface in surfaces {
+            for elevation in [0.0, 0.42, 0.45, 1.4, 10.0, 48.0, 54.9, 55.0, 69.0, 104.0, 145.0] {
+                let ground = Sample { surface, elevation };
+                for seed in 0..32 {
+                    let key = crate::math::mix(seed);
+                    let patch = crate::math::mix(key);
+                    assert_eq!(Feature::supports(ground), Feature::on(ground, key, patch).is_some(),
+                        "{ground:?} with seed {seed}");
+                }
+            }
+        }
     }
 }

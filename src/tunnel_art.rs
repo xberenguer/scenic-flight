@@ -14,7 +14,7 @@ type Point = [f32; 3];
 /// Lower the surveyed approach to its road grade. The original pavement and
 /// ground rejoin at the planned junctions; the roof remains untouched.
 pub fn overlay_approach(tunnel: &RoadTunnel, x: f32, z: f32, ground: Sample) -> Sample {
-    if ground.elevation <= SEA_LEVEL
+    if ground.elevation <= SEA_LEVEL || ground.surface.is_industry()
         || matches!(
             ground.surface,
             Surface::DeepWater

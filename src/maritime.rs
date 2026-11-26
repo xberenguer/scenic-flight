@@ -3,7 +3,9 @@
 use core::f32::consts::{FRAC_PI_2, TAU};
 
 use crate::math::{fraction, mix, sin_cos};
-use crate::world::{SEA_LEVEL, Surface, World};
+use crate::world::{SEA_LEVEL, World};
+
+mod service;
 
 pub const ANCHORAGE_TILE: i32 = 256;
 
@@ -14,11 +16,21 @@ pub enum Vessel {
     Sailboat,
     FishingBoat,
     Tug,
+    Service,
 }
 
 impl Vessel {
-    pub const ALL: [Self; 5] = [Self::Freighter, Self::Ferry, Self::Sailboat, Self::FishingBoat, Self::Tug];
+    pub const ALL: [Self; 6] = [
+        Self::Freighter, Self::Ferry, Self::Sailboat, Self::FishingBoat, Self::Tug, Self::Service,
+    ];
     pub const VARIANTS: u8 = 50;
+
+    pub const fn variants(self) -> u8 {
+        match self {
+            Self::Service => service::HULLS.len() as u8,
+            _ => Self::VARIANTS,
+        }
+    }
 
     pub const fn name(self) -> &'static str {
         match self {
@@ -27,11 +39,12 @@ impl Vessel {
             Self::Sailboat => "Sailboat",
             Self::FishingBoat => "Fishing boat",
             Self::Tug => "Tug",
+            Self::Service => "Service vessel",
         }
     }
 
     pub const fn configuration(self, variant: u8) -> Option<&'static str> {
-        if variant >= Self::VARIANTS {
+        if variant >= self.variants() {
             return None;
         }
         let configurations = match self {
@@ -40,6 +53,7 @@ impl Vessel {
             Self::Sailboat => ["Cabin sloop", "Cutter", "Ketch", "Schooner", "Day sailer"],
             Self::FishingBoat => ["Stern trawler", "Crabber", "Longliner", "Purse seiner", "Lobster boat"],
             Self::Tug => ["Harbor tug", "Pusher tug", "Towboat", "Line-handling tug", "Escort tug"],
+            Self::Service => return Some(service::HULLS[variant as usize].name),
         };
         Some(configurations[(variant / 5 % 5) as usize])
     }
@@ -75,7 +89,8 @@ impl Anchorage {
         let key = mix(
             seed ^ (u64::from(tile_x as u32) << 32) ^ u64::from(tile_z as u32) ^ 0x5ea1_4b91_872d_c8ff,
         );
-        if key & 7 >= 3 {
+        let service_mooring = matches!(key & 7, 3 | 4);
+        if key & 7 >= 3 && !service_mooring {
             return None;
         }
         let tile_x = tile_x as f32 * ANCHORAGE_TILE as f32;
@@ -101,7 +116,9 @@ impl Anchorage {
                 continue;
             }
             let role = (state >> 14) & 7;
-            let vessel = if state & 7 == 0 {
+            let vessel = if service_mooring {
+                Vessel::Service
+            } else if state & 7 == 0 {
                 Vessel::Ferry
             } else if bay > -0.19 && land >= 3 && role < 3 {
                 Vessel::Tug
@@ -112,7 +129,7 @@ impl Anchorage {
             } else {
                 Vessel::Freighter
             };
-            let variant = (mix(state ^ 192) % u64::from(Vessel::VARIANTS)) as u8;
+            let variant = (mix(state ^ 192) % u64::from(vessel.variants())) as u8;
             for angle in [departure, departure + FRAC_PI_2] {
                 let ship = Self::configured(vessel, variant, x, z, sin_cos(angle));
                 if ship.has_water_clearance(world) {
@@ -125,14 +142,22 @@ impl Anchorage {
 
     /// An isolated hull at the origin, facing along +Z, for inspecting the artwork.
     pub fn catalog(vessel: Vessel, variant: u8) -> Option<Self> {
-        (variant < Vessel::VARIANTS).then(|| Self::configured(vessel, variant, 0.0, 0.0, (0.0, 1.0)))
+        (variant < vessel.variants()).then(|| Self::configured(vessel, variant, 0.0, 0.0, (0.0, 1.0)))
     }
 
     pub fn half_extents(self) -> [f32; 2] {
         [self.half_length, self.half_width]
     }
 
+    pub fn configuration(self) -> &'static str {
+        self.vessel.configuration(self.variant).expect("valid vessel configuration")
+    }
+
     fn configured(vessel: Vessel, variant: u8, x: f32, z: f32, forward: (f32, f32)) -> Self {
+        if vessel == Vessel::Service {
+            let [half_length, half_width] = service::HULLS[usize::from(variant)].size;
+            return Self { x, z, vessel, forward, half_length, half_width, variant };
+        }
         let size = f32::from(variant % 5) * 0.25;
         let breadth = if variant >= 25 { 1.0 } else { 0.84 };
         let (length, beam) = match vessel {
@@ -141,6 +166,7 @@ impl Anchorage {
             Vessel::Sailboat => (4.8 + size * 2.2, 0.385),
             Vessel::FishingBoat => (5.7 + size * 3.2, 0.330),
             Vessel::Tug => (4.4 + size * 2.0, 0.457),
+            Vessel::Service => unreachable!(),
         };
         Self { x, z, vessel, forward, half_length: length, half_width: length * beam * breadth, variant }
     }
@@ -153,7 +179,7 @@ impl Anchorage {
                 let across = lateral * self.half_width;
                 let x = self.x + sin * along + cos * across;
                 let z = self.z + cos * along - sin * across;
-                if !matches!(world.sample(x, z).surface, Surface::DeepWater | Surface::Shallows) {
+                if world.coast_signal(x, z) > 0.0 {
                     return false;
                 }
             }
@@ -169,13 +195,15 @@ impl Anchorage {
         }
         let (sin, cos) = self.forward;
         let along = (dx * sin + dz * cos) / self.half_length;
-        let across = (dx * cos - dz * sin).abs() / self.half_width;
+        let signed_across = (dx * cos - dz * sin) / self.half_width;
+        let across = signed_across.abs();
         let [shoulder, stern, bow] = match self.vessel {
             Vessel::Freighter => [0.48, 1.23, 1.86],
             Vessel::Ferry => [0.57, 1.26, 1.60],
             Vessel::Sailboat => [0.11, 0.69, 1.14],
             Vessel::FishingBoat => [0.43, 0.71, 1.64],
             Vessel::Tug => [0.65, 0.56, 1.64],
+            Vessel::Service => service::HULLS[usize::from(self.variant)].profile,
         };
         let beam = 1.0 - (along.abs() - shoulder).max(0.0) * if along > 0.0 { bow } else { stern };
         if along.abs() >= 1.0 || across >= beam {
@@ -188,6 +216,7 @@ impl Anchorage {
             Vessel::Sailboat => sailboat(along, across, beam, layout),
             Vessel::FishingBoat => fishing_boat(along, across, beam, layout),
             Vessel::Tug => tug(along, across, beam, layout),
+            Vessel::Service => service::HULLS[usize::from(self.variant)].sample(along, signed_across, beam)?,
         };
         Some(ShipSample { height: SEA_LEVEL + height, material })
     }
@@ -331,15 +360,20 @@ mod tests {
         assert_eq!(sample(Vessel::Tug, 5, 0.86, 0.44).unwrap().material, DeckMaterial::Hull);
         assert_eq!(sample(Vessel::Freighter, 0, -0.32, 0.0).unwrap().material, DeckMaterial::Cargo);
         assert_eq!(sample(Vessel::Freighter, 5, -0.32, 0.0).unwrap().material, DeckMaterial::Deck);
+        assert!(sample(Vessel::Service, 4, 0.72, 0.0).is_none());
+        assert!(sample(Vessel::Service, 4, 0.72, 0.56).is_some());
+        let net_launch = Anchorage::catalog(Vessel::Service, 22).unwrap();
+        let width = net_launch.half_extents()[1];
+        assert_ne!(net_launch.sample(-0.48 * width, -1.0), net_launch.sample(0.48 * width, -1.0));
     }
 
     #[test]
-    fn catalog_contains_fifty_distinct_hulls_per_role() {
+    fn catalog_contains_distinct_hulls_for_every_configuration() {
         use std::collections::BTreeSet;
 
         for vessel in Vessel::ALL {
             let mut signatures = BTreeSet::new();
-            for variant in 0..Vessel::VARIANTS {
+            for variant in 0..vessel.variants() {
                 let ship = Anchorage::catalog(vessel, variant).unwrap();
                 let [length, width] = ship.half_extents();
                 let mut silhouette = std::vec::Vec::new();
@@ -354,7 +388,7 @@ mod tests {
                 assert!(signatures.insert(silhouette), "{vessel:?} variant {variant}");
                 assert!(length + width < 32.0);
             }
-            assert!(Anchorage::catalog(vessel, Vessel::VARIANTS).is_none());
+            assert!(Anchorage::catalog(vessel, vessel.variants()).is_none());
         }
     }
 
@@ -386,6 +420,26 @@ mod tests {
         }
         assert!(vessels[0] >= 10 && vessels[1] >= 4 && vessels[2] >= 5, "{vessels:?}");
         assert!(vessels[3] >= 5 && vessels[4] >= 3, "{vessels:?}");
+        assert!(vessels[5] >= 5, "{vessels:?}");
         assert!(vessels.iter().sum::<i32>() < 170, "{vessels:?}");
+    }
+
+    #[test]
+    fn every_service_vessel_can_spawn_on_seeded_water() {
+        let mut found = [false; service::HULLS.len()];
+        'catalog: for seed in 0..192 {
+            let world = World::new(seed);
+            for tz in -7..=7 {
+                for tx in -7..=7 {
+                    if let Some(ship) = Anchorage::generate(&world, seed, tx, tz) {
+                        if ship.vessel == Vessel::Service {
+                            found[usize::from(ship.variant)] = true;
+                            if found.iter().all(|&seen| seen) { break 'catalog; }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found.into_iter().all(|seen| seen), "{found:?}");
     }
 }

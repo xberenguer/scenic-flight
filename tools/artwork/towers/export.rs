@@ -21,7 +21,7 @@ fn main() -> io::Result<()> {
     } else {
         tower_forms::TOWER_DESIGN_COUNT
     };
-    let columns = if landmarks { 5 } else { COLS };
+    let columns = COLS;
     let rows = count.div_ceil(columns);
     let (width, height) = (TILE * columns, TILE * rows);
     let mut sheet = vec![[19u8, 24, 30]; width * height];
@@ -57,7 +57,6 @@ fn main() -> io::Result<()> {
         let mut depth = [u16::MAX; TILE * TILE];
         let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (TILE, TILE), camera, &sky).unwrap();
         let half = size.map(|axis| axis * 15.0);
-        let mut bottom = 0.0;
         for &tier in tiers {
             let [x, z] = tier.center;
             let [hx, hz] = tier.half;
@@ -69,7 +68,7 @@ fn main() -> io::Result<()> {
                     [(x - hx) * half[0], y, (z + hz) * half[1]],
                 ]
             };
-            let ground = ring(bottom);
+            let ground = ring(tier.bottom * building_height);
             let top = tier.top * building_height;
             let roof = ring(top);
             for edge in 0..4 {
@@ -81,8 +80,12 @@ fn main() -> io::Result<()> {
                 );
             }
             mesh.faded_quad(roof, wall.map(|v| v.saturating_add(26)), 1.0);
-            if !landmarks {
-                bottom = top;
+            if landmarks && tier.bottom > 0.0 {
+                mesh.faded_quad(
+                    [ground[0], ground[3], ground[2], ground[1]],
+                    wall.map(|v| v.saturating_sub(26)),
+                    1.0,
+                );
             }
         }
         let (x, y) = (index % columns * TILE, index / columns * TILE);

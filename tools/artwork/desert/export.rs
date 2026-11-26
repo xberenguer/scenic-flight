@@ -24,7 +24,7 @@ mod artwork {
 
     fn render_variant(kind: PropKind, variant: u8) -> [u16; SIDE * SIDE] {
         // The fixed view and scale retain the proportions of the models within each sheet.
-        let camera = if matches!(kind, PropKind::Habitat(Feature::Farm(_) | Feature::Mountain(_) | Feature::Freshwater(_) | Feature::Woodland(_))) {
+        let camera = if matches!(kind, PropKind::Habitat(Feature::Farm(_) | Feature::Mountain(_) | Feature::Freshwater(_) | Feature::Woodland(_) | Feature::Dryland(_) | Feature::Grassland(_))) {
             Camera { x: 3.7, z: -5.13, altitude: 3.80, heading: -0.624, pitch: 0.36, bank: 0.0 }
         } else {
             Camera { x: 3.1, z: -4.3, altitude: 3.35, heading: -0.624, pitch: 0.36, bank: 0.0 }
@@ -110,12 +110,73 @@ mod artwork {
         model_atlas(out, "woodland", forms.map(Feature::Woodland))
     }
 
+    pub fn dryland(out: &Path) -> std::io::Result<()> {
+        use habitats::dryland::DrylandFeature::*;
+        let forms = [
+            PiledWashCobbles, DryRootFan, GravelRibs, CutbankShelf, DriftBranch,
+            DuneSlipFace, RippleField, SandGrassLine, DuneSkirt, SandVerbenaMat,
+            SandstonePedestal, TwinSandstoneFins, BandedSandstone, BasaltTalus, DesertPavement,
+            CreosoteRing, SaltbushHummocks, Brittlebush, Blackbrush, MojaveAster,
+            SpanishBayonet, AgaveStalk, ChollaSkeleton, BeavertailClump, BarrelCactusGroup,
+        ];
+        model_atlas(out, "dryland", forms.map(Feature::Dryland))
+    }
+
+    pub fn grassland(out: &Path) -> std::io::Result<()> {
+        use habitats::grassland::GrasslandFeature::*;
+        let forms = [
+            OxeyeDaisy, Knapweed, BirdsfootTrefoil, Chicory, YarrowUmbels,
+            BlueStemFan, FescueTufts, OatGrass, FoxtailPatch, FeatherGrass,
+            HawthornScrub, GorseCushion, BroomStand, DogRose, JuniperMound,
+            LimestonePavement, ChalkHummocks, GlacialBoulder, ScatteredFlint, LowStoneBank,
+            WindPrunedThorn, WeatheredLog, BrackenIsland, ThornRootBall, MeadowAnthill,
+        ];
+        model_atlas(out, "grassland", forms.map(Feature::Grassland))
+    }
+
+    pub fn headland(out: &Path) -> std::io::Result<()> {
+        use habitats::headland::HeadlandFeature::*;
+        let forms = [
+            SandHopperBurrows, RazorShellFan, KelpRibbon, CorkWrack, BarnacleCobbles,
+            BeachMorningGlory, SeasideDaisy, HonckenyaCushion, DuneSpurge, BeachEveningPrimrose,
+            GraniteShingle, FlintSpit, SandstoneLedge, IronstoneRubble, ChalkBreccia,
+            DuneWillow, BayberryThicket, SeaBuckthorn, CoastalHeather, SaltBurnedJuniper,
+            SandFescue, LymeGrass, SeaRush, DuneReed, SaltMeadowHay,
+        ];
+        model_atlas(out, "headland", forms.map(Feature::Headland))
+    }
+
+    pub fn alpine_ground(out: &Path) -> std::io::Result<()> {
+        use habitats::alpine_ground::AlpineGround::*;
+        let forms = [
+            WindSculptedDrift, SnowBridgeLip, SnowPillows, FrostedTalus, SnowbreakSlabs,
+            BlueIceRibs, PressureHummocks, MeltwaterRunnels, RefrozenLens, LayeredIceStep,
+            GarnetScree, ShaleBook, QuartziteNeedles, FrostSplitTor, VeinedSchist,
+            MixedErratics, SortedStoneRing, IceMarginalBank, GlacialBoulderFan, MoraineCobbleRibs,
+            WhiteSaxifrage, AlpinePoppy, WillowMat, LichenCushions, SnowbedSedge,
+        ];
+        model_atlas(out, "alpine-ground", forms.map(Feature::AlpineGround))
+    }
+
+    pub fn wetland(out: &Path) -> std::io::Result<()> {
+        use habitats::wetland::WetlandFeature::*;
+        let forms = [
+            PeatHummocks, SphagnumLobes, FenMarlLedge, TussockIslands, BankOverhang,
+            RaggedRobin, FenOrchid, GrassOfParnassus, YellowRattle, Globeflower,
+            ReedPanicles, SpikeRushLawn, FloweringRush, ArrowheadStand, ReedCaneLitter,
+            ClayScrolls, GravelTongue, SnagWithSiltApron, IronSeepCrust, SandbarRipple,
+            BogMyrtle, LeatherleafMat, DwarfWillow, BuckthornFenClump, CranberryRunner,
+        ];
+        model_atlas(out, "wetland", forms.map(Feature::Wetland))
+    }
+
     fn model_atlas(out: &Path, name: &str, forms: [Feature; 25]) -> std::io::Result<()> {
         const COLUMNS: usize = 5;
         let (tile, left, top) = match name {
             "farm" => (64, 16, 20),
             "mountain" | "freshwater" => (54, 21, 23),
-            "woodland" => (57, 20, 20),
+            "woodland" | "dryland" | "grassland" => (57, 20, 20),
+            "headland" | "alpine-ground" | "wetland" => (72, 12, 12),
             _ => (SIDE, 0, 0),
         };
         let width = COLUMNS * tile;
@@ -206,13 +267,23 @@ fn main() -> std::io::Result<()> {
         Some("--mountain-only") => artwork::mountain(output),
         Some("--freshwater-only") => artwork::freshwater(output),
         Some("--woodland-only") => artwork::woodland(output),
+        Some("--dryland-only") => artwork::dryland(output),
+        Some("--grassland-only") => artwork::grassland(output),
+        Some("--headland-only") => artwork::headland(output),
+        Some("--alpine-ground-only") => artwork::alpine_ground(output),
+        Some("--wetland-only") => artwork::wetland(output),
         None => {
             artwork::write(output)?;
             artwork::shore(output)?;
             artwork::farm(output)?;
             artwork::mountain(output)?;
             artwork::freshwater(output)?;
-            artwork::woodland(output)
+            artwork::woodland(output)?;
+            artwork::dryland(output)?;
+            artwork::grassland(output)?;
+            artwork::headland(output)?;
+            artwork::alpine_ground(output)?;
+            artwork::wetland(output)
         }
         _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unknown artwork mode")),
     }

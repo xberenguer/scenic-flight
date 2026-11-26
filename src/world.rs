@@ -61,6 +61,9 @@ pub enum Surface {
     RailGlass,
     RailRust,
     RailApron,
+    IndustryBrick,
+    IndustryConcrete,
+    IndustryMetal,
 }
 
 impl Surface {
@@ -78,6 +81,10 @@ impl Surface {
 
     pub const fn is_tree_canopy(self) -> bool {
         self.canopy_color().is_some()
+    }
+
+    pub(crate) const fn is_industry(self) -> bool {
+        matches!(self, Self::IndustryBrick | Self::IndustryConcrete | Self::IndustryMetal)
     }
 
     pub(crate) const fn is_station_roof(self) -> bool {

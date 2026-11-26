@@ -38,14 +38,15 @@ pub(crate) mod tower_forms;
 #[derive(Clone, Copy)]
 pub(crate) struct SkylineRoof {
     pub building: SkylineTower,
-    pub pitched: bool,
+    pub form: Form,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-enum Form {
+pub(crate) enum Form {
     Tower,
     Hall,
     Gable,
+    TownLandmark,
     Neighborhood,
 }
 
@@ -132,12 +133,7 @@ impl Skyline {
                 }
                 for roof in town.skyline_roofs() {
                     if view.roof_potential(roof.building.center) {
-                        let form = if roof.pitched {
-                            Form::Gable
-                        } else {
-                            Form::Hall
-                        };
-                        nominate(&mut roofs, &self.roofs, roof.building, form, &view);
+                        nominate(&mut roofs, &self.roofs, roof.building, roof.form, &view);
                     }
                 }
                 for group in town.skyline_neighborhoods() {
@@ -426,11 +422,10 @@ impl Glyph {
                         let half = self.tier_halves[0] * mass.half[0] + self.tier_halves[1] * mass.half[1];
                         let center = self.tier_centers[0] * mass.center[0] + self.tier_centers[1] * mass.center[1];
                         coverage.max(overlap(u, center - half, center + half)
-                            * overlap(v, -self.height * mass.top, 0.0))
+                            * overlap(v, -self.height * mass.top, -self.height * mass.bottom))
                     });
                 }
                 let mut value = 0.0;
-                let mut from = 0.0;
                 let [shaft, crown] = self.tier_halves;
                 let [shaft_center, crown_center] = self.tier_centers;
                 let tiers = &tower_forms::design(self.profile).tiers;
@@ -438,13 +433,20 @@ impl Glyph {
                     .zip([0.0, shaft_center, crown_center])
                 {
                     let across = overlap(u, center - half, center + half);
-                    let down = overlap(v, -self.height * tier.top, -self.height * from);
+                    let down = overlap(v, -self.height * tier.top, -self.height * tier.bottom);
                     value += across * down;
-                    from = tier.top;
                 }
                 value
             }
             Form::Hall => overlap(u, -self.half, self.half) * overlap(v, -self.height, 0.0),
+            Form::TownLandmark => {
+                let design = crate::settlement::town_landmarks::TownLandmark::from_index(usize::from(self.profile)).unwrap();
+                design.design().masses.iter().fold(0.0_f32, |coverage, mass| {
+                    let half = self.tier_halves[0] * mass.half[0] + self.tier_halves[1] * mass.half[1];
+                    let center = self.tier_centers[0] * mass.center[0] + self.tier_centers[1] * mass.center[1];
+                    coverage.max(overlap(u, center - half, center + half) * overlap(v, -self.height * mass.top, 0.0))
+                })
+            }
             Form::Neighborhood if (COTTAGE_GROUP..=SHOP_GROUP + BOROUGH_ALT_OFFSET).contains(&self.profile) => {
                 borough_roof_coverage(u, v, self.half, self.height, self.profile)
             }
@@ -682,7 +684,7 @@ impl Projection {
         let x_width = x_signed.abs();
         let z_width = z_signed.abs();
         let half = x_width + z_width;
-        let (tier_halves, tier_centers) = if landmark.is_some() {
+        let (tier_halves, tier_centers) = if landmark.is_some() || form == Form::TownLandmark {
             ([x_width, z_width], [x_signed, z_signed])
         } else if form == Form::Tower {
             let [_, shaft, crown] = tower_forms::design(tower.profile).tiers;
@@ -717,7 +719,7 @@ impl Projection {
             Form::Tower => landmark.map_or_else(|| tower_forms::design(tower.profile).wall, |form| form.wall).map(|value| {
                 27.0 + f32::from(value) * (0.20 + 0.58 * dusk)
             }),
-            Form::Hall => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
+            Form::Hall | Form::TownLandmark => [41.0 + 117.0 * dusk, 49.0 + 107.0 * dusk, 60.0 + 97.0 * dusk],
             Form::Gable => [46.0 + 115.0 * dusk, 42.0 + 86.0 * dusk, 49.0 + 66.0 * dusk],
             Form::Neighborhood => [48.0 + 103.0 * dusk, 48.0 + 97.0 * dusk, 54.0 + 91.0 * dusk],
         };
@@ -793,6 +795,7 @@ mod tests {
             for pair in design.tiers.windows(2) {
                 let [lower, upper] = [pair[0], pair[1]];
                 assert!(lower.top < upper.top);
+                assert_eq!(lower.top, upper.bottom);
                 for axis in 0..2 {
                     assert!(
                         (upper.center[axis] - lower.center[axis]).abs() + upper.half[axis]
@@ -820,10 +823,19 @@ mod tests {
             selected.insert(tower_forms::select((index as u32) << 14, 1, 0));
             assert!(design.masses.iter().any(|mass| mass.top == 1.0), "{}", design.name);
             for mass in design.masses {
-                assert!(mass.top > 0.0 && mass.top <= 1.0, "{}", design.name);
+                assert!(mass.bottom >= 0.0 && mass.top > mass.bottom && mass.top <= 1.0, "{}", design.name);
                 for axis in 0..2 {
                     assert!(mass.half[axis] > 0.0 && mass.half[axis] + mass.center[axis].abs() <= 1.001,
                         "{}", design.name);
+                }
+                if mass.bottom > 0.0 {
+                    assert!(design.masses.iter().any(|support| {
+                        support.bottom < mass.bottom && support.top >= mass.bottom
+                            && (0..2).all(|axis| {
+                                (support.center[axis] - mass.center[axis]).abs()
+                                    < support.half[axis] + mass.half[axis]
+                            })
+                    }), "Unsupported upper volume in {}", design.name);
                 }
             }
             let view = Camera { x: 0.0, z: 0.0, altitude: 38.0, heading: 0.0, pitch: 0.0, bank: 0.0 };
@@ -851,7 +863,24 @@ mod tests {
             }
             assert!(signatures.insert(signature), "{} duplicates another distant silhouette", design.name);
         }
-        assert_eq!(selected.len(), 25);
+        assert_eq!(selected.len(), tower_forms::landmarks::LANDMARKS.len());
+    }
+
+    #[test]
+    fn elevated_exchange_gate_leaves_a_gap_in_the_distant_glyph() {
+        let catalog = &tower_forms::landmarks::LANDMARKS;
+        let index = catalog.iter().position(|form| form.name == "Exchange gate").unwrap();
+        let profile = (tower_forms::TOWER_DESIGN_COUNT + index) as u16;
+        let view = camera(0.0, 0.0, 32.0, 0.0, 0.0);
+        let projection = Projection::new(view, (144, 144));
+        let sky = sky_at(view);
+        let tower = SkylineTower {
+            center: [0.0, 620.0], footprint: [6.0, 4.5], direction: [0.0, 1.0],
+            base: 10.0, height: catalog[index].height, profile,
+        };
+        let glyph = projection.glyph(tower, Form::Tower, 1.0, &sky, &mut |_, _| 10.0).unwrap();
+        assert_eq!(glyph.coverage(0.0, -glyph.height * 0.43), 0.0);
+        assert!(glyph.coverage(0.0, -glyph.height * 0.80) > 0.5);
     }
 
     use crate::horizon_cache::HorizonCache;
@@ -1005,7 +1034,7 @@ mod tests {
             .glyphs
             .iter()
             .flatten()
-            .filter(|g| matches!(g.form, Form::Hall | Form::Gable))
+            .filter(|g| matches!(g.form, Form::Hall | Form::Gable | Form::TownLandmark))
         {
             roofs.insert(glyph);
         }

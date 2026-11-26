@@ -1,5 +1,27 @@
 [
   {
+    "id": "dryland-basin-pass",
+    "title": "Ultralight over desert flats",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Dry basin",
+    "format": "Video",
+    "poster": "assets/current/dryland-basin-pass.png",
+    "src": "assets/current/dryland-basin-pass.mp4",
+    "note": "A low pass across sandstone, scrub, and plants along a dune basin."
+  },
+  {
+    "id": "dryland-badlands-pass",
+    "title": "Ultralight through the badlands",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Badlands",
+    "format": "Video",
+    "poster": "assets/current/dryland-badlands-pass.png",
+    "src": "assets/current/dryland-badlands-pass.mp4",
+    "note": "A flight along a seeded ravine with rockfall and dry wash deposits."
+  },
+  {
     "id": "wooded-valley-pass",
     "title": "Ultralight through a wooded valley",
     "category": "Biomes",
@@ -786,5 +808,239 @@
     "format": "Video",
     "poster": "assets/current/road-rest-stop.png",
     "src": "assets/current/road-rest-stop.mp4"
+  },
+  {
+    "id": "grassland-foothills",
+    "title": "Ultralight over grassy foothills",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Foothills",
+    "format": "Video",
+    "poster": "assets/current/grassland-foothills.png",
+    "src": "assets/current/grassland-foothills.mp4"
+  },
+  {
+    "id": "grassland-coastal-slopes",
+    "title": "Ultralight along coastal grassland",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Coastal grassland",
+    "format": "Video",
+    "poster": "assets/current/grassland-coastal-slopes.png",
+    "src": "assets/current/grassland-coastal-slopes.mp4"
+  },
+  {
+    "id": "linked-downtown",
+    "title": "Ultralight approaching a linked downtown",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Metropolitan valley",
+    "format": "Video",
+    "poster": "assets/current/linked-downtown.png",
+    "src": "assets/current/linked-downtown.mp4"
+  },
+  {
+    "id": "night-industrial-skyline",
+    "title": "Ultralight over the industrial skyline at night",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Metropolitan river valley",
+    "format": "Video",
+    "poster": "assets/current/night-industrial-skyline.png",
+    "src": "assets/current/night-industrial-skyline.mp4"
+  },
+  {
+    "id": "eagle-headland",
+    "title": "Bald Eagle along a sandy headland",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Coastal headland",
+    "format": "Video",
+    "poster": "assets/current/eagle-headland.png",
+    "src": "assets/current/eagle-headland.mp4"
+  },
+  {
+    "id": "glider-upper-shore",
+    "title": "Glider over coastal grasses",
+    "category": "Biomes",
+    "aircraft": "Glider",
+    "biome": "Upper shore",
+    "format": "Video",
+    "poster": "assets/current/glider-upper-shore.png",
+    "src": "assets/current/glider-upper-shore.mp4"
+  },
+  {
+    "id": "fish-farm-barge",
+    "title": "Bald Eagle over a fish farm feeder barge",
+    "category": "Built World",
+    "aircraft": "Bald Eagle",
+    "biome": "Coastal anchorage",
+    "format": "Video",
+    "poster": "assets/current/fish-farm-barge.png",
+    "src": "assets/current/fish-farm-barge.mp4"
+  },
+  {
+    "id": "island-landing-craft",
+    "title": "Bald Eagle passes an island landing craft",
+    "category": "Built World",
+    "aircraft": "Bald Eagle",
+    "biome": "Island shallows",
+    "format": "Video",
+    "poster": "assets/current/island-landing-craft.png",
+    "src": "assets/current/island-landing-craft.mp4"
+  },
+  {
+    "id": "split-roof-summit-refuge",
+    "title": "Bush plane over a split-roof alpine refuge",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "Snowy ridge",
+    "format": "Video",
+    "poster": "assets/current/split-roof-summit-refuge.png",
+    "src": "assets/current/split-roof-summit-refuge.mp4"
+  },
+  {
+    "id": "cantilever-ridge-lookout",
+    "title": "Bush plane passes a cantilevered ridge lookout",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "Mountain ridge",
+    "format": "Video",
+    "poster": "assets/current/cantilever-ridge-lookout.png",
+    "src": "assets/current/cantilever-ridge-lookout.mp4"
+  },
+  {
+    "id": "twin-summit-domes",
+    "title": "Glider approaches twin summit observatories",
+    "category": "Built World",
+    "aircraft": "Glider",
+    "biome": "Alpine summit",
+    "format": "Video",
+    "poster": "assets/current/twin-summit-domes.png",
+    "src": "assets/current/twin-summit-domes.mp4"
+  },
+  {
+    "id": "town-clock-tower",
+    "title": "Ultralight over a town hall clock tower",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Town centre",
+    "format": "Video",
+    "poster": "assets/current/town-clock-tower.png",
+    "src": "assets/current/town-clock-tower.mp4"
+  },
+  {
+    "id": "coastal-grain-store",
+    "title": "Ultralight passes a cooperative grain store",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Coastal town",
+    "format": "Video",
+    "poster": "assets/current/coastal-grain-store.png",
+    "src": "assets/current/coastal-grain-store.mp4"
+  },
+  {
+    "id": "covered-market-court",
+    "title": "Bald Eagle over a covered market court",
+    "category": "Built World",
+    "aircraft": "Bald Eagle",
+    "biome": "Market district",
+    "format": "Video",
+    "poster": "assets/current/covered-market-court.png",
+    "src": "assets/current/covered-market-court.mp4"
+  },
+  {
+    "id": "alpine-rock-and-meadow",
+    "title": "Ultralight over an alpine meadow",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Alpine meadow",
+    "format": "Video",
+    "poster": "assets/current/alpine-rock-and-meadow.png",
+    "src": "assets/current/alpine-rock-and-meadow.mp4"
+  },
+  {
+    "id": "alpine-ridgetop",
+    "title": "Bush Plane over a rocky alpine ridge",
+    "category": "Biomes",
+    "aircraft": "Bush Plane",
+    "biome": "Alpine ridge",
+    "format": "Video",
+    "poster": "assets/current/alpine-ridgetop.png",
+    "src": "assets/current/alpine-ridgetop.mp4"
+  },
+  {
+    "id": "glacier-ice-pass",
+    "title": "Glider above fractured ice",
+    "category": "Biomes",
+    "aircraft": "Glider",
+    "biome": "Glacier",
+    "format": "Video",
+    "poster": "assets/current/glacier-ice-pass.png",
+    "src": "assets/current/glacier-ice-pass.mp4",
+    "note": "A guided flyover of a surveyed glacier in a seeded world."
+  },
+  {
+    "id": "tram-carhouse-flyover",
+    "title": "Ultralight above a tram carhouse",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Industrial outskirts",
+    "format": "Video",
+    "poster": "assets/current/tram-carhouse-flyover.png",
+    "src": "assets/current/tram-carhouse-flyover.mp4"
+  },
+  {
+    "id": "rail-workshops-flyover",
+    "title": "Ultralight over railway workshops",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Industrial outskirts",
+    "format": "Video",
+    "poster": "assets/current/rail-workshops-flyover.png",
+    "src": "assets/current/rail-workshops-flyover.mp4"
+  },
+  {
+    "id": "twin-stack-boiler-house",
+    "title": "Ultralight by a twin-stack boiler house",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Industrial town",
+    "format": "Video",
+    "poster": "assets/current/twin-stack-boiler-house.png",
+    "src": "assets/current/twin-stack-boiler-house.mp4",
+    "note": "A guided flyover of a surveyed industrial site in a seeded world."
+  },
+  {
+    "id": "eagle-wet-meadow",
+    "title": "Bald Eagle over a wet meadow",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Wet meadow",
+    "format": "Video",
+    "poster": "assets/current/eagle-wet-meadow.png",
+    "src": "assets/current/eagle-wet-meadow.mp4"
+  },
+  {
+    "id": "floodplain-bend",
+    "title": "Ultralight along a floodplain bend",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Floodplain",
+    "format": "Video",
+    "poster": "assets/current/floodplain-bend.png",
+    "src": "assets/current/floodplain-bend.mp4",
+    "note": "A guided flyover of a surveyed floodplain in a seeded world."
+  },
+  {
+    "id": "flowering-reed-marsh",
+    "title": "Ultralight along a reed marsh",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Reed marsh",
+    "format": "Video",
+    "poster": "assets/current/flowering-reed-marsh.png",
+    "src": "assets/current/flowering-reed-marsh.mp4",
+    "note": "A guided flyover of a surveyed floodplain in a seeded world."
   }
 ]

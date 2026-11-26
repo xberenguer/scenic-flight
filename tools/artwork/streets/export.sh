@@ -32,9 +32,34 @@ encode() {
         -filter_complex 'split[a][b];[a]palettegen=max_colors=112[p];[b][p]paletteuse=dither=bayer' \
         -loop 0 "$out/$1.gif"
 }
-if [ "${1:-}" != "--airfield-only" ]; then
-    "$scratch/export" "$scratch" street
-    encode street-buildings
-fi
-"$scratch/export" "$scratch" airfield
-encode airfield-buildings
+case "${1:-}" in
+    --industry-only)
+        "$scratch/export" "$scratch" industry
+        encode industrial-landmarks
+        cp "$scratch/industrial-landmarks.txt" "$out/"
+        exit
+        ;;
+    --airfield-only)
+        "$scratch/export" "$scratch" airfield
+        encode airfield-buildings
+        exit
+        ;;
+    --town-only)
+        "$scratch/export" "$scratch" town
+        encode town-landmarks
+        cp "$scratch/town-landmarks.txt" "$out/"
+        exit
+        ;;
+    *)
+        "$scratch/export" "$scratch" street
+        encode street-buildings
+        "$scratch/export" "$scratch" airfield
+        encode airfield-buildings
+        ;;
+esac
+"$scratch/export" "$scratch" town
+encode town-landmarks
+cp "$scratch/town-landmarks.txt" "$out/"
+"$scratch/export" "$scratch" industry
+encode industrial-landmarks
+cp "$scratch/industrial-landmarks.txt" "$out/"

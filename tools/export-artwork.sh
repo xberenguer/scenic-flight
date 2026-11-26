@@ -27,11 +27,7 @@ ffmpeg -hide_banner -loglevel error -y -framerate 8 -i "$scratch/rail-stations-%
     -filter_complex_threads 1 \
     -filter_complex 'scale=2*iw:2*ih:flags=neighbor,split[a][b];[a]palettegen=max_colors=112[p];[b][p]paletteuse=dither=bayer' \
     -loop 0 "$scratch/rail-stations.gif"
-rustc --edition 2024 -O "$tools/artwork/vessels/export.rs" \
-    --extern "scenic_flight=$game/target/release/libscenic_flight.rlib" \
-    -L "dependency=$game/target/release/deps" -o "$scratch/export-vessels"
-"$scratch/export-vessels" "$scratch/vessels.json" > "$scratch/vessels.ppm"
-ffmpeg -hide_banner -loglevel error -y -i "$scratch/vessels.ppm" -frames:v 1 "$scratch/vessels.png"
+SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/vessels/export.sh"
 rustc --edition 2024 -O "$tools/artwork/harbors/export.rs" \
     --extern "scenic_flight=$game/target/release/libscenic_flight.rlib" \
     -L "dependency=$game/target/release/deps" -o "$scratch/export-harbors"
@@ -50,19 +46,15 @@ ffmpeg -hide_banner -loglevel error -y -framerate 8 -i "$scratch/roadside-%02d.p
     -filter_complex_threads 1 \
     -filter_complex 'scale=2*iw:2*ih:flags=neighbor,split[a][b];[a]palettegen=max_colors=112[p];[b][p]paletteuse=dither=bayer' \
     -loop 0 "$scratch/roadside-models.gif"
-rustc --edition 2024 -O "$tools/artwork/towers/export.rs" \
-    --extern "scenic_flight=$game/target/release/libscenic_flight.rlib" \
-    -L "dependency=$game/target/release/deps" -o "$scratch/export-towers"
-"$scratch/export-towers" > "$scratch/towers.ppm"
-"$scratch/export-towers" --landmarks > "$scratch/skyline-landmarks.ppm"
-"$scratch/export-towers" --landmark-names > "$scratch/skyline-landmarks.txt"
-ffmpeg -hide_banner -loglevel error -y -i "$scratch/skyline-landmarks.ppm" -frames:v 1 "$scratch/skyline-landmarks.png"
-ffmpeg -hide_banner -loglevel error -y -i "$scratch/towers.ppm" -frames:v 1 "$scratch/towers.png"
+SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/towers/export.sh"
+SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/summits/export.sh"
 mkdir -p "$assets"
-cp "$scratch/towers.png" "$scratch/skyline-landmarks.png" "$scratch/skyline-landmarks.txt" "$assets/"
+cp "$scratch/towers.png" "$scratch/skyline-landmarks.png" "$scratch/skyline-landmarks.gif" "$scratch/skyline-landmarks.txt" "$assets/"
+cp "$scratch/summit-landmarks.png" "$scratch/summit-landmarks.gif" "$scratch/summit-landmarks.txt" "$assets/"
 cp "$scratch/tree-crown-atlas.png" "$assets/trees.png"
 cp "$scratch/wagons.png" "$scratch/wagons.json" "$scratch/locomotives.png" "$assets/"
 cp "$scratch/vessels.png" "$scratch/vessels.json" "$assets/"
+cp "$scratch/service-vessels.png" "$scratch/service-vessels.gif" "$scratch/service-vessels.json" "$assets/"
 cp "$scratch/wetland-plants.png" "$assets/wetlands.png"
 cp "$scratch/rail-stations.png" "$scratch/rail-stations.gif" "$assets/"
 cp "$scratch/harbor-models.png" "$scratch/harbor-models.gif" "$assets/"
@@ -72,8 +64,15 @@ cp "$scratch/farm-details.png" "$scratch/farm-details.gif" "$assets/"
 cp "$scratch/mountain-details.png" "$scratch/mountain-details.gif" "$assets/"
 cp "$scratch/freshwater-details.png" "$scratch/freshwater-details.gif" "$assets/"
 cp "$scratch/street-buildings.png" "$scratch/street-buildings.gif" "$assets/"
+cp "$scratch/town-landmarks.png" "$scratch/town-landmarks.gif" "$scratch/town-landmarks.txt" "$assets/"
+cp "$scratch/industrial-landmarks.png" "$scratch/industrial-landmarks.gif" "$scratch/industrial-landmarks.txt" "$assets/"
 cp "$scratch/airfield-buildings.png" "$scratch/airfield-buildings.gif" "$assets/"
 cp "$scratch/woodland-details.png" "$scratch/woodland-details.gif" "$assets/"
+cp "$scratch/dryland-details.png" "$scratch/dryland-details.gif" "$assets/"
+cp "$scratch/grassland-details.png" "$scratch/grassland-details.gif" "$assets/"
+cp "$scratch/headland-details.png" "$scratch/headland-details.gif" "$assets/"
+cp "$scratch/alpine-ground-details.png" "$scratch/alpine-ground-details.gif" "$assets/"
+cp "$scratch/floodplain-details.png" "$scratch/floodplain-details.gif" "$assets/"
 for category in rocks bushes cacti; do
     cp "$scratch/desert-$category.png" "$assets/$category.png"
 done

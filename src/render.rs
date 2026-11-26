@@ -1020,7 +1020,11 @@ fn draw_joined_bands(
 
 fn distant_stride_growth(diameter: usize) -> f32 {
     if cfg!(feature = "small-raster-ray-budget") && diameter <= 112 {
-        if diameter == 48 {
+        if diameter <= 36 {
+            // In the emergency tier, the distant terrain needs fewer
+            // samples per pixel. The near pass and far horizon stay intact.
+            2.20
+        } else if diameter <= 48 {
             1.05
         } else if diameter == 54 {
             0.875
@@ -1971,6 +1975,9 @@ fn ground_color(
         Surface::PitchedRoof => ([171.0, 85.0, 61.0], false),
         Surface::FlatRoof => ([137.0, 141.0, 150.0], false),
         Surface::TowerRoof => ([157.0, 175.0, 188.0], false),
+        Surface::IndustryBrick => ([135.0, 92.0, 76.0], false),
+        Surface::IndustryConcrete => ([190.0, 182.0, 160.0], false),
+        Surface::IndustryMetal => ([117.0, 145.0, 149.0], false),
         Surface::RailTimber => ([174.0, 99.0, 52.0], false),
         Surface::RailMetal => ([226.0, 231.0, 212.0], false),
         Surface::RailGlass => ([58.0, 123.0, 167.0], false),
@@ -2289,7 +2296,7 @@ fn paint_visible_surface(
     distance: f32, depth: f32, view: &View, light: GroundLight,
     _rock_phase: f32, mut paint: impl FnMut(usize, usize, u16),
 ) {
-    if distance < 160.0 && rows.len() >= 3 && (surface.is_station_roof() || matches!(
+    if distance < 160.0 && rows.len() >= 3 && (surface.is_station_roof() || surface.is_industry() || matches!(
         surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof | Surface::ShipCabin
     )) {
         paint_facade(surface, position, color, rows, view.focal / depth, light, paint);
@@ -2351,7 +2358,7 @@ fn paint_facade(
     let facade = facade_color(surface, light.daylight, light.horizon, light.fog);
     paint(rows.start, roof_end, roof);
     let column = floor_i32(x * 0.31 + z * 0.19);
-    if matches!(surface, Surface::RailTimber | Surface::RailMetal | Surface::RailRust)
+    if surface.is_industry() || matches!(surface, Surface::RailTimber | Surface::RailMetal | Surface::RailRust)
         || pixel_scale < 0.50 || column.rem_euclid(5) >= 3 || roof_end + 2 >= rows.end
     {
         paint(roof_end, rows.end, facade);
@@ -2383,6 +2390,9 @@ fn facade_color(surface: Surface, daylight: f32, horizon: Color, fog: f32) -> u1
         Surface::PitchedRoof => [173, 144, 113],
         Surface::FlatRoof => [137, 139, 147],
         Surface::TowerRoof => [119, 142, 161],
+        Surface::IndustryBrick => [161, 110, 81],
+        Surface::IndustryConcrete => [161, 151, 126],
+        Surface::IndustryMetal => [113, 130, 129],
         Surface::RailTimber => [162, 119, 74],
         Surface::RailMetal => [184, 199, 196],
         Surface::RailGlass => [86, 139, 156],
@@ -2413,7 +2423,7 @@ fn surface_detail(surface: Surface, [x, y, z]: [f32; 3], fade: f32) -> f32 {
         }
         Surface::Grass | Surface::Forest | Surface::Park | Surface::TreeCanopy | Surface::SpruceCanopy
         | Surface::AspenCanopy | Surface::MapleCanopy | Surface::JuniperCanopy
-        | Surface::WetMeadow | Surface::AlpineMeadow => {
+        | Surface::AlpineMeadow => {
             let meadow = surface_noise(x * 0.085 + z * 0.029, z * 0.095 - x * 0.024);
             let fine = cloud_hash(floor_i32(x * 0.38), floor_i32(z * 0.38));
             0.19 * (meadow - 0.40) + 0.075 * (fine - 0.48)
@@ -2423,6 +2433,15 @@ fn surface_detail(surface: Surface, [x, y, z]: [f32; 3], fade: f32) -> f32 {
             let reed_color = cloud_hash(floor_i32(x * 0.54), floor_i32(z * 0.34));
             0.28 * (stands - 0.45) + 0.12 * (reed_color - 0.42)
         }
+        Surface::WetMeadow => {
+            let swales = surface_noise(x * 0.077 + z * 0.021, z * 0.058 - x * 0.018);
+            let tussocks = cloud_hash(floor_i32(x * 0.38), floor_i32(z * 0.38));
+            0.27 * (swales - 0.48) + 0.09 * (tussocks - 0.49)
+        }
+        Surface::RiverSilt => {
+            let ripples = surface_noise(x * 0.18 + z * 0.04, z * 0.068 - x * 0.016);
+            0.23 * (ripples - 0.49)
+        }
         Surface::ScreeFine | Surface::ScreeCoarse => {
             let coarse = surface == Surface::ScreeCoarse;
             let scale = if coarse { 0.17 } else { 0.31 };
@@ -2431,9 +2450,18 @@ fn surface_detail(surface: Surface, [x, y, z]: [f32; 3], fade: f32) -> f32 {
             let grain_relief = if coarse { 0.34 } else { 0.19 };
             (chips - 0.49) * grain_relief + (beds - 0.51) * 0.14
         }
-        Surface::Rock | Surface::Snow | Surface::Desert | Surface::Sand
+        Surface::GlacierIce | Surface::GlacierCrevasse => {
+            let bands = surface_noise(x * 0.042 + y * 0.14 + z * 0.017, z * 0.063 - x * 0.013 - y * 0.062);
+            // Wide blue-white bands stay readable without turning distant crevasses into noise.
+            (bands - 0.51) * if surface == Surface::GlacierIce { 0.32 } else { 0.19 }
+        }
+        Surface::Snow => {
+            let drifts = surface_noise(x * 0.075 + y * 0.081 + z * 0.021, z * 0.046 - y * 0.067);
+            (drifts - 0.46) * 0.21
+        }
+        Surface::Rock | Surface::Desert | Surface::Sand
         | Surface::SaltCrust | Surface::DuneSand | Surface::DryWash
-        | Surface::GlacierIce | Surface::GlacierMoraine => {
+        | Surface::GlacierMoraine => {
             // Samples are anchored to the terrain so the bands do not crawl under the camera.
             let layers = surface_noise(x * 0.049 + y * 0.13, z * 0.072 - y * 0.04);
             let grain = cloud_hash(floor_i32(x * 0.45), floor_i32(z * 0.45));

@@ -5,6 +5,7 @@ const VARIANTS: usize = 10;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Tier {
+    pub bottom: f32,
     pub top: f32,
     pub half: [f32; 2],
     pub center: [f32; 2],
@@ -97,7 +98,7 @@ const OPTIONS: [[f32; 6]; VARIANTS] = [
     [1.24, 0.97, 0.70,  0.02, 0.84, -0.95],
 ];
 
-const BASE: Tier = Tier { top: 0.0, half: [1.0; 2], center: [0.0; 2] };
+const BASE: Tier = Tier { bottom: 0.0, top: 0.0, half: [1.0; 2], center: [0.0; 2] };
 const EMPTY: TowerDesign = TowerDesign { tiers: [BASE; 3], size: [1.0; 2], height: 0.0, wall: WALLS[0] };
 const DESIGNS: [TowerDesign; TOWER_DESIGN_COUNT] = {
     let mut output = [EMPTY; TOWER_DESIGN_COUNT];
@@ -112,11 +113,13 @@ const DESIGNS: [TowerDesign; TOWER_DESIGN_COUNT] = {
         let sz = family.offsets[0][1] * (1.0 - shaft_half[1]);
         let cx = sx + (family.offsets[1][0] * 0.58 + bias * 0.42) * (shaft_half[0] - crown_half[0]);
         let cz = sz + (family.offsets[1][1] * 0.65 - bias * 0.35) * (shaft_half[1] - crown_half[1]);
+        let podium = family.levels[0] + setback * 0.65;
+        let shaft = family.levels[1] + setback * 0.34;
         output[index] = TowerDesign {
             tiers: [
-                Tier { top: family.levels[0] + setback * 0.65, ..BASE },
-                Tier { top: family.levels[1] + setback * 0.34, half: shaft_half, center: [sx, sz] },
-                Tier { top: 1.0, half: crown_half, center: [cx, cz] },
+                Tier { top: podium, ..BASE },
+                Tier { bottom: podium, top: shaft, half: shaft_half, center: [sx, sz] },
+                Tier { bottom: shaft, top: 1.0, half: crown_half, center: [cx, cz] },
             ],
             size: [family.size[0] * width, family.size[1] * depth],
             height: family.height * height,

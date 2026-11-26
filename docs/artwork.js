@@ -32,11 +32,12 @@ const shipTypes = [
   ['Tug', 'Compact hull and tall wheelhouse for maneuvering ships'],
 ];
 
-const [wagonMetadata, vesselMetadata] = await Promise.all(
-  ['wagons', 'vessels'].map(name => fetch(`assets/artwork/${name}.json`)
+const [wagonMetadata, vesselMetadata, serviceVesselMetadata] = await Promise.all(
+  ['wagons', 'vessels', 'service-vessels'].map(name => fetch(`assets/artwork/${name}.json`)
     .then(response => response.ok ? response.json() : [])
     .catch(() => [])),
 );
+const serviceVesselFamilies = ['Harbor response', 'Marine research', 'Marine maintenance', 'Island and offshore supply', 'Fisheries support'];
 
 const towerFamilies = [
   'Office slab', 'Art Deco shoulder', 'Rear terraces', 'Pencil tower', 'Grid block',
@@ -50,6 +51,21 @@ const skylineNames = await fetch('assets/artwork/skyline-landmarks.txt')
   .then(response => response.ok ? response.text() : '')
   .then(text => text.trim().split('\n'))
   .catch(() => []);
+const summitNames = await fetch('assets/artwork/summit-landmarks.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const summitFamilies = ['Lookouts', 'Shelters', 'Relay and weather stations', 'Stone landmarks', 'Observatories and surveying'];
+const townNames = await fetch('assets/artwork/town-landmarks.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const townFamilies = ['Public services', 'Schools and recreation', 'Markets and depots', 'Utilities', 'Local industry'];
+const industryNames = await fetch('assets/artwork/industrial-landmarks.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
+const industryFamilies = ['Utilities', 'Materials and foundries', 'Manufacturing and repair', 'Freight and distribution', 'Food and agricultural processing'];
 const habitatNames = [
   'Ocotillo', 'Yucca rosette', 'Joshua tree', 'Honeycomb sandstone', 'Varnished slabs',
   'Lupine spires', 'Poppy patch', 'Mullein stalks', 'Rabbitbrush', 'Thistle crown',
@@ -164,7 +180,69 @@ const woodlandNames = [
 ];
 const woodlandFamilies = ['Young trees and shrubs', 'Shade plants', 'Fallen wood', 'Fungi', 'Woodland edges'];
 
+const drylandNames = [
+  'Piled wash cobbles', 'Dry root fan', 'Gravel ribs', 'Cutbank shelf', 'Drift branch',
+  'Dune slip face', 'Ripple field', 'Sand grass line', 'Dune skirt', 'Sand verbena mat',
+  'Sandstone pedestal', 'Twin sandstone fins', 'Banded sandstone', 'Basalt talus', 'Desert pavement',
+  'Creosote ring', 'Saltbush hummocks', 'Brittlebush', 'Blackbrush', 'Mojave aster',
+  'Spanish bayonet', 'Agave stalk', 'Cholla skeleton', 'Beavertail clump', 'Barrel cactus group',
+];
+const drylandFamilies = ['Dry washes', 'Dunes', 'Dryland rock', 'Scrub and flowers', 'Succulents'];
+
+const grasslandNames = [
+  'Oxeye daisies', 'Knapweed', 'Bird’s-foot trefoil', 'Chicory', 'Yarrow umbels',
+  'Bluestem fan', 'Fescue tufts', 'Oat grass', 'Foxtail patch', 'Feather grass',
+  'Hawthorn scrub', 'Gorse cushion', 'Broom stand', 'Dog rose', 'Juniper mound',
+  'Limestone pavement', 'Chalk hummocks', 'Glacial boulder', 'Scattered flint', 'Low stone bank',
+  'Wind-pruned thorn', 'Weathered log', 'Bracken island', 'Thorn root ball', 'Meadow anthill',
+];
+const grasslandFamilies = ['Wildflowers', 'Native grasses', 'Scrub', 'Meadow rocks', 'Meadow-floor details'];
+
+const headlandNames = [
+  'Sand hopper burrows', 'Razor shell fan', 'Kelp ribbon', 'Cork wrack', 'Barnacle cobbles',
+  'Beach morning glory', 'Seaside daisy', 'Honckenya cushion', 'Dune spurge', 'Beach evening primrose',
+  'Granite shingle', 'Flint spit', 'Sandstone ledge', 'Ironstone rubble', 'Chalk breccia',
+  'Dune willow', 'Bayberry thicket', 'Sea buckthorn', 'Coastal heather', 'Salt-burned juniper',
+  'Sand fescue', 'Lyme grass', 'Sea rush', 'Dune reed', 'Salt meadow hay',
+];
+const headlandFamilies = ['Strandline debris', 'Coastal flowers', 'Coastal stone', 'Wind-pruned scrub', 'Shore grasses'];
+
+const alpineGroundNames = [
+  'Wind-sculpted drift', 'Snow bridge lip', 'Snow pillows', 'Frosted talus', 'Snowbreak slabs',
+  'Blue ice ribs', 'Pressure hummocks', 'Meltwater runnels', 'Refrozen lens', 'Layered ice step',
+  'Garnet scree', 'Shale book', 'Quartzite needles', 'Frost-split tor', 'Veined schist',
+  'Mixed erratics', 'Sorted stone ring', 'Ice-marginal bank', 'Glacial boulder fan', 'Moraine cobble ribs',
+  'White saxifrage', 'Alpine poppy', 'Willow mat', 'Lichen cushions', 'Snowbed sedge',
+];
+const alpineGroundFamilies = ['Snow deposits', 'Glacier ice', 'Exposed rock', 'Glacial debris', 'Alpine plants'];
+const floodplainNames = [
+  'Peat hummocks', 'Sphagnum lobes', 'Fen marl ledge', 'Tussock islands', 'Bank overhang',
+  'Ragged robin', 'Fen orchid', 'Grass of Parnassus', 'Yellow rattle', 'Globeflower',
+  'Reed panicles', 'Spike-rush lawn', 'Flowering rush', 'Arrowhead stand', 'Reed cane litter',
+  'Clay scrolls', 'Gravel tongue', 'Snag with silt apron', 'Iron seep crust', 'Sandbar ripple',
+  'Bog myrtle', 'Leatherleaf mat', 'Dwarf willow', 'Buckthorn fen clump', 'Cranberry runner',
+];
+const floodplainFamilies = ['Wet ground', 'Meadow flowers', 'Emergent plants', 'Flood deposits', 'Wetland shrubs'];
+
 const categories = [
+  { title: 'Floodplain details', label: 'Floodplain detail', atlas: 'floodplain-details.png',
+    columns: 5, rows: 5, name: index => floodplainNames[index],
+    family: index => floodplainFamilies[Math.floor(index / 5)], animation: 'floodplain-details.gif' },
+  { title: 'Industrial landmarks', label: 'Industrial landmark', atlas: 'industrial-landmarks.png',
+    columns: 5, rows: 5, name: index => industryNames[index],
+    family: index => industryFamilies[Math.floor(index / 5)], animation: 'industrial-landmarks.gif' },
+  { title: 'Alpine ground details', label: 'Alpine ground detail', atlas: 'alpine-ground-details.png',
+    columns: 5, rows: 5, name: index => alpineGroundNames[index],
+    family: index => alpineGroundFamilies[Math.floor(index / 5)], animation: 'alpine-ground-details.gif' },
+  { title: 'Headland details', label: 'Headland detail', atlas: 'headland-details.png', columns: 5, rows: 5,
+    name: index => headlandNames[index], family: index => headlandFamilies[Math.floor(index / 5)],
+    animation: 'headland-details.gif' },
+  { title: 'Grassland details', label: 'Grassland detail', atlas: 'grassland-details.png', columns: 5, rows: 5,
+    name: index => grasslandNames[index], family: index => grasslandFamilies[Math.floor(index / 5)],
+    animation: 'grassland-details.gif' },
+  { title: 'Dryland details', label: 'Dryland detail', atlas: 'dryland-details.png', columns: 5, rows: 5,
+    name: index => drylandNames[index], family: index => drylandFamilies[Math.floor(index / 5)],
+    animation: 'dryland-details.gif' },
   { title: 'Woodland details', label: 'Woodland detail', atlas: 'woodland-details.png', columns: 5, rows: 5,
     name: index => woodlandNames[index], family: index => woodlandFamilies[Math.floor(index / 5)],
     animation: 'woodland-details.gif' },
@@ -195,8 +273,14 @@ const categories = [
   { title: 'Coastal details', label: 'Coastal detail', atlas: 'coastal-details.png', columns: 5, rows: 5,
     name: index => coastalNames[index], family: index => coastalGroups[Math.floor(index / 5)],
     animation: 'coastal-details.gif' },
-  { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 5, rows: 5,
+  { title: 'Skyline landmarks', label: 'Skyline landmark', atlas: 'skyline-landmarks.png', columns: 10, rows: 5,
     name: index => skylineNames[index], animation: 'skyline-landmarks.gif' },
+  { title: 'Summit landmarks', label: 'Summit landmark', atlas: 'summit-landmarks.png', columns: 5, rows: 5,
+    name: index => summitNames[index], family: index => summitFamilies[Math.floor(index / 5)],
+    animation: 'summit-landmarks.gif' },
+  { title: 'Town landmarks', label: 'Town landmark', atlas: 'town-landmarks.png', columns: 5, rows: 5,
+    name: index => townNames[index], family: index => townFamilies[Math.floor(index / 5)],
+    animation: 'town-landmarks.gif' },
   { title: 'Neighborhood buildings', label: 'Neighborhood building', atlas: 'neighborhood-buildings.png',
     columns: 6, rows: 5, count: buildingTiles.length,
     tile: index => [buildingTiles[index].x, buildingTiles[index].y],
@@ -221,6 +305,9 @@ const categories = [
     },
     tile: index => [Math.floor(index / 25) % 2 * 5 + index % 5,
       Math.floor(index / 50) * 5 + Math.floor(index % 25 / 5)] },
+  { title: 'Service vessels', label: 'Service vessel', atlas: 'service-vessels.png', columns: 5, rows: 5,
+    name: index => serviceVesselMetadata[index]?.configuration,
+    family: index => serviceVesselFamilies[Math.floor(index / 5)], animation: 'service-vessels.gif' },
   { title: 'Vessels', label: 'Vessel', atlas: 'vessels.png', columns: 10, rows: 25,
     family: index => shipTypes[Math.floor(index / 50)][0],
     detail: index => [vesselMetadata[index]?.configuration, shipTypes[Math.floor(index / 50)][1]]

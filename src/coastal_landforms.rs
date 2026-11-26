@@ -799,6 +799,10 @@ impl CoastalLandform {
                         Vessel::Sailboat => (18.0, 8.0),
                         Vessel::FishingBoat => (21.0, 9.0),
                         Vessel::Tug => (18.0, 9.0),
+                        Vessel::Service => {
+                            let [length, beam] = boat.half_extents();
+                            (length + 12.0, beam + 6.0)
+                        }
                     };
                     let delta = subtract(self.center, position);
                     let ahead = dot(delta, self.shore.out);

@@ -3,6 +3,8 @@
 pub const FULL_SIDE: usize = 60;
 pub const BALANCED_SIDE: usize = 54;
 pub const REDUCED_SIDE: usize = 48;
+pub const HEAVY_SIDE: usize = 42;
+pub const MIN_SIDE: usize = 36;
 
 const TARGET_US: u64 = 1_000_000 / 30;
 const OVER_BUDGET_US: u64 = 37_000;
@@ -15,6 +17,8 @@ enum Quality {
     Full,
     Balanced,
     Reduced,
+    Heavy,
+    Minimum,
 }
 
 pub struct SceneRaster {
@@ -40,6 +44,8 @@ impl SceneRaster {
             Quality::Full => FULL_SIDE,
             Quality::Balanced => BALANCED_SIDE,
             Quality::Reduced => REDUCED_SIDE,
+            Quality::Heavy => HEAVY_SIDE,
+            Quality::Minimum => MIN_SIDE,
         }
     }
 
@@ -48,6 +54,8 @@ impl SceneRaster {
         self.average_us = (7 * self.average_us + frame_us) / 8;
         let budget = match self.quality {
             Quality::Balanced => 38_500,
+            Quality::Reduced => 39_000,
+            Quality::Heavy => 37_500,
             _ => OVER_BUDGET_US,
         };
         self.slow_frames = if self.average_us > budget {
@@ -68,17 +76,27 @@ impl SceneRaster {
                     *self = Self::at(Quality::Reduced);
                     return;
                 }
-                Quality::Reduced => {}
+                Quality::Reduced => {
+                    *self = Self::at(Quality::Heavy);
+                    return;
+                }
+                Quality::Heavy => {
+                    *self = Self::at(Quality::Minimum);
+                    return;
+                }
+                Quality::Minimum => {}
             }
         }
 
         let (higher, budget, frames) = match self.quality {
+            Quality::Minimum => (Quality::Heavy, 34_500, 85),
+            Quality::Heavy => (Quality::Reduced, 36_500, 60),
             Quality::Reduced => (Quality::Balanced, 37_750, 40),
             Quality::Balanced => (Quality::Full, 32_000, 60),
             Quality::Full => return,
         };
-        // Only the scenery cost grows with the raster. Both steps are six
-        // pixels per axis and add roughly one fifth to the rendering work.
+        // Only the scenery cost grows with the raster. Each step adds six
+        // pixels per axis, so require spare time before increasing detail.
         let estimate = (frame_us + scenery_us.min(frame_us) * 3 / 16).min(OBSERVATION_CEILING_US);
         self.average_higher_us = (7 * self.average_higher_us + estimate) / 8;
         self.spare_frames = if self.average_higher_us < budget {
@@ -171,11 +189,17 @@ const fn source_axis<const SIDE: usize>() -> [usize; FULL_SIDE] {
 pub fn expand_reduced(pixels: &mut [u16], side: usize) {
     const BALANCED_AXIS: [usize; FULL_SIDE] = source_axis::<BALANCED_SIDE>();
     const REDUCED_AXIS: [usize; FULL_SIDE] = source_axis::<REDUCED_SIDE>();
+    const HEAVY_AXIS: [usize; FULL_SIDE] = source_axis::<HEAVY_SIDE>();
+    const MIN_AXIS: [usize; FULL_SIDE] = source_axis::<MIN_SIDE>();
     const BALANCED_INSETS: [usize; BALANCED_SIDE] = circle_insets();
     const REDUCED_INSETS: [usize; REDUCED_SIDE] = circle_insets();
+    const HEAVY_INSETS: [usize; HEAVY_SIDE] = circle_insets();
+    const MIN_INSETS: [usize; MIN_SIDE] = circle_insets();
     match side {
         BALANCED_SIDE => expand(pixels, &BALANCED_AXIS, &BALANCED_INSETS),
         REDUCED_SIDE => expand(pixels, &REDUCED_AXIS, &REDUCED_INSETS),
+        HEAVY_SIDE => expand(pixels, &HEAVY_AXIS, &HEAVY_INSETS),
+        MIN_SIDE => expand(pixels, &MIN_AXIS, &MIN_INSETS),
         _ => unreachable!("unsupported compact scenery side"),
     }
 }
@@ -280,6 +304,33 @@ mod tests {
     fn in_place_expansion_matches_reference_and_fills_the_aperture() {
         check_expansion::<BALANCED_SIDE>();
         check_expansion::<REDUCED_SIDE>();
+        check_expansion::<HEAVY_SIDE>();
+        check_expansion::<MIN_SIDE>();
+    }
+
+    #[test]
+    fn sustained_overload_steps_down_and_gradually_recovers() {
+        let mut raster = SceneRaster::at(Quality::Reduced);
+        for _ in 0..28 {
+            raster.observe(44_000, 25_000);
+        }
+        assert_eq!(raster.side(), HEAVY_SIDE);
+        for _ in 0..30 {
+            raster.observe(29_000, 19_000);
+        }
+        assert_eq!(raster.side(), HEAVY_SIDE);
+        for _ in 0..42 {
+            raster.observe(29_000, 19_000);
+        }
+        assert_eq!(raster.side(), REDUCED_SIDE);
+        for _ in 0..62 {
+            raster.observe(44_000, 25_000);
+        }
+        assert_eq!(raster.side(), MIN_SIDE);
+        for _ in 0..100 {
+            raster.observe(28_000, 18_000);
+        }
+        assert_eq!(raster.side(), HEAVY_SIDE);
     }
 
     fn check_expansion<const SIDE: usize>() {

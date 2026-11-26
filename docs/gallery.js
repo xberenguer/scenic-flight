@@ -21,8 +21,7 @@ const events = [
 ];
 
 const categories = ['All', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Sky & Weather', 'Interface'];
-const biomeNames = ['Alpine', 'Coast & Ocean', 'Drylands', 'Rivers & Wetlands', 'Woodlands & Grasslands'];
-const featuredIds = ['mountain-pass', 'coastal-soaring', 'city-approach', 'high-cruise', 'river-valley'];
+const featuredIds = ['glacier-ice-pass', 'eagle-wet-meadow', 'linked-downtown', 'high-cruise', 'tram-carhouse-flyover'];
 const qs = selector => document.querySelector(selector);
 const cards = qs('#cards');
 const dialog = qs('#viewer');
@@ -164,10 +163,11 @@ for (const name of categories) {
   qs('#categories').append(button);
 }
 qs('#aircraft').append(...planes.map(([name])=>option(name)));
-qs('#biome').append(...biomeNames.map(option));
 for (const filter of filters) filter.addEventListener(filter.type === 'search' ? 'input' : 'change', renderGallery);
 try {
   records = await (await get('./assets/media.json')).json();
+  const biomeNames = [...new Set(records.map(item => item.biome).filter(Boolean))].sort();
+  qs('#biome').append(...biomeNames.map(option));
   const figures = planes.map(([name],index)=>({id:`turntable-${index}`,title:`${name} turntable`,category:'Aircraft',
     aircraft:name,biome:'',format:'GIF',poster:`assets/turntable-${index}.png`,src:`assets/turntable-${index}.gif`,
     note:'Animated in-game model'}));
@@ -175,7 +175,7 @@ try {
     aircraft:name,biome:'',format:'Still',poster:`assets/picker-${index}.png`,src:`assets/picker-${index}.png`}));
   const featured = featuredIds.map(id => records.find(item => item.id === id));
   qs('#featured').replaceChildren(...featured.map(createCard));
-  records = [...records, ...figures, ...pickers];
+  records = [...records.reverse(), ...figures, ...pickers];
   renderGallery();
   coverage();
 } catch (error) {
