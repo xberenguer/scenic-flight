@@ -460,7 +460,7 @@ fn urban_reservations(
     cliffs: &CoastalLandmarks,
     lights: &FeatureTiles<Lighthouse, 9, 12>,
 ) -> Option<UrbanReservations> {
-    let mut mask = authorities.start([x, z], 0)?;
+    let mut mask = authorities.start([x, z], authorities.frontage_revision([x, z]))?;
     let facilities = authorities.facilities;
     if let Some(grain) = facilities.planned((x, z))
         .and_then(|facility| facility.rail())
@@ -575,7 +575,7 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
         let Some(mask) = urban_reservations(&authorities, [x, z], &world, seed, &cliffs, &lights) else {
             continue;
         };
-        let Some(job) = urban.claim(&district, [x, z], 0) else { continue };
+        let Some(job) = urban.claim(&district, [x, z], mask.revision()) else { continue };
         let result = job.prepare_reserved(&mask, || {}).expect("completed reservation snapshot");
         assert_eq!(urban.commit_reserved(&district, result, &mask, None), UrbanPublication::Published);
         if urban.approved(&district, [x, z]).is_some_and(|town| town.bounds().is_some()) {
@@ -729,16 +729,16 @@ fn replay(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             let mask = |region| urban_reservations(&authorities, region, &world, seed, &cliffs, &lights);
             let publication = if let Some(region) = urban.pending_region() {
                 if let Some(mask) = mask(region) {
-                    Some((region, urban.publish_reserved(&district, 0, Some(view), &mask)))
+                    Some((region, urban.publish_reserved(&district, mask.revision(), Some(view), &mask)))
                 } else {
                     urban.abort();
                     None
                 }
             } else {
-                urban.upcoming_region(&district, view, |region| authorities.ready(region))
+                urban.upcoming_revision(&district, view, |region| authorities.ready(region).then(|| authorities.frontage_revision(region)))
                     .and_then(|region| {
                         let mask = mask(region)?;
-                        let job = urban.claim(&district, region, 0)?;
+                        let job = urban.claim(&district, region, mask.revision())?;
                         let result = job.prepare_reserved(&mask, || {}).expect("completed reservation snapshot");
                         Some((region, urban.commit_reserved(&district, result, &mask, Some(view))))
                     })

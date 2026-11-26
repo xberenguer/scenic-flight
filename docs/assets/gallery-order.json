@@ -275,6 +275,11 @@
       "title": "Cities and towns",
       "sections": [
         {
+          "title": "Highway neighborhoods",
+          "id": "frontage-layouts",
+          "count": 25
+        },
+        {
           "id": "metro-layouts",
           "title": "Metropolitan neighborhood plans",
           "count": 25

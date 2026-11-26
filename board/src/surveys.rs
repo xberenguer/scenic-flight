@@ -52,11 +52,7 @@ pub enum Survey {
     #[cfg(feature = "regional-rail")]
     RegionalRail(RailRequest),
     #[cfg(feature = "river-stream")]
-    River {
-        request: RiverRequest,
-        district: Option<DistrictRegion>,
-        facilities: Option<RegionalFacilities>,
-    },
+    River(RiverRequest),
 }
 
 pub enum SurveyResult {
@@ -79,9 +75,17 @@ pub enum SurveyResult {
     River(RiverResult),
 }
 
+#[cfg(feature = "river-stream")]
+pub(crate) struct RiverInputs {
+    pub district: Option<DistrictRegion>,
+    pub facilities: Option<RegionalFacilities>,
+}
+
 pub struct SurveySlots {
     pub request: MaybeUninit<Survey>,
     pub result: MaybeUninit<SurveyResult>,
+    #[cfg(feature = "river-stream")]
+    pub river: RiverInputs,
     #[cfg(feature = "regional-rail")]
     pub rail: RailSurveyData,
 }
@@ -90,6 +94,8 @@ impl SurveySlots {
     pub const fn new() -> Self {
         Self {
             request: MaybeUninit::uninit(), result: MaybeUninit::uninit(),
+            #[cfg(feature = "river-stream")]
+            river: RiverInputs { district: None, facilities: None },
             #[cfg(feature = "regional-rail")]
             rail: RailSurveyData::new(),
         }
@@ -101,6 +107,7 @@ impl Survey {
         &self,
         slot: &mut MaybeUninit<SurveyResult>,
         #[cfg(feature = "river-stream")] water: &mut WatershedWork,
+        #[cfg(feature = "river-stream")] river: &RiverInputs,
         #[cfg(feature = "coastal-highways")] coast: &mut CoastalHighwayWork,
         #[cfg(feature = "regional-rail")] rail: (&RailSurveyData, &mut RailSurveyWork),
         pulse: impl FnMut(),
@@ -137,13 +144,11 @@ impl Survey {
                 |corridor| SurveyResult::RegionalRail { request: *request, corridor },
             ),
             #[cfg(feature = "river-stream")]
-            Self::River { request, district, facilities } => {
-                prepare_one(
-                    slot,
-                    || request.prepare(water, district.as_ref(), facilities.as_ref(), pulse),
-                    SurveyResult::River,
-                );
-            }
+            Self::River(request) => prepare_one(
+                slot,
+                || request.prepare(water, river.district.as_ref(), river.facilities.as_ref(), pulse),
+                SurveyResult::River,
+            ),
         }
     }
 }

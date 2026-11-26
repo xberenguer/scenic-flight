@@ -541,11 +541,7 @@ fn survey_river(
     let Some(request) = rivers.request(land, facilities, camera) else { return; };
     let key = request.key();
     if let Some(district) = land.planned(key) {
-        display.survey(Survey::River {
-            request,
-            district: district.cloned(),
-            facilities: facilities.planned(key).cloned(),
-        });
+        display.survey_river(request, district, facilities.planned(key));
     } else {
         rivers.cancel(request);
     }
@@ -2185,8 +2181,8 @@ fn prepare_urban_launch(
     };
     let mut count = 0_u8;
     for ((x, z), _) in land.districts() {
-        let Some(mut mask) = authorities.start([x, z], 0) else { continue };
-        let Some(job) = urban.claim(land, [x, z], 0) else { continue };
+        let Some(mut mask) = authorities.start([x, z], authorities.frontage_revision([x, z])) else { continue };
+        let Some(job) = urban.claim(land, [x, z], mask.revision()) else { continue };
         if let Some(grain) = facilities.planned((x, z)).and_then(|facility| facility.rail())
             .and_then(|rail| rail.grain_terminal())
         {

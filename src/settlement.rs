@@ -5,6 +5,7 @@ use crate::render::{screen_region, view_distance, Camera, ScreenRect};
 use crate::world::{World, SEA_LEVEL};
 use crate::world_mesh::{bounds_in_view, WorldMesh};
 
+pub(crate) mod frontage;
 mod neighborhoods;
 pub mod district_layouts;
 pub mod neighborhood_blocks;

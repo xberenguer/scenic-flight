@@ -2421,5 +2421,27 @@
     "poster": "assets/current/sky-weather-snow-0.png",
     "src": "assets/current/sky-weather-snow-0.mp4",
     "note": "Snow forms where cold, moist air meets high ground."
+  },
+  {
+    "id": "highway-neighborhood-18",
+    "title": "Bush Plane over highway shops and duplexes",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/highway-neighborhood-18.png",
+    "src": "assets/current/highway-neighborhood-18.mp4",
+    "note": "Two neighborhoods branching off a regional road."
+  },
+  {
+    "id": "highway-neighborhood-33",
+    "title": "Bush Plane approaching a coastal town",
+    "category": "Built World",
+    "aircraft": "Bush Plane",
+    "biome": "",
+    "format": "Video",
+    "poster": "assets/current/highway-neighborhood-33.png",
+    "src": "assets/current/highway-neighborhood-33.mp4",
+    "note": "Work yards and staggered village streets at the town edge."
   }
 ]

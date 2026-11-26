@@ -9,7 +9,7 @@ use scenic_flight::ground_details::GroundDetails;
 use scenic_flight::highway_art::HighwayRibbon;
 use scenic_flight::highway_stream::HighwayStream;
 use scenic_flight::horizon_cache::HorizonCache;
-use scenic_flight::land_stream::{LandBudget, LandStream};
+use scenic_flight::land_stream::{LandBudget, LandStream, UrbanAuthorities, UrbanPublication, UrbanStream};
 use scenic_flight::local_routes::{route_reservation, LocalRouteStream};
 use scenic_flight::natural_stream::{
     highway_reservation_with_nature, scenery_reservation_with_highways, NaturalBudget, NaturalReservation,
@@ -46,6 +46,8 @@ pub(super) struct Scene {
     coast: CoastalScenery,
     cliffs: CoastalLandmarks,
     land: LandStream<8>,
+    urban: Box<UrbanStream<8>>,
+    urban_started: u64,
     facilities: FacilityStream<8>,
     rivers: RiverStream<3>,
     river_work: WatershedWork,
@@ -81,6 +83,8 @@ impl Scene {
             coast: CoastalScenery::new(),
             cliffs: CoastalLandmarks::new(),
             land: LandStream::new(),
+            urban: Box::new(UrbanStream::new()),
+            urban_started: 0,
             facilities: FacilityStream::new(world, seed),
             rivers: RiverStream::new(world, seed),
             river_work: WatershedWork::new(),
@@ -156,6 +160,7 @@ impl Scene {
         );
         scene.prepare_summits(view, true);
         scene.publish_roadside(view, true);
+        scene.survey_urban(view, 0, true);
         scene
     }
 
@@ -181,6 +186,7 @@ impl Scene {
             self.land
                 .obstruction(x, z)
                 .max(self.facilities.obstruction(x, z))
+                .max(self.urban.obstruction(&self.land, x, z))
                 .max(self.cliffs.obstruction(x, z))
                 .max(self.rivers.obstruction(x, z))
                 .max(self.natural.obstruction(x, z))
@@ -296,7 +302,58 @@ impl Scene {
             self.prepare_summits(view, false);
         }
         self.publish_roadside(view, false);
+        if ticks % 64 == 46 {
+            self.survey_urban(view, ticks, false);
+        }
         self.regional_rail.connect_quarries(&self.land, &self.facilities, view);
+    }
+
+    fn survey_urban(&mut self, view: Camera, ticks: u64, launch: bool) {
+        let authorities = UrbanAuthorities {
+            facilities: &self.facilities, rivers: &self.rivers, routes: &self.routes,
+            highways: &self.highways, rail: &self.regional_rail, natural: &self.natural,
+            summits: Some(&self.summits),
+        };
+        let make_mask = |region: [i32; 2]| {
+            let mut mask = authorities.start(region, authorities.frontage_revision(region))?;
+            if let Some(grain) = self.facilities.planned((region[0], region[1]))
+                .and_then(|district| district.rail()).and_then(|rail| rail.grain_terminal())
+            {
+                for bounds in GroundDetails::survey_grain_fields(&self.world, self.seed, grain.origin) {
+                    mask.reserve_area(bounds);
+                }
+            }
+            for cliff in self.cliffs.forms().filter(|form| self.facilities.retains_landmark(form)) {
+                mask.reserve_area(cliff.bounds());
+            }
+            authorities.complete(&mut mask);
+            Some(mask)
+        };
+        if let Some(region) = self.urban.pending_region() {
+            if ticks - self.urban_started >= 240 {
+                self.urban.abort();
+            } else if let Some(mask) = make_mask(region) {
+                if self.urban.publish_reserved(&self.land, mask.revision(), Some(view), &mask)
+                    == UrbanPublication::Deferred
+                {
+                    return;
+                }
+            } else {
+                self.urban.abort();
+            }
+        }
+
+        let Some(region) = self.urban.upcoming_revision(&self.land, view, |region| {
+            authorities.ready(region).then(|| authorities.frontage_revision(region))
+        }) else { return; };
+        let Some(mask) = make_mask(region) else { return; };
+        let Some(job) = self.urban.claim(&self.land, region, mask.revision()) else { return; };
+        if let Some(plan) = job.prepare_reserved(&mask, || {}) {
+            self.urban_started = ticks;
+            self.urban.commit_reserved(&self.land, plan, &mask, (!launch).then_some(view));
+        } else {
+            self.urban.abort();
+        }
     }
 
     fn prepare_summits(&mut self, view: Camera, launch: bool) {
@@ -392,7 +449,8 @@ impl Scene {
             self.valley_mist
                 .observe(&self.world, self.seed, flight.ticks, view, &sky, DIMENSIONS);
         let skyline = self.skyline.prepare_with_additions(
-            &self.land, view, flight.ticks, &sky, DIMENSIONS, self.facilities.waterfront_silhouettes(),
+            &self.land, view, flight.ticks, &sky, DIMENSIONS,
+            self.facilities.waterfront_silhouettes().chain(self.urban.skyline(&self.land)),
             |x, z| self.horizon.backdrop(x, z),
         );
         self.distant_roads.prepare(
@@ -474,10 +532,7 @@ impl Scene {
             .flatten()
             .map(Train::depth_region)
             .reduce(ScreenRect::union);
-        let land = self
-            .land
-            .has_visible_scenery(view)
-            .then(|| self.land.paint_sampler());
+        let land = self.urban.paint_sampler(&self.land, view);
         let facilities = self
             .facilities
             .has_visible_facilities(view)
@@ -503,9 +558,7 @@ impl Scene {
                 .as_ref()
                 .map_or(road, |layer| layer.overlay(x, z, road));
             let covered = trees.geometry(x, z, ground);
-            let developed = land
-                .as_ref()
-                .map_or(covered, |layer| layer.overlay(x, z, covered));
+            let developed = land.overlay(x, z, covered);
             let water = rivers
                 .as_ref()
                 .map_or(developed, |layer| layer.overlay(x, z, developed));

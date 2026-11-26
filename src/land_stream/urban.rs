@@ -2,7 +2,7 @@
 
 use super::{Key, LandPaintSampler, LandStream, Resident, Window, CITY_HORIZON, REGION};
 use crate::render::{terrain_detail_distance, Camera};
-use crate::scenery::{cover_settlement, DistrictExpansion, DistrictExpansionRequest};
+use crate::scenery::{cover_settlement, DistrictExpansion, DistrictExpansionRequest, FrontageReservations};
 use crate::settlement::BoroughPaintCache;
 use crate::world::{Sample, Surface, World};
 use crate::world_mesh::bounds_in_range;
@@ -63,11 +63,16 @@ impl UrbanExpansionJob {
     ) -> Option<UrbanExpansionResult> {
         reservations.matches(self.region(), self.authority_revision()).then(|| UrbanExpansionResult {
             claim: self.claim,
-            expansion: self.request.prepare_with_bounds(
+            expansion: self.request.prepare_with_frontages(
                 |x, z| reservations.blocks(x, z),
                 |bounds| reservations.overlaps(bounds),
                 |x, z| reservations.near_waterway(x, z),
                 |x, z| reservations.waterway_cell(x, z),
+                Some(FrontageReservations {
+                    anchors: &reservations.frontages,
+                    occupied: &|x, z| reservations.blocks_non_highway(x, z),
+                    highway: &|x, z| reservations.blocks_highway(x, z),
+                }),
                 pulse,
             ),
             reservations: Some(reservations.clone()),
@@ -149,6 +154,26 @@ impl<const ACTIVE: usize> UrbanStream<ACTIVE> {
         camera: Camera,
         mut ready: impl FnMut([i32; 2]) -> bool,
     ) -> Option<[i32; 2]> {
+        self.select_region(land, camera, |region, prior| prior.is_none() && ready(region))
+    }
+
+    pub fn upcoming_revision(
+        &self,
+        land: &LandStream<ACTIVE>,
+        camera: Camera,
+        mut desired: impl FnMut([i32; 2]) -> Option<u32>,
+    ) -> Option<[i32; 2]> {
+        self.select_region(land, camera, |region, prior| {
+            desired(region).is_some_and(|revision| prior != Some(revision))
+        })
+    }
+
+    fn select_region(
+        &self,
+        land: &LandStream<ACTIVE>,
+        camera: Camera,
+        mut wanted: impl FnMut([i32; 2], Option<u32>) -> bool,
+    ) -> Option<[i32; 2]> {
         let view = Window::new(camera)?;
         if self.pending.is_some() {
             return None;
@@ -161,8 +186,7 @@ impl<const ACTIVE: usize> UrbanStream<ACTIVE> {
                 (forward
                     && land.district_published((x, z))
                     && district.towns().next().is_some()
-                    && self.approved(land, region).is_none()
-                    && ready(region))
+                    && wanted(region, self.approved(land, region).map(DistrictExpansion::revision)))
                     .then(|| (region, view.visible(key), view.distance_squared(key)))
             })
             .min_by(|(_, a_visible, a), (_, b_visible, b)| a_visible.cmp(b_visible).then(a.total_cmp(b)))

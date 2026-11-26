@@ -8,6 +8,7 @@ use crate::natural_stream::NaturalStream;
 use crate::rail_stream::RailStream;
 use crate::river_stream::RiverStream;
 use crate::summit_stream::SummitStream;
+use crate::settlement::frontage::{collect, FrontageAnchors, MAX_SITES};
 
 const SIDE: usize = 64;
 const CELL: f32 = REGION / SIDE as f32;
@@ -18,6 +19,8 @@ pub struct UrbanReservations {
     revision: u32,
     origin: [f32; 2],
     blocked: [u64; SIDE],
+    highways: [u64; SIDE],
+    pub(super) frontages: FrontageAnchors,
     waterways: [u64; SIDE],
     next: usize,
 }
@@ -29,6 +32,8 @@ impl UrbanReservations {
             revision,
             origin: region.map(|axis| axis as f32 * REGION),
             blocked: [0; SIDE],
+            highways: [0; SIDE],
+            frontages: [None; MAX_SITES],
             waterways: [0; SIDE],
             next: 0,
         }
@@ -101,6 +106,8 @@ impl UrbanReservations {
     }
 
     /// Reserve a footprint independently of the incremental sweep.
+    pub fn revision(&self) -> u32 { self.revision }
+
     pub fn reserve_area(&mut self, [left, near, right, far]: [f32; 4]) {
         let [x, z] = self.origin;
         if left > right || near > far || right < x || far < z || left >= x + REGION || near >= z + REGION {
@@ -122,16 +129,30 @@ impl UrbanReservations {
     pub(super) fn protects(&self, current: &Self) -> bool {
         self.matches(current.region, current.revision)
             && current.matches(self.region, self.revision)
+            && self.frontages == current.frontages
             && self.blocked.iter().zip(&current.blocked).all(|(&old, &new)| new & !old == 0)
+            && self.highways.iter().zip(&current.highways).all(|(&old, &new)| new & !old == 0)
+    }
+
+    fn location(&self, x: f32, z: f32) -> Option<(usize, u64)> {
+        let [x, z] = [x - self.origin[0], z - self.origin[1]];
+        if !(0.0..REGION).contains(&x) || !(0.0..REGION).contains(&z) {
+            return None;
+        }
+        let (column, row) = ((x / CELL) as usize, (z / CELL) as usize);
+        (row * SIDE + column < self.next).then_some((row, 1 << column))
     }
 
     pub(super) fn blocks(&self, x: f32, z: f32) -> bool {
-        let [x, z] = [x - self.origin[0], z - self.origin[1]];
-        if !(0.0..REGION).contains(&x) || !(0.0..REGION).contains(&z) {
-            return true;
-        }
-        let (column, row) = ((x / CELL) as usize, (z / CELL) as usize);
-        row * SIDE + column >= self.next || self.blocked[row] & (1 << column) != 0
+        self.location(x, z).is_none_or(|(row, cell)| (self.blocked[row] | self.highways[row]) & cell != 0)
+    }
+
+    pub(super) fn blocks_non_highway(&self, x: f32, z: f32) -> bool {
+        self.location(x, z).is_none_or(|(row, cell)| self.blocked[row] & cell != 0)
+    }
+
+    pub(super) fn blocks_highway(&self, x: f32, z: f32) -> bool {
+        self.location(x, z).is_none_or(|(row, cell)| self.highways[row] & cell != 0)
     }
 
     pub(super) fn near_waterway(&self, x: f32, z: f32) -> bool {
@@ -160,7 +181,7 @@ impl UrbanReservations {
         }
         let cell = |offset: f32| ((offset / CELL) as usize).min(SIDE - 1);
         let mask = (u64::MAX << cell(left - x)) & (u64::MAX >> (SIDE - 1 - cell(right - x)));
-        self.blocked[cell(near - z)..=cell(far - z)].iter().any(|row| row & mask != 0)
+        (cell(near - z)..=cell(far - z)).any(|row| (self.blocked[row] | self.highways[row]) & mask != 0)
     }
 }
 
@@ -184,11 +205,30 @@ impl UrbanAuthorities<'_> {
             && self.routes.planned(owner).is_some()
     }
 
+    /// A newly published neighboring highway can support another urban
+    /// survey. Combining pair identities is independent of resident order.
+    pub fn frontage_revision(&self, region: [i32; 2]) -> u32 {
+        self.highways.links().fold(0, |signature, (_, link)| {
+            let owners = link.contacts();
+            let Some(neighbor) = owners.into_iter()
+                .find(|owner| owner.region != region && owners.iter().any(|owner| owner.region == region))
+            else { return signature; };
+            let [x, z] = neighbor.region;
+            let address = (u64::from(x as u32) << 32) | u64::from(z as u32);
+            signature ^ ((crate::math::mix(address ^ 0xbac2_7122_7d69_148c) as u32) | 1)
+        })
+    }
+
     pub fn start(&self, [x, z]: [i32; 2], revision: u32) -> Option<UrbanReservations> {
         if !self.ready([x, z]) {
             return None;
         }
         let mut mask = UrbanReservations::new([x, z], revision);
+        mask.scan_intersections(0, 0, SIDE, &mut |area| self.highways.reserves(area));
+        core::mem::swap(&mut mask.blocked, &mut mask.highways);
+        for (_, link) in self.highways.links() {
+            collect(&mut mask.frontages, [x, z], link);
+        }
         for river in self.rivers.scenery_plans() {
             for (a, b) in river.bank_chords() {
                 mask.scan_intersections(0, 0, SIDE, &mut |area| river.bank_intersects(a, b, area));
@@ -221,13 +261,11 @@ impl UrbanAuthorities<'_> {
                 false
             });
         }
-        mask.scan_intersections(0, 0, SIDE, &mut |area| self.highways.reserves(area));
         mask.next = SIDE * SIDE;
     }
 
     fn intersects(&self, bounds: [f32; 4]) -> bool {
         self.rivers.reserves_scenery(bounds)
-            || self.highways.reserves(bounds)
             || self.rail.reserves(bounds)
             || self.natural.reserves(bounds)
             || self.summits.is_some_and(|summits| summits.reserves(bounds))

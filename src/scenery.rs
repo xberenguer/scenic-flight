@@ -12,6 +12,7 @@ use crate::settlement::{Settlement, SettlementSurface, Terminus};
 use crate::world::{Sample, Surface, World};
 
 mod expansion;
+pub(crate) use expansion::FrontageReservations;
 pub use expansion::{DistrictExpansion, DistrictExpansionRequest};
 
 #[derive(Clone)]

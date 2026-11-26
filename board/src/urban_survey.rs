@@ -83,7 +83,7 @@ impl Context<'_> {
             };
             let state = match reply {
                 Reply::Ready(result) => self.stream.commit_reserved(land, result, &mask, Some(camera)),
-                Reply::Deferred { .. } => self.stream.publish_reserved(land, 0, Some(camera), &mask),
+                Reply::Deferred { .. } => self.stream.publish_reserved(land, mask.revision(), Some(camera), &mask),
             };
             match state {
                 UrbanPublication::Deferred => {
@@ -110,14 +110,15 @@ impl Context<'_> {
             return;
         }
         self.background.next_attempt = self.frame + 16;
-        let Some(region) = self.stream.upcoming_region(land, camera, |key| {
-            authorities.ready(key) && self.background.recently_deferred
-                .is_none_or(|(recent, until)| recent != key || self.frame >= until)
+        let Some(region) = self.stream.upcoming_revision(land, camera, |key| {
+            (authorities.ready(key) && self.background.recently_deferred
+                .is_none_or(|(recent, until)| recent != key || self.frame >= until))
+                .then(|| authorities.frontage_revision(key))
         }) else {
             return;
         };
         let Some(mask) = self.mask(region, world, authorities) else { return; };
-        let Some(job) = self.stream.claim(land, region, 0) else { return; };
+        let Some(job) = self.stream.claim(land, region, mask.revision()) else { return; };
         #[cfg(feature = "scene-probe")]
         esp_println::println!(
             "urban background queued frame={} region={:?} mask_us={}",
@@ -135,7 +136,7 @@ impl Context<'_> {
         world: &World,
         authorities: &UrbanAuthorities<'_>,
     ) -> Option<UrbanReservations> {
-        let mut mask = authorities.start([x, z], 0)?;
+        let mut mask = authorities.start([x, z], authorities.frontage_revision([x, z]))?;
         let facilities = authorities.facilities;
         if let Some(grain) = facilities.planned((x, z))
             .and_then(|facility| facility.rail())

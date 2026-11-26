@@ -42,6 +42,10 @@ const towerFamilies = [
   'Stone shaft', 'Brick stair tower', 'Side-mounted crown', 'Narrow plan', 'Civic podium',
 ];
 
+const frontageNames = await fetch('assets/artwork/frontage-layouts.txt')
+  .then(response => response.ok ? response.text() : '')
+  .then(text => text.trim().split('\n'))
+  .catch(() => []);
 const snowfallNames = await fetch('assets/artwork/snowfall-profiles.txt')
   .then(response => response.ok ? response.text() : '')
   .then(text => text.trim().split('\n'))
@@ -387,6 +391,8 @@ const categories = [
     columns: 5, rows: 5, name: index => contourFieldNames[index], animation: 'contour-fields.gif' },
   { title: 'Summit trail fixtures', label: 'Trail fixture', atlas: 'summit-trail-rests.png',
     columns: 5, rows: 5, name: index => trailRestNames[index], animation: 'summit-trail-rests.gif' },
+  { title: 'Highway neighborhoods', label: 'Street layout', atlas: 'frontage-layouts.png',
+    columns: 5, rows: 5, name: index => frontageNames[index] },
   { title: 'Snowfall profiles', label: 'Snowfall profile', atlas: 'snowfall-profiles.png',
     columns: 5, rows: 5, name: index => snowfallNames[index], animation: 'snowfall-profiles.gif' },
   { title: 'Badlands ravines', label: 'Erosion profile', atlas: 'badlands-ravines.png',

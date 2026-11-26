@@ -6,7 +6,7 @@ A world seed determines where terrain, roads, cities, airfields and coastlines f
 
 ## City sizes
 
-The survey ran from the Racer's starting area in seeds **0–255** using the same terrain, street, waterway and settlement preparation as the flight renderer. It found **531 settlements** in 190 of those 256 starting areas. A settlement includes its core streets, subdivisions and outer boroughs. Distances are in engine world units.
+The v0.1.120 baseline survey ran from the Racer's starting area in seeds **0–255** using the same terrain, street, waterway and settlement preparation as the flight renderer. It found **531 settlements** in 190 of those 256 starting areas. A settlement includes its core streets, subdivisions and outer boroughs. Distances are in engine world units.
 
 | Measurement | Result |
 | --- | ---: |
@@ -39,6 +39,20 @@ Two more examples show [a hillside settlement](assets/planning/urban-16--3--7.pn
 The road planner looks for pairs of dry approaches it can connect at a usable grade. A road terminus may grow into a town if its slope permits a connected street network and enough buildings. The center starts with a 7-column street grid that can reach 7 rows. It can gain hillside extensions and shift with the terrain. [Road planner](../src/roads.rs) · [Town generation](../src/settlement.rs)
 
 The 25 neighborhood templates define where the next set of streets may grow. Each candidate street still has to connect and pass the ground checks. Farther out, wider-spaced collector roads support houses, shops, industry and open blocks. Other planned land uses, waterways and steep ground can cut gaps in the street network. When a dry approach reaches a usable shore, the same survey can site a waterfront extension. [Neighborhood templates](../src/settlement/district_layouts.rs) · [Outer boroughs](../src/settlement/expansion/boroughs.rs) · [Waterfront extensions](../src/settlement/expansion/waterfront.rs)
+
+## Neighborhoods along highways
+
+Across 320 starting seeds in v0.1.121, the road survey placed **148 highway neighborhoods** and produced all **25 layouts**. A collector starts at an existing road, climbs only where the grade allows, and grows side streets and buildable lots. The layouts include cottage rows, duplex courts, shops, workshops, and mixed-use streets. The survey leaves unsuitable ground undeveloped.
+
+Published highways can provide new street connections across planning regions. Each roadside neighborhood reserves its own street and lots inside its region. The highway joins the regions through the existing road network.
+
+In the examples below, cyan marks the added streets and gold marks their homes and shops.
+
+| Shops and duplexes · seed 18 | Workshops and village streets · seed 33 |
+| --- | --- |
+| ![Generated highway neighborhoods below a regional town](assets/planning/urban-frontage-18.png) | ![Generated highway neighborhoods at the edge of a coastal town](assets/planning/urban-frontage-33.png) |
+
+[Frontage planner](../src/settlement/frontage.rs) · [Layout atlas](assets/artwork/frontage-layouts.png)
 
 ## What can appear where
 

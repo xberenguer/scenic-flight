@@ -288,6 +288,25 @@ mod background {
             });
         }
 
+        #[cfg(feature = "river-stream")]
+        #[inline(never)]
+        pub fn survey_river(
+            &mut self,
+            request: scenic_flight::river_stream::RiverRequest,
+            district: Option<&scenic_flight::scenery::DistrictRegion>,
+            facilities: Option<&scenic_flight::facilities::RegionalFacilities>,
+        ) {
+            let slots = self.survey_slots.take().expect("one active scenery survey");
+            // Keep the two owned snapshots in the PSRAM handoff. The main
+            // core's stack only carries the request and one clone at a time.
+            slots.river.district = district.cloned();
+            slots.river.facilities = facilities.cloned();
+            slots.request.write(Survey::River(request));
+            critical_section::with(|cs| {
+                *SURVEY.borrow_ref_mut(cs) = Some(slots);
+            });
+        }
+
         #[cfg(feature = "regional-rail")]
         #[inline(never)]
         pub fn survey_rail(
@@ -454,6 +473,7 @@ mod background {
             request.prepare_into(
                 &mut slots.result,
                 #[cfg(feature = "river-stream")] water,
+                #[cfg(feature = "river-stream")] &slots.river,
                 #[cfg(feature = "coastal-highways")] coast,
                 #[cfg(feature = "regional-rail")] (&slots.rail, rail_work),
                 || {

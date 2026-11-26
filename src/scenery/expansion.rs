@@ -3,6 +3,7 @@
 use super::{cover_settlement, region_axis, DistrictRegion, ROAD_REGION_SIZE};
 use crate::settlement::{BoroughPaintCache, SettlementSample, Terminus, TownExpansion, WaterfrontVillage};
 use crate::skyline::SkylineTower;
+use crate::settlement::frontage::{collect_regional, CorridorDistrict, FrontageAnchors, MAX_SITES};
 use crate::world::{Sample, Surface, World};
 
 /// A worker can take this snapshot after the ordinary district is ready.
@@ -18,8 +19,15 @@ pub struct DistrictExpansion {
     revision: u32,
     towns: [Option<TownExpansion>; 2],
     waterfront: Option<WaterfrontVillage>,
+    frontages: [Option<CorridorDistrict>; MAX_SITES],
     bounds: Option<[f32; 4]>,
     occupied: [u32; 32],
+}
+
+pub(crate) struct FrontageReservations<'a> {
+    pub(crate) anchors: &'a FrontageAnchors,
+    pub(crate) occupied: &'a dyn Fn(f32, f32) -> bool,
+    pub(crate) highway: &'a dyn Fn(f32, f32) -> bool,
 }
 
 impl DistrictRegion {
@@ -98,6 +106,18 @@ impl DistrictExpansionRequest {
         may_reserve: impl Fn([f32; 4]) -> bool,
         near_waterway: impl Fn(f32, f32) -> bool,
         waterway_cell: impl Fn(f32, f32) -> bool,
+        pulse: impl FnMut(),
+    ) -> DistrictExpansion {
+        self.prepare_with_frontages(reserved, may_reserve, near_waterway, waterway_cell, None, pulse)
+    }
+
+    pub(crate) fn prepare_with_frontages(
+        &self,
+        reserved: impl Fn(f32, f32) -> bool,
+        may_reserve: impl Fn([f32; 4]) -> bool,
+        near_waterway: impl Fn(f32, f32) -> bool,
+        waterway_cell: impl Fn(f32, f32) -> bool,
+        frontage: Option<FrontageReservations<'_>>,
         mut pulse: impl FnMut(),
     ) -> DistrictExpansion {
         let waterfront = self.district.road().and_then(|road| WaterfrontVillage::survey(
@@ -140,11 +160,33 @@ impl DistrictExpansionRequest {
                 &mut pulse,
             ))
         });
+        let mut frontages: [Option<CorridorDistrict>; MAX_SITES] = core::array::from_fn(|_| None);
+        if let Some(frontage) = frontage {
+            let mut anchors = *frontage.anchors;
+            let road = self.district.road().unwrap();
+            collect_regional(&mut anchors, self.region(), road.polyline());
+            let highway = |x, z| (frontage.highway)(x, z) || road.proximity(x, z).is_some();
+            for (i, anchor) in anchors.into_iter().enumerate() {
+                let Some(anchor) = anchor else { continue };
+                let occupied = |x, z| {
+                    (frontage.occupied)(x, z)
+                        || self.district.towns().any(|town| town.sample(x, z).is_some())
+                        || towns.iter().flatten().any(|town| town.sample(x, z).is_some())
+                        || waterfront.as_ref().is_some_and(|village| village.reserves(x, z))
+                        || frontages.iter().flatten().any(|area| area.sample(x, z).is_some())
+                };
+                frontages[i] = CorridorDistrict::survey(
+                    &self.world, self.region(), anchor, &occupied, &highway,
+                );
+                pulse();
+            }
+        }
         let bounds = towns
             .iter()
             .flatten()
             .filter_map(TownExpansion::bounds)
             .chain(waterfront_bounds)
+            .chain(frontages.iter().flatten().map(CorridorDistrict::bounds))
             .reduce(|a, b| {
                 [
                     a[0].min(b[0]),
@@ -170,11 +212,15 @@ impl DistrictExpansionRequest {
         if let Some(village) = &waterfront {
             village.footprints(&mut occupy);
         }
+        for area in frontages.iter().flatten() {
+            occupy(area.bounds());
+        }
         DistrictExpansion {
             region: self.region(),
             revision: self.revision,
             towns,
             waterfront,
+            frontages,
             bounds,
             occupied,
         }
@@ -222,6 +268,15 @@ impl DistrictExpansion {
         }
         self.towns.iter().flatten().find_map(|town| town.sample_with_cache(x, z, cache))
             .or_else(|| self.waterfront_sample(x, z))
+            .or_else(|| self.frontage_sample(x, z))
+    }
+
+    pub fn frontage_sample(&self, x: f32, z: f32) -> Option<SettlementSample> {
+        self.frontages.iter().flatten().find_map(|area| area.sample(x, z))
+    }
+
+    pub fn frontage_districts(&self) -> impl Iterator<Item = (&'static str, [f32; 4])> + '_ {
+        self.frontages.iter().flatten().map(|area| (area.name(), area.bounds()))
     }
 
     pub fn waterfront_sample(&self, x: f32, z: f32) -> Option<SettlementSample> {
@@ -252,6 +307,7 @@ impl DistrictExpansion {
             .flatten()
             .map(|town| town.obstruction(x, z))
             .chain(self.waterfront.iter().map(|village| village.obstruction(x, z)))
+            .chain(self.frontage_sample(x, z).and_then(|sample| sample.elevation))
             .fold(0.0, f32::max)
     }
 
