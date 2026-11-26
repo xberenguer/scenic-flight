@@ -2,59 +2,35 @@
   "aircraft": [
     {
       "asset": 7,
-      "name": "Bald Eagle",
-      "speed": "30–35 mph in level flight",
-      "reference": "Bureau of Land Management",
-      "url": "https://www.blm.gov/sites/blm.gov/files/uploads/programs_fish-and-wildlife_wildlife_eagle-%20watch_about-bald-eagles_baldeagle_funfacts.pdf"
+      "name": "Bald Eagle"
     },
     {
       "asset": 3,
-      "name": "Ultralight",
-      "speed": "40 mph cruise",
-      "reference": "North Wing Maverick trike",
-      "url": "https://northwing.com/Maverick_Trike_Owners_Manual.pdf"
+      "name": "Ultralight"
     },
     {
       "asset": 4,
-      "name": "Glider",
-      "speed": "56 mph at best glide",
-      "reference": "Schleicher ASK 21 Mi",
-      "url": "https://www.alexander-schleicher.de/wp-content/uploads/2015/04/AS-Einzelprosp-ASK-21-Mi-15-k.pdf"
+      "name": "Glider"
     },
     {
       "asset": 0,
-      "name": "Bush Plane",
-      "speed": "80 mph top speed",
-      "reference": "Smithsonian Piper J-3 Cub",
-      "url": "https://www.si.edu/object/nasm_A19771128000"
+      "name": "Bush Plane"
     },
     {
       "asset": 1,
-      "name": "Racer",
-      "speed": "181 knots indicated cruise",
-      "reference": "Extra 330LX handbook",
-      "url": "https://www.electronicsandbooks.com/edt/manual/Hardware/E/Extra%20Aircraft/POH_330LX_US_20170412_CUS.pdf"
+      "name": "Racer"
     },
     {
       "asset": 2,
-      "name": "Sport Jet",
-      "speed": "317 knots maximum cruise",
-      "reference": "Cirrus Vision Jet",
-      "url": "https://cirrusaircraft.com/aircraft/vision-jet/"
+      "name": "Sport Jet"
     },
     {
       "asset": 5,
-      "name": "F/A-18 Fighter",
-      "speed": "Mach 1.8+ top speed",
-      "reference": "NASA F/A-18",
-      "url": "https://www.nasa.gov/aeronautics/f-a-18-mission-support-aircraft/"
+      "name": "F/A-18 Fighter"
     },
     {
       "asset": 6,
-      "name": "SR-71 Blackbird",
-      "speed": "Mach 3.2 cruise",
-      "reference": "NASA SR-71",
-      "url": "https://www.nasa.gov/image-article/sr-71-3/"
+      "name": "SR-71 Blackbird"
     }
   ],
   "scenery": [

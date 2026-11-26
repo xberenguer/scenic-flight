@@ -76,12 +76,6 @@ def render(entries, order):
             cards.append((name, f"{picker}<br>{turntable}"))
         sections.append(grid(cards, columns=4))
 
-    speeds = ["| Aircraft | Real-world speed reference |", "| --- | --- |"]
-    speeds.extend(
-        f'| {entry["name"]} | {entry["speed"]} ([{entry["reference"]}]({entry["url"]})) |'
-        for entry in aircraft
-    )
-    sections.append("\n".join(speeds))
     sections.extend((
         "## World generation",
         "Cities grow around road approaches and expand where the land allows. "

@@ -42,17 +42,6 @@ Select a preview to open the full-size clip or screenshot.
   </tr>
 </table>
 
-| Aircraft | Real-world speed reference |
-| --- | --- |
-| Bald Eagle | 30–35 mph in level flight ([Bureau of Land Management](https://www.blm.gov/sites/blm.gov/files/uploads/programs_fish-and-wildlife_wildlife_eagle-%20watch_about-bald-eagles_baldeagle_funfacts.pdf)) |
-| Ultralight | 40 mph cruise ([North Wing Maverick trike](https://northwing.com/Maverick_Trike_Owners_Manual.pdf)) |
-| Glider | 56 mph at best glide ([Schleicher ASK 21 Mi](https://www.alexander-schleicher.de/wp-content/uploads/2015/04/AS-Einzelprosp-ASK-21-Mi-15-k.pdf)) |
-| Bush Plane | 80 mph top speed ([Smithsonian Piper J-3 Cub](https://www.si.edu/object/nasm_A19771128000)) |
-| Racer | 181 knots indicated cruise ([Extra 330LX handbook](https://www.electronicsandbooks.com/edt/manual/Hardware/E/Extra%20Aircraft/POH_330LX_US_20170412_CUS.pdf)) |
-| Sport Jet | 317 knots maximum cruise ([Cirrus Vision Jet](https://cirrusaircraft.com/aircraft/vision-jet/)) |
-| F/A-18 Fighter | Mach 1.8+ top speed ([NASA F/A-18](https://www.nasa.gov/aeronautics/f-a-18-mission-support-aircraft/)) |
-| SR-71 Blackbird | Mach 3.2 cruise ([NASA SR-71](https://www.nasa.gov/image-article/sr-71-3/)) |
-
 ## World generation
 
 Cities grow around road approaches and expand where the land allows. The longest of 531 sampled settlements spanned **814 world units**.

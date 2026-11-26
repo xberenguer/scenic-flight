@@ -134,21 +134,17 @@ function browsePlane(name) {
 }
 
 function coverage() {
-  for (const [index, [name, style, signature]] of planes.entries()) {
+  for (const [name, style, signature] of planes) {
     const row = element('tr');
     const heading = element('th', name);
     heading.scope = 'row';
-    const speed = document.createElement('td');
-    const reference = element('a', planeOrder[index].speed);
-    reference.href = planeOrder[index].url;
-    speed.append(reference);
     const visuals = records.filter(item => item.aircraft === name);
     const count = element('td');
     const button = element('button', `${visuals.length} visuals`, 'button');
     button.type = 'button';
     button.addEventListener('click', () => browsePlane(name));
     count.append(button);
-    row.append(heading, speed, element('td', style), element('td', signature), count);
+    row.append(heading, element('td', style), element('td', signature), count);
     qs('#aircraft-coverage').append(row);
   }
   for (const [name, frequency, timing] of events) {
