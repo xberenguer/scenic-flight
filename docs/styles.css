@@ -132,3 +132,14 @@ details[open] summary { margin-bottom:16px; }
 .urban-plan figcaption {
   margin-top: 0.5rem;
 }
+
+.aircraft-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.aircraft-pair h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+}

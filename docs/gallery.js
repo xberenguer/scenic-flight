@@ -25,7 +25,7 @@ const events = [
 ];
 
 const categories = ['All', 'Sky & Weather', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Interface'];
-const featuredIds = ['bowed-blue-icefall', 'sedge-strand-tarn', 'linked-downtown', 'high-cruise', 'paired-mountain-gondolas'];
+const featuredIds = arrangement.featured;
 const qs = selector => document.querySelector(selector);
 const cards = qs('#cards');
 const dialog = qs('#viewer');
@@ -88,11 +88,11 @@ dialog.addEventListener('click', event => {
   }
 });
 
-function createCard(item) {
+function createCard(item, preview = item.poster) {
   const button = element('button', '', 'card');
   button.type = 'button';
   const image = element('img');
-  image.src = item.poster;
+  image.src = preview;
   image.alt = '';
   image.loading = 'lazy';
   const group = element('span', '', 'card-text');
@@ -115,7 +115,7 @@ function renderGallery() {
     (!rarity.value || (encounter(item)?.[1] || 'Routine') === rarity.value) &&
     (!needle || [item.title, item.category, item.aircraft, item.biome, item.note].join(' ').toLowerCase().includes(needle))
   );
-  if (filtered.length) cards.replaceChildren(...filtered.map(createCard));
+  if (filtered.length) cards.replaceChildren(...filtered.map(item => createCard(item)));
   else cards.replaceChildren(element('p', 'No captures match these filters.'));
   qs('#media-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'visual' : 'visuals'}`;
   for (const tab of qs('#categories').children) {
@@ -178,8 +178,19 @@ try {
   const pickers = planeOrder.map(({name,asset:index})=>({id:`picker-${index}`,title:`${name} picker`,category:'Interface',
     aircraft:name,biome:'',format:'Still',poster:`assets/picker-${index}.png`,src:`assets/picker-${index}.png`}));
   const featured = featuredIds.map(id => records.find(item => item.id === id));
-  qs('#featured').replaceChildren(...featured.map(createCard));
-  records = [...records.reverse(), ...figures, ...pickers];
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const renderFeatured = () => {
+    qs('#featured').replaceChildren(...featured.map(item => createCard(item,
+      reduceMotion.matches ? item.poster : `assets/readme/${item.id}.gif`)));
+  };
+  renderFeatured();
+  reduceMotion.addEventListener('change', renderFeatured);
+  qs('#aircraft-artwork-cards').replaceChildren(...planeOrder.map((plane, index) => {
+    const group = element('div', '', 'aircraft-pair');
+    group.append(element('h3', plane.name), createCard(figures[index], figures[index].src), createCard(pickers[index]));
+    return group;
+  }));
+  records.reverse();
   renderGallery();
   coverage();
 } catch (error) {

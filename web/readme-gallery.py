@@ -11,7 +11,6 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PAGES = "https://xberenguer.github.io/scenic-flight/"
-FEATURED = ('airfield-visitor-stands', 'sedge-strand-tarn', 'lantern-causeway-skyline', 'high-cruise', 'quay-customs-annex')
 
 
 def make_preview(entry):
@@ -60,11 +59,25 @@ def gameplay_card(entry):
 
 def render(entries, order):
     videos = {entry["id"]: entry for entry in entries}
+    featured = order["featured"]
     sections = [
         "## Gameplay showcase",
         "Select a preview to open the full-size clip or screenshot.",
-        grid([gameplay_card(videos[key]) for key in FEATURED]),
+        grid([gameplay_card(videos[key]) for key in featured]),
     ]
+    sections.extend((
+        "[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · "
+        "[Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · "
+        "[Aircraft and picker screens](#aircraft-and-picker-screens) · [Artwork gallery](#artwork-gallery) · "
+        "[World generation](#world-generation)",
+    ))
+    categories = dict.fromkeys(["Sky & Weather", "Encounters", "Biomes", "Built World",
+                                "Aircraft", "Interface", *(entry["category"] for entry in entries)])
+    for category in categories:
+        group = [gameplay_card(entry) for entry in reversed(entries)
+                 if entry["category"] == category and entry["id"] not in featured]
+        if group:
+            sections.extend((f"### {category}", grid(group)))
     sections.append("## Aircraft and picker screens")
     aircraft = order["aircraft"]
     for start in range(0, len(aircraft), 4):
@@ -76,31 +89,6 @@ def render(entries, order):
             cards.append((name, f"{picker}<br>{turntable}"))
         sections.append(grid(cards, columns=4))
 
-    sections.extend((
-        "## World generation",
-        "Cities grow around road approaches and expand where the land allows. "
-        "The longest of 531 sampled settlements spanned **814 world units**.",
-        grid([
-            ("Largest developed footprint · seed 149", preview(
-                "Map of generated streets and buildings", "docs/assets/planning/urban-149--6--4.png", width=320)),
-            ("Longest surveyed settlement · seed 241", preview(
-                "Map of generated districts and approach roads", "docs/assets/planning/urban-241--2--4.png", width=320)),
-        ], columns=2),
-        "[City dimensions, street grids, and placement rules](docs/WORLD-GENERATION.md)",
-    ))
-    sections.extend((
-        "## Gameplay gallery",
-        "[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · "
-        "[Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · "
-        "[Artwork gallery](#artwork-gallery)",
-    ))
-    categories = dict.fromkeys(["Sky & Weather", "Encounters", "Biomes", "Built World",
-                                "Aircraft", "Interface", *(entry["category"] for entry in entries)])
-    for category in categories:
-        group = [gameplay_card(entry) for entry in reversed(entries)
-                 if entry["category"] == category and entry["id"] not in FEATURED]
-        if group:
-            sections.extend((f"### {category}", grid(group)))
     sections.append("## Artwork gallery")
     groups = order["scenery"]
     anchors = " · ".join(
@@ -117,6 +105,18 @@ def render(entries, order):
             animation = f"assets/artwork/{slug}.gif"
             if (DOCS / animation).is_file():
                 sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
+    sections.extend((
+        "## World generation",
+        "Cities grow around road approaches and expand where the land allows. "
+        "The longest of 531 sampled settlements spanned **814 world units**.",
+        grid([
+            ("Largest developed footprint · seed 149", preview(
+                "Map of generated streets and buildings", "docs/assets/planning/urban-149--6--4.png", width=320)),
+            ("Longest surveyed settlement · seed 241", preview(
+                "Map of generated districts and approach roads", "docs/assets/planning/urban-241--2--4.png", width=320)),
+        ], columns=2),
+        "[City dimensions, street grids, and placement rules](docs/WORLD-GENERATION.md)",
+    ))
     return "\n\n".join(sections)
 
 
