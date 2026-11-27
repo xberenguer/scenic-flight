@@ -15,6 +15,8 @@ const MAX_FRAME_DELTA_MS: u32 = 250;
 
 thread_local! {
     static ENGINE: RefCell<Option<Engine>> = const { RefCell::new(None) };
+    static VEGAS_UPLOAD: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    static VEGAS_DATA: std::cell::Cell<Option<&'static scenic_flight::LasVegasData>> = const { std::cell::Cell::new(None) };
 }
 
 struct Engine {
@@ -30,8 +32,12 @@ struct Engine {
 
 impl Engine {
     fn new(seed: u64) -> Self {
+        Self::with_game(Game::new(seed))
+    }
+
+    fn with_game(game: Game) -> Self {
         Self {
-            game: Game::new(seed),
+            game,
             scene: None,
             pixels: vec![0; PIXELS].into_boxed_slice(),
             clock: None,
@@ -124,6 +130,44 @@ impl Engine {
 pub extern "C" fn scenic_reset(seed_low: u32, seed_high: u32) {
     let seed = u64::from(seed_low) | (u64::from(seed_high) << 32);
     ENGINE.with_borrow_mut(|engine| *engine = Some(Engine::new(seed)));
+}
+
+/// Prepare memory for the browser to upload a decompressed geographic pack.
+#[no_mangle]
+pub extern "C" fn scenic_vegas_buffer(length: u32) -> *mut u8 {
+    if !(64..=64 * 1024 * 1024).contains(&length) { return std::ptr::null_mut(); }
+    VEGAS_UPLOAD.with_borrow_mut(|buffer| {
+        buffer.resize(length as usize, 0);
+        buffer.as_mut_ptr()
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn scenic_reset_las_vegas(seed_low: u32, seed_high: u32, departure: u32) -> u32 {
+    let data = VEGAS_DATA.with(|slot| {
+        if let Some(data) = slot.get() { return Some(data); }
+        let bytes = VEGAS_UPLOAD.with_borrow_mut(std::mem::take).into_boxed_slice();
+        let data = scenic_flight::LasVegasData::parse(Box::leak(bytes))
+            .map(|layout| &*Box::leak(Box::new(layout)));
+        slot.set(data);
+        data
+    });
+    let Some(data) = data else { return 0; };
+    let seed = u64::from(seed_low) | (u64::from(seed_high) << 32);
+    ENGINE.with_borrow_mut(|engine| *engine = Some(Engine::with_game(Game::new_las_vegas(seed, data, departure))));
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn scenic_vegas_view(component: u32) -> f32 {
+    ENGINE.with_borrow(|engine| {
+        let Some((_, flight)) = engine.as_ref().and_then(|engine| engine.game.active()) else { return 0.0; };
+        match component {
+            0 => flight.view.x,
+            1 => flight.view.z,
+            _ => flight.view.heading,
+        }
+    })
 }
 
 /// Return the byte address of the row-major RGB565 framebuffer in WebAssembly memory.

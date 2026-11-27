@@ -4,6 +4,10 @@
 
 A world seed determines where terrain, roads, cities, airfields and coastlines form. Flight time advances the sky, weather and encounters over that layout.
 
+## Las Vegas
+
+The browser includes a Las Vegas destination at metre scale, with departures over the Strip, Harry Reid Airport, and Downtown. [Coverage, maps, and source data](LAS-VEGAS.md)
+
 ## Metropolises
 
 About one in eight world seeds opens over a metropolis. Curved streets and wider avenues share intersections across the whole basin. Four business districts are surrounded by housing, mixed-use streets, industrial yards, campuses, and wooded parks. Each district uses five building-block designs, with varied roof materials, orientations, and heights.

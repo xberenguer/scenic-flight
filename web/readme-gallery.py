@@ -127,6 +127,18 @@ def render(entries, order):
                 if (DOCS / animation).is_file():
                     sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
     sections.extend((
+        "## Las Vegas",
+        "Select **Las Vegas** under **Destination**, then choose the **Strip**, **Harry Reid Airport**, "
+        "or **Downtown** departure. One world unit is one metre. The first area uses mapped road "
+        "and building footprints with USGS terrain and FAA runway geometry.",
+        grid([
+            ("The Strip", preview("Mapped Las Vegas Strip, including the Sphere", "docs/assets/planning/las-vegas-strip.png", width=250)),
+            ("Harry Reid Airport", preview("Runways and terminals at Harry Reid Airport", "docs/assets/planning/las-vegas-airport.png", width=250)),
+            ("Downtown", preview("Mapped streets and buildings in downtown Las Vegas", "docs/assets/planning/las-vegas-downtown.png", width=250)),
+        ]),
+        preview("Las Vegas Valley elevation, the mapped urban area, and Lake Mead",
+                "docs/assets/planning/las-vegas-wide.png", width=820),
+        "[Las Vegas coverage and source data](docs/LAS-VEGAS.md)",
         "## World generation",
         "Metropolises cover a broad basin with connected residential, commercial, and industrial "
         "districts. Seed 15 spans approximately **23,936 × 24,704 world units**. "

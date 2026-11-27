@@ -1124,6 +1124,7 @@ mod tests {
         assert!(stream.dry_landmarks().any(|plan| *plan == ridge));
         let backdrop = stream.ridge_backdrop(camera);
         let mut lifted = 0;
+        let mut crest = (0.0, x, z);
         let [left, near, right, far] = ridge.bounds();
         for row in 0..25 {
             for col in 0..25 {
@@ -1135,12 +1136,15 @@ mod tests {
                 // The survey can reject edge material, so verify the dry site itself.
                 if base.surface == Surface::Desert {
                     assert!((distance - local.elevation).abs() < 0.001, "{x} {z}");
-                    lifted += usize::from(local.elevation - base.elevation > 3.0);
+                    let lift = local.elevation - base.elevation;
+                    lifted += usize::from(lift > 3.0);
+                    if lift > crest.0 { crest = (lift, x, z); }
                 }
             }
         }
         assert!(lifted >= 15);
-        let distant_camera = Camera { z: camera.z - 1_000.0, altitude: center.elevation + 4.0,
+        let detail_boundary = crate::render::terrain_detail_distance(center.elevation + 4.0);
+        let distant_camera = Camera { x: crest.1, z: crest.2 - detail_boundary, altitude: center.elevation + 4.0,
             pitch: 0.0, ..camera };
         let distant = stream.ridge_backdrop(distant_camera);
         let far_camera = Camera { z: camera.z - 1_600.0, ..camera };
@@ -1155,14 +1159,15 @@ mod tests {
             let mut pixels = [0; SIDE * SIDE];
             let mut terrain = [0; SIDE * SIDE];
             crate::render::render_terrain_layer_region_with_horizon(
-                (|_, _| ground, |_, _, geometry| geometry.surface),
+                (|x, z| if raised { stream.overlay(x, z, ground) } else { ground },
+                    |_, _, geometry| geometry.surface),
                 |x, z| if raised { distant.height(x, z, ground.elevation) } else { ground.elevation },
                 distant_camera, &sky, &mut pixels, &mut terrain, None, (SIDE, SIDE),
                 |_| {}, |_| None,
             ).unwrap();
             pixels
         };
-        assert!(render(true) != render(false), "the ridge should affect the skyline at 1,000 units");
+        assert!(render(true) != render(false), "the ridge should affect the skyline across the detail boundary");
 
         let mut rejected = NaturalStream::new(world, seed);
         rejected.preflight(camera, SWEEP, |bounds| if bounds == ridge.bounds() {

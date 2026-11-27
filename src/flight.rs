@@ -160,6 +160,7 @@ pub struct Flight {
     course: f32,
     speed: f32,
     town_approach_staged: bool,
+    vegas_leg: usize,
     route_intent: RouteIntent,
     scenic_progress: ScenicProgress,
     train_follow: crate::train_follow::TrainFollow,
@@ -579,6 +580,9 @@ fn wider_land_departure(
 
 impl Flight {
     pub fn start(world: &World, seed: u64, aircraft: Aircraft) -> Self {
+        if world.is_las_vegas() {
+            return Self::start_at(world, seed, aircraft, crate::las_vegas::DEPARTURE);
+        }
         if let Some(approach) = world.city_airport_departure().or_else(|| world.city_rail_departure())
             .or_else(|| world.city_fringe_departure()) {
             return Self::start_at(world, seed, aircraft, approach);
@@ -604,6 +608,9 @@ impl Flight {
         } else {
             terrain.max(ahead) + profile.clearance
         };
+        if world.is_las_vegas() {
+            altitude = altitude.max(surface(world, x, z) + crate::las_vegas::cruise_clearance(aircraft));
+        }
         let ridge_preview_floor = if aircraft == Aircraft::SportJet {
             let preview = Self::cruise_terrain_preview(world, aircraft, x, z, heading, 0.0, terrain);
             // Give a seeded flight enough room from the moment it starts,
@@ -621,7 +628,7 @@ impl Flight {
             altitude: (altitude + profile.chase * CHASE_HEIGHT_RATIO)
                 .max(surface(world, view_x, view_z) + 6.0),
             heading,
-            pitch: if aircraft == Aircraft::Blackbird { BLACKBIRD_PITCH } else { 0.15 },
+            pitch: chase_pitch(aircraft, world),
             bank: 0.0,
         };
         Self {
@@ -633,6 +640,7 @@ impl Flight {
             turn: 0.0, climb_rate: 0.0, attitude_pitch: 0.0, pitch_intent: 0.0,
             ridge_preview_floor, blackbird_cruise_altitude: altitude, course: heading, speed: profile.speed,
             town_approach_staged: false,
+            vegas_leg: 0,
             route_intent: RouteIntent::default(),
             scenic_progress: ScenicProgress::new(),
             train_follow: crate::train_follow::TrainFollow::default(),
@@ -843,7 +851,19 @@ impl Flight {
         } else {
             0.0
         };
-        if self.ticks.is_multiple_of(60) {
+        let las_vegas = world.is_las_vegas();
+        if las_vegas {
+            let tour = &crate::las_vegas::TOUR;
+            let waypoint = tour[self.vegas_leg];
+            let east = waypoint[0] - self.x;
+            let north = waypoint[1] - self.z;
+            let arrival = (profile.speed * 4.5).clamp(95.0, 375.0);
+            if east * east + north * north < arrival * arrival {
+                self.vegas_leg = (self.vegas_leg + 1) % tour.len();
+            }
+            let target = tour[self.vegas_leg];
+            self.course = bearing(target[0] - self.x, target[1] - self.z);
+        } else if self.ticks.is_multiple_of(60) {
             let distance = 60.0 + profile.speed * 2.2;
             let left = ahead(world, self.x, self.z, self.heading - 0.42, distance);
             let right = ahead(world, self.x, self.z, self.heading + 0.42, distance);
@@ -876,7 +896,7 @@ impl Flight {
             }
         }
         let train = self.train_follow.guide(self.train_pose(), profile.speed);
-        if ridge_guidance && self.aircraft != Aircraft::BushPlane && self.ticks.is_multiple_of(60)
+        if !las_vegas && ridge_guidance && self.aircraft != Aircraft::BushPlane && self.ticks.is_multiple_of(60)
             && edge < 24_000.0 && train.is_none() && self.scenic_progress.leg.is_none()
         {
             self.track_mountain_pass(world, profile);
@@ -964,6 +984,11 @@ impl Flight {
             (profile.clearance + sin_cos(long_cycle).0 * 10.0).max(envelope + profile.floor + 10.0)
         } else {
             envelope + profile.clearance + self.energy_altitude - coastal_pass * 15.0
+        };
+        let desired = if las_vegas {
+            desired.max(old_surface + crate::las_vegas::cruise_clearance(self.aircraft))
+        } else {
+            desired
         };
         let desired = if let Some(guide) = &train {
             guide.altitude.map_or(desired, |height| {
@@ -1221,7 +1246,7 @@ impl Flight {
             return None;
         }
         if self.ticks == 1 || self.ticks.is_multiple_of(12) {
-            let sky = Sky::at_position(self.seed, self.ticks, [self.x, self.altitude, self.z]);
+            let sky = Sky::over_world(world, self.seed, self.ticks, [self.x, self.altitude, self.z]);
             let direct_light = sky.daylight * (1.0 - 0.60 * smoothstep((sky.cloud_cover - 0.43) / 0.42));
             self.solar_lift_available = direct_light > 0.42;
             self.air = Air::at(world, self.seed, self.x, self.z, self.altitude, direct_light);
@@ -1535,7 +1560,7 @@ impl Flight {
             self.view.x, self.view.z, surface(world, self.view.x, self.view.z),
         ).max(obstruction(self.view.x, self.view.z));
         self.view.altitude = self.view.altitude.max(ground + 5.0);
-        let base_pitch = if self.aircraft == Aircraft::Blackbird { BLACKBIRD_PITCH } else { 0.15 };
+        let base_pitch = chase_pitch(self.aircraft, world);
         let (camera_pitch, response) = if self.aircraft == Aircraft::SportJet {
             (self.attitude_pitch * 0.18, 0.088)
         } else {
@@ -1546,8 +1571,20 @@ impl Flight {
     }
 }
 
+fn chase_pitch(aircraft: Aircraft, world: &World) -> f32 {
+    if aircraft == Aircraft::Blackbird {
+        BLACKBIRD_PITCH
+    } else if world.is_las_vegas() {
+        0.34
+    } else {
+        0.15
+    }
+}
+
 pub struct Game {
     seed_state: u64,
+    las_vegas: Option<&'static crate::LasVegasData>,
+    vegas_departure: u32,
     controls: Controls,
     aircraft: Aircraft,
     world_seed: u64,
@@ -1580,6 +1617,8 @@ impl Game {
     pub fn new(seed: u64) -> Self {
         Self {
             seed_state: seed,
+            las_vegas: None,
+            vegas_departure: 0,
             controls: Controls::default(),
             aircraft: Aircraft::PICKER_ORDER[0],
             world_seed: 0,
@@ -1588,6 +1627,10 @@ impl Game {
             flight_info: false,
             startup_untouched: true,
         }
+    }
+
+    pub fn new_las_vegas(seed: u64, data: &'static crate::LasVegasData, departure: u32) -> Self {
+        Self { las_vegas: Some(data), vegas_departure: departure, ..Self::new(seed) }
     }
 
     pub fn screen(&self) -> Screen {
@@ -1639,8 +1682,18 @@ impl Game {
         self.startup_untouched = false;
         self.seed_state = self.seed_state.wrapping_add(0x9e37_79b9_7f4a_7c15);
         self.world_seed = mix(self.seed_state);
-        let world = World::for_flight_seed(self.world_seed);
-        self.flight = Some(Flight::start(&world, self.world_seed, self.aircraft));
+        let world = self.las_vegas.map_or_else(
+            || World::for_flight_seed(self.world_seed), World::las_vegas,
+        );
+        let flight = if world.is_las_vegas() {
+            let (departure, leg) = crate::las_vegas::departure(self.vegas_departure);
+            let mut flight = Flight::start_at(&world, self.world_seed, self.aircraft, departure);
+            flight.vegas_leg = leg;
+            flight
+        } else {
+            Flight::start(&world, self.world_seed, self.aircraft)
+        };
+        self.flight = Some(flight);
         self.world = Some(world);
         self.flight_info = false;
     }

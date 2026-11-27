@@ -104,6 +104,7 @@ impl Scene {
             work: vec![0; 2 * PIXELS].into_boxed_slice(),
             depth: vec![0; PIXELS].into_boxed_slice(),
         });
+        if world.is_las_vegas() { return scene; }
         scene.land.reset(world);
         scene.land.preflight(view, false);
         if game.stage_town_approach(&scene.land) {
@@ -165,6 +166,10 @@ impl Scene {
     }
 
     pub(super) fn advance(&mut self, game: &mut Game) {
+        if self.world.is_las_vegas() {
+            game.tick();
+            return;
+        }
         let (_, flight) = game.active().unwrap();
         if flight.should_observe_trains() {
             let view = camera(flight.view);
@@ -444,9 +449,18 @@ impl Scene {
         self.ground.follow(&self.world, view.x, view.z);
         self.coast.follow(view.x, view.z);
 
+        let vegas = self.world.is_las_vegas();
+        let world = self.world;
+        let city = world.city_surface();
         let ridges = self.natural.ridge_backdrop(view);
-        let backdrop = |x, z| ridges.height(x, z, self.horizon.backdrop(x, z));
-        let sky = Sky::at_position(self.seed, flight.ticks, [view.x, view.altitude, view.z]);
+        let backdrop = |x, z| {
+            if vegas {
+                let raw = world.sample(x, z);
+                return city(x, z, raw).unwrap_or(raw).elevation;
+            }
+            ridges.height(x, z, self.horizon.backdrop(x, z))
+        };
+        let sky = Sky::over_world(&self.world, self.seed, flight.ticks, [view.x, view.altitude, view.z]);
         let conditions = self.weather.observe(self.seed, flight.ticks, view, &sky);
         let sky = sky.with_shower(conditions.shower);
         let mist =
@@ -560,9 +574,8 @@ impl Scene {
         let rail = corridors().next().map(|_| self.regional_rail.sampler());
         let has_routes = self.routes.routes().next().is_some();
         let trees = self.ground.tree_sampler().for_view(view.x, view.altitude, view.z);
-        let city = self.world.city_surface();
         let sample = |x, z| {
-            let raw = self.terrain.sample(x, z);
+            let raw = if vegas { world.sample(x, z) } else { self.terrain.sample(x, z) };
             if let Some(city) = city(x, z, raw) {
                 return city;
             }
@@ -595,7 +608,7 @@ impl Scene {
             DIMENSIONS,
             self.seed,
             rivers.is_some(),
-            |x, z| self.terrain.sample(x, z),
+            |x, z| if vegas { world.sample(x, z) } else { self.terrain.sample(x, z) },
             |x, z| {
                 let ground = sample(x, z);
                 scenic_flight::world::Sample {
@@ -604,6 +617,8 @@ impl Scene {
                 }
             },
         );
+        let strat = scenic_flight::StratTower::from_world(&world);
+        let strat_region = strat.as_ref().and_then(|tower| tower.bounds(view, DIMENSIONS));
         let depth_region = if has_cliffs || conditions.distant_rain.is_some() {
             Some(ScreenRect::full(DIMENSIONS))
         } else {
@@ -621,6 +636,7 @@ impl Scene {
                 .chain(summit_region)
                 .chain(route_region)
                 .chain(desert_props.region())
+                .chain(strat_region)
                 .chain(tracks_region)
                 .chain(corridor_region)
                 .chain(train_region)
@@ -656,6 +672,9 @@ impl Scene {
             }
             let mut mesh = WorldMesh::new(pixels, &mut self.depth, DIMENSIONS, view, &sky).unwrap();
             desert_props.draw(&mut mesh);
+            if strat_region.is_some() {
+                if let Some(tower) = strat { tower.draw(&mut mesh); }
+            }
             for ribbon in ribbons() {
                 ribbon.draw(&mut mesh, &sample);
             }

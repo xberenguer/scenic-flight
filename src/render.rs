@@ -1970,6 +1970,12 @@ fn ground_color(
         Surface::Rock => (alpine_rock(position[1]), false),
         Surface::Snow => (snow_color(position[1]), false),
         Surface::Desert => (desert_color(position[1]), false),
+        Surface::Mojave => ([170.0, 153.0, 119.0], false),
+        Surface::PyramidGlass => ([49.0, 58.0, 73.0], false),
+        Surface::SphereShell => {
+            let ribs = surface_noise(position[0] * 0.039, position[2] * 0.041);
+            (mix([30.0, 82.0, 141.0], [71.0, 181.0, 228.0], ribs), false)
+        },
         Surface::Pavement => ([80.0, 87.0, 92.0], false),
         Surface::Gravel => ([163.0, 149.0, 118.0], false),
         Surface::Park => ([87.0, 135.0, 70.0], false),
@@ -2077,6 +2083,8 @@ fn ground_color(
     let material = if surface == Surface::RunwayLight {
         let evening = 1.0 - smoothstep((daylight - 0.08) / 0.41);
         mix(color, [192.0, 209.0, 236.0], evening * (1.0 - fog))
+    } else if surface == Surface::SphereShell {
+        mix(color, [43.0, 137.0, 225.0], (0.40 + (1.0 - daylight) * 0.46) * (1.0 - fog))
     } else if city_visibility > 0.0 {
         let gain = if surface == Surface::Pavement { -0.17 } else { 0.14 };
         color.map(|channel| channel * (1.0 + gain * city_visibility))
@@ -2516,7 +2524,7 @@ fn surface_detail(surface: Surface, [x, y, z]: [f32; 3], fade: f32) -> f32 {
             let drifts = surface_noise(x * 0.075 + y * 0.081 + z * 0.021, z * 0.046 - y * 0.067);
             (drifts - 0.46) * 0.21
         }
-        Surface::Rock | Surface::Desert | Surface::Sand
+        Surface::Rock | Surface::Desert | Surface::Mojave | Surface::Sand
         | Surface::SaltCrust | Surface::DuneSand | Surface::DryWash
         | Surface::GlacierMoraine | Surface::MesaCap | Surface::MesaApron => {
             // Samples are anchored to the terrain so the bands do not crawl under the camera.

@@ -1,4 +1,44 @@
 [
+    {
+      "id": "vegas-strip",
+      "title": "Racer along the Las Vegas Strip",
+      "category": "Built World",
+      "aircraft": "Racer",
+      "biome": "The Strip",
+      "format": "Video",
+      "poster": "assets/current/vegas-strip.png",
+      "src": "assets/current/vegas-strip.mp4"
+    },
+    {
+      "id": "vegas-airport",
+      "title": "SR-71 above Harry Reid Airport",
+      "category": "Built World",
+      "aircraft": "SR-71 Blackbird",
+      "biome": "Harry Reid International Airport",
+      "format": "Video",
+      "poster": "assets/current/vegas-airport.png",
+      "src": "assets/current/vegas-airport.mp4"
+    },
+    {
+      "id": "vegas-downtown",
+      "title": "SR-71 above Downtown Las Vegas",
+      "category": "Built World",
+      "aircraft": "SR-71 Blackbird",
+      "biome": "Downtown Las Vegas",
+      "format": "Video",
+      "poster": "assets/current/vegas-downtown.png",
+      "src": "assets/current/vegas-downtown.mp4"
+    },
+    {
+      "id": "vegas-sphere",
+      "title": "Racer passing the Sphere",
+      "category": "Built World",
+      "aircraft": "Racer",
+      "biome": "The Sphere",
+      "format": "Video",
+      "poster": "assets/current/vegas-sphere.png",
+      "src": "assets/current/vegas-sphere.mp4"
+    },
   {
     "id": "dryland-basin-pass",
     "title": "Ultralight over desert flats",

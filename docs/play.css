@@ -89,3 +89,12 @@
 @media (hover: none) {
   .flight-button kbd { display: none; }
 }
+
+
+.flight-destination { display:flex; align-items:center; gap:8px; margin:0 auto 14px; font-size:0.9rem; }
+.flight-destination select {
+  font:inherit; color:inherit; background:var(--ground);
+  border:1px solid var(--line); border-radius:5px; padding:5px 8px;
+}
+
+.flight-destination[hidden] { display:none; }

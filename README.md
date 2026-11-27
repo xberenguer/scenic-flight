@@ -1,8 +1,8 @@
 # Scenic Flight
 
-A Rust flight simulator for the round Waveshare ESP32-S3-Touch-AMOLED-1.75C. Pick an aircraft and watch it fly through a new procedural world.
+A Rust flight simulator for the round Waveshare ESP32-S3-Touch-AMOLED-1.75C. Pick an aircraft and fly over Las Vegas or a new procedural world.
 
-[Play in browser](https://xberenguer.github.io/scenic-flight/play.html) · [Interactive gallery](https://xberenguer.github.io/scenic-flight/) · [Install on Waveshare](https://xn--sg8hhb.ws/flasher/?project=scenic-flight)
+[Play in browser](https://xberenguer.github.io/scenic-flight/play.html) · [Fly Las Vegas](https://xberenguer.github.io/scenic-flight/play.html?destination=las-vegas&session=215) · [Interactive gallery](https://xberenguer.github.io/scenic-flight/) · [Install on Waveshare](https://xn--sg8hhb.ws/flasher/?project=scenic-flight)
 
 <!-- BEGIN GALLERY -->
 
@@ -12,33 +12,41 @@ Select a preview to open the full-size clip or screenshot.
 
 <table>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/vegas-strip.mp4"><img src="docs/assets/readme/vegas-strip.gif" width="220" alt="Racer along the Las Vegas Strip"></a><br><a href="docs/assets/current/vegas-strip.png">Still</a><br>Racer along the Las Vegas Strip</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/vegas-airport.mp4"><img src="docs/assets/readme/vegas-airport.gif" width="220" alt="SR-71 above Harry Reid Airport"></a><br><a href="docs/assets/current/vegas-airport.png">Still</a><br>SR-71 above Harry Reid Airport</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/vegas-downtown.mp4"><img src="docs/assets/readme/vegas-downtown.gif" width="220" alt="SR-71 above Downtown Las Vegas"></a><br><a href="docs/assets/current/vegas-downtown.png">Still</a><br>SR-71 above Downtown Las Vegas</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/vegas-sphere.mp4"><img src="docs/assets/readme/vegas-sphere.gif" width="220" alt="Racer passing the Sphere"></a><br><a href="docs/assets/current/vegas-sphere.png">Still</a><br>Racer passing the Sphere</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metropolis-flight.mp4"><img src="docs/assets/readme/metropolis-flight.gif" width="220" alt="Bald Eagle over a metropolis"></a><br><a href="docs/assets/current/metropolis-flight.png">Still</a><br>Bald Eagle over a metropolis</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/blackbird-city-cruise.mp4"><img src="docs/assets/readme/blackbird-city-cruise.gif" width="220" alt="SR-71 above the city and clouds"></a><br><a href="docs/assets/current/blackbird-city-cruise.png">Still</a><br>SR-71 above the city and clouds</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metropolitan-airport.mp4"><img src="docs/assets/readme/metropolitan-airport.gif" width="220" alt="Glider over a metropolitan airport"></a><br><a href="docs/assets/current/metropolitan-airport.png">Still</a><br>Glider over a metropolitan airport</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metropolitan-airport.mp4"><img src="docs/assets/readme/metropolitan-airport.gif" width="220" alt="Glider over a metropolitan airport"></a><br><a href="docs/assets/current/metropolitan-airport.png">Still</a><br>Glider over a metropolitan airport</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metro-train.mp4"><img src="docs/assets/readme/metro-train.gif" width="220" alt="Ultralight passing a metropolitan train"></a><br><a href="docs/assets/current/metro-train.png">Still</a><br>Ultralight passing a metropolitan train</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/outskirts-flyover.mp4"><img src="docs/assets/readme/outskirts-flyover.gif" width="220" alt="Glider over the city outskirts"></a><br><a href="docs/assets/current/outskirts-flyover.png">Still</a><br>Glider over the city outskirts</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/dry-foothills-flight.mp4"><img src="docs/assets/readme/dry-foothills-flight.gif" width="220" alt="Bald Eagle over desert foothills"></a><br><a href="docs/assets/current/dry-foothills-flight.png">Still</a><br>Bald Eagle over desert foothills</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/dry-foothills-flight.mp4"><img src="docs/assets/readme/dry-foothills-flight.gif" width="220" alt="Bald Eagle over desert foothills"></a><br><a href="docs/assets/current/dry-foothills-flight.png">Still</a><br>Bald Eagle over desert foothills</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sandstone-ridge-flight.mp4"><img src="docs/assets/readme/sandstone-ridge-flight.gif" width="220" alt="Bald Eagle alongside sandstone ridges"></a><br><a href="docs/assets/current/sandstone-ridge-flight.png">Still</a><br>Bald Eagle alongside sandstone ridges</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/bowed-blue-icefall.mp4"><img src="docs/assets/readme/bowed-blue-icefall.gif" width="220" alt="Glider over a bowed blue icefall"></a><br><a href="docs/assets/current/bowed-blue-icefall.png">Still</a><br>Glider over a bowed blue icefall</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sport-jet-climb.mp4"><img src="docs/assets/readme/sport-jet-climb.gif" width="220" alt="Sport Jet climbing through a mountain valley"></a><br><a href="docs/assets/current/sport-jet-climb.png">Still</a><br>Sport Jet climbing through a mountain valley</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sport-jet-climb.mp4"><img src="docs/assets/readme/sport-jet-climb.gif" width="220" alt="Sport Jet climbing through a mountain valley"></a><br><a href="docs/assets/current/sport-jet-climb.png">Still</a><br>Sport Jet climbing through a mountain valley</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sedge-strand-tarn.mp4"><img src="docs/assets/readme/sedge-strand-tarn.gif" width="220" alt="Bald Eagle over a sedge-lined tarn"></a><br><a href="docs/assets/current/sedge-strand-tarn.png">Still</a><br>Bald Eagle over a sedge-lined tarn</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/linked-downtown.mp4"><img src="docs/assets/readme/linked-downtown.gif" width="220" alt="Ultralight approaching a linked downtown"></a><br><a href="docs/assets/current/linked-downtown.png">Still</a><br>Ultralight approaching a linked downtown</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/high-cruise.mp4"><img src="docs/assets/readme/high-cruise.gif" width="220" alt="High-altitude cruise"></a><br><a href="docs/assets/current/high-cruise.png">Still</a><br>High-altitude cruise</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/high-cruise.mp4"><img src="docs/assets/readme/high-cruise.gif" width="220" alt="High-altitude cruise"></a><br><a href="docs/assets/current/high-cruise.png">Still</a><br>High-altitude cruise</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/paired-mountain-gondolas.mp4"><img src="docs/assets/readme/paired-mountain-gondolas.gif" width="220" alt="Glider alongside mountain gondolas"></a><br><a href="docs/assets/current/paired-mountain-gondolas.png">Still</a><br>Glider alongside mountain gondolas</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/quay-customs-annex.mp4"><img src="docs/assets/readme/quay-customs-annex.gif" width="220" alt="Ultralight past the harbor customs annex"></a><br><a href="docs/assets/current/quay-customs-annex.png">Still</a><br>Ultralight past the harbor customs annex</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/airfield-visitor-stands.mp4"><img src="docs/assets/readme/airfield-visitor-stands.gif" width="220" alt="Racer approaching a regional airfield"></a><br><a href="docs/assets/current/airfield-visitor-stands.png">Still</a><br>Racer approaching a regional airfield</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/airfield-visitor-stands.mp4"><img src="docs/assets/readme/airfield-visitor-stands.gif" width="220" alt="Racer approaching a regional airfield"></a><br><a href="docs/assets/current/airfield-visitor-stands.png">Still</a><br>Racer approaching a regional airfield</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-four.mp4"><img src="docs/assets/readme/formation-four.gif" width="220" alt="Fighter wedge · 4 wingmates"></a><br><a href="docs/assets/current/formation-four.png">Still</a><br>Fighter wedge · 4 wingmates</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-winter-sunset.mp4"><img src="docs/assets/readme/sky-weather-winter-sunset.gif" width="220" alt="Winter sunset"></a><br><a href="docs/assets/current/sky-weather-winter-sunset.png">Still</a><br>Winter sunset</td>
+  </tr>
+  <tr>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-snow-0.mp4"><img src="docs/assets/readme/sky-weather-snow-0.gif" width="220" alt="Snow curtain over high country"></a><br><a href="docs/assets/current/sky-weather-snow-0.png">Still</a><br>Snow curtain over high country</td>
   </tr>
 </table>
@@ -949,6 +957,22 @@ Twin high-altitude contrails · Distant Blackbird crossing · Airliner below · 
 <a href="docs/assets/artwork/service-vessels.png"><img src="docs/assets/artwork/service-vessels.png" width="780" alt="Service vessels"></a>
 
 <a href="docs/assets/artwork/service-vessels.gif"><img src="docs/assets/artwork/service-vessels.gif" width="550" alt="Service vessels animated atlas"></a>
+
+## Las Vegas
+
+Select **Las Vegas** under **Destination**, then choose the **Strip**, **Harry Reid Airport**, or **Downtown** departure. One world unit is one metre. The first area uses mapped road and building footprints with USGS terrain and FAA runway geometry.
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/assets/planning/las-vegas-strip.png"><img src="docs/assets/planning/las-vegas-strip.png" width="250" alt="Mapped Las Vegas Strip, including the Sphere"></a><br>The Strip</td>
+    <td align="center"><a href="docs/assets/planning/las-vegas-airport.png"><img src="docs/assets/planning/las-vegas-airport.png" width="250" alt="Runways and terminals at Harry Reid Airport"></a><br>Harry Reid Airport</td>
+    <td align="center"><a href="docs/assets/planning/las-vegas-downtown.png"><img src="docs/assets/planning/las-vegas-downtown.png" width="250" alt="Mapped streets and buildings in downtown Las Vegas"></a><br>Downtown</td>
+  </tr>
+</table>
+
+<a href="docs/assets/planning/las-vegas-wide.png"><img src="docs/assets/planning/las-vegas-wide.png" width="820" alt="Las Vegas Valley elevation, the mapped urban area, and Lake Mead"></a>
+
+[Las Vegas coverage and source data](docs/LAS-VEGAS.md)
 
 ## World generation
 

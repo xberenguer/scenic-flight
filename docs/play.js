@@ -191,6 +191,10 @@ function drawFrame() {
   context.putImageData(image, 0, 0);
   const current = engine.scenic_screen();
   if (current !== screen) updateControls(current);
+  if (runtime.places && (runtime.placeCheck ?? 0) <= now) {
+    runtime.placeCheck = now + 400;
+    updateVegasLandmark(current, engine, runtime.places);
+  }
   if (!notice.hidden) notice.hidden = true;
 }
 
@@ -204,6 +208,7 @@ function updateControls(current) {
   if (flying) signals[1].release();
   state.textContent = flying ? "In flight" : "Aircraft picker";
   state.hidden = false;
+  if (!flying) document.querySelector("#vegas-landmark").hidden = true;
 }
 
 function showError(text) {
@@ -226,6 +231,73 @@ function flightSession(search) {
     }
   }
   return crypto.getRandomValues(new Uint32Array(2));
+}
+
+const destination = document.querySelector("#flight-destination");
+const destinationUrl = new URL(location.href);
+destination.value = destinationUrl.searchParams.get("destination") === "las-vegas" ? "las-vegas" : "";
+destination.addEventListener("change", () => {
+  if (destination.value) destinationUrl.searchParams.set("destination", destination.value);
+  else {
+    destinationUrl.searchParams.delete("destination");
+    destinationUrl.searchParams.delete("departure");
+  }
+  location.assign(destinationUrl);
+});
+
+const departure = document.querySelector("#vegas-departure");
+const departureLabel = document.querySelector("#vegas-departure-label");
+departureLabel.hidden = destination.value !== "las-vegas";
+const departures = ["", "airport", "downtown", "sphere"];
+if (destination.value === "las-vegas") {
+  document.querySelector("h1").textContent = "Fly Las Vegas";
+  document.querySelector("#flight-help").textContent =
+    "Choose an aircraft and select Fly. In flight, tap the right button for flight info or hold it to return to the picker.";
+}
+const requestedDeparture = destinationUrl.searchParams.get("departure");
+departure.value = departures.includes(requestedDeparture) ? requestedDeparture : "";
+departure.addEventListener("change", () => {
+  if (departure.value) destinationUrl.searchParams.set("departure", departure.value);
+  else destinationUrl.searchParams.delete("departure");
+  location.assign(destinationUrl);
+});
+
+function updateVegasLandmark(current, engine, places) {
+  const label = document.querySelector("#vegas-landmark");
+  if (current !== FLIGHT) { label.hidden = true; return; }
+  const x = engine.scenic_vegas_view(0);
+  const z = engine.scenic_vegas_view(1);
+  const heading = engine.scenic_vegas_view(2);
+  const sin = Math.sin(heading);
+  const cos = Math.cos(heading);
+  let closest;
+  let score = 1120;
+  for (const place of places) {
+    const east = place.x - x;
+    const north = place.z - z;
+    const along = east * sin + north * cos;
+    const across = Math.abs(east * cos - north * sin);
+    if (along < -35 || across > 155 + along * 0.85) continue;
+    const distance = Math.hypot(east, north) + across * 0.52;
+    if (distance < score) { closest = place; score = distance; }
+  }
+  label.hidden = !closest;
+  if (closest && label.textContent !== closest.name) label.textContent = closest.name;
+}
+
+async function loadVegas(engine, seed) {
+  const [pack, catalog] = await Promise.all([
+    fetch("./assets/geography/las-vegas.bin.gz"),
+    fetch("./assets/geography/las-vegas.json"),
+  ]);
+  if (!pack.ok || !catalog.ok || !pack.body) throw new Error("Las Vegas map unavailable");
+  const data = await new Response(pack.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+  const pointer = engine.scenic_vegas_buffer(data.byteLength) >>> 0;
+  if (!pointer) throw new Error("Las Vegas map exceeds the upload limit");
+  new Uint8Array(engine.memory.buffer, pointer, data.byteLength).set(new Uint8Array(data));
+  if (!engine.scenic_reset_las_vegas(seed[0], seed[1], departures.indexOf(departure.value))) throw new Error("Invalid Las Vegas map");
+  document.querySelector("#vegas-credit").hidden = false;
+  return (await catalog.json()).places;
 }
 
 async function start() {
@@ -251,8 +323,14 @@ async function start() {
     const image = context.createImageData(side, side);
     const target = new Uint32Array(image.data.buffer, image.data.byteOffset, side * side);
     const seed = flightSession(location.search);
-    engine.scenic_reset(seed[0], seed[1]);
-    runtime = { engine, context, image, target, palette: createPalette() };
+    let places;
+    if (destination.value === "las-vegas") {
+      message.textContent = "Loading Las Vegas map…";
+      places = await loadVegas(engine, seed);
+    } else {
+      engine.scenic_reset(seed[0], seed[1]);
+    }
+    runtime = { engine, context, image, target, places, palette: createPalette() };
     elapsed = 0;
     screen = null;
     drawFrame();

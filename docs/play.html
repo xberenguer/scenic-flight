@@ -16,6 +16,20 @@
   </header>
   <main class="flight-player">
     <h1>Play Scenic Flight</h1>
+    <label class="flight-destination">Destination
+      <select id="flight-destination">
+        <option value="">Procedural world</option>
+        <option value="las-vegas">Las Vegas</option>
+      </select>
+    </label>
+    <label id="vegas-departure-label" class="flight-destination" hidden>Departure
+      <select id="vegas-departure">
+        <option value="">The Strip</option>
+        <option value="airport">Harry Reid Airport</option>
+        <option value="downtown">Downtown</option>
+        <option value="sphere">Sphere</option>
+      </select>
+    </label>
     <div class="flight-buttons" role="group" aria-label="Flight controls" aria-describedby="flight-help">
       <button type="button" id="flight-large" class="button flight-button flight-primary" data-flight-button="1" aria-keyshortcuts="F ArrowLeft Enter" disabled>
         <span>Fly</span><kbd aria-hidden="true">F</kbd>
@@ -35,6 +49,8 @@
       <noscript><p class="flight-noscript">Enable JavaScript to play Scenic Flight.</p></noscript>
     </div>
     <p id="flight-state" class="flight-state" role="status" hidden></p>
+    <p id="vegas-landmark" class="flight-state" hidden></p>
+    <p id="vegas-credit" class="flight-help" hidden>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · Elevation from <a href="https://www.usgs.gov/3d-elevation-program">USGS 3DEP</a></p>
     <p id="flight-help" class="flight-help">Choose an aircraft, then select Fly. During flight, tap the right button for flight info or hold it for 1.2 seconds to start a new world.</p>
   </main>
 </body>

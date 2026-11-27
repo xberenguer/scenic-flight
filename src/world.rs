@@ -119,6 +119,9 @@ pub enum Surface {
     LandmarkRoof49,
     LandmarkRoof50,
     UrbanLot,
+    Mojave,
+    SphereShell,
+    PyramidGlass,
 }
 
 impl Surface {
@@ -226,6 +229,7 @@ pub struct Sample {
 pub struct World {
     key: [u32; 2],
     metropolitan: bool,
+    las_vegas: Option<&'static crate::LasVegasData>,
 }
 
 impl World {
@@ -237,6 +241,7 @@ impl World {
         Self {
             key: [key as u32, (key >> 32) as u32],
             metropolitan: false,
+            las_vegas: None,
         }
     }
 
@@ -248,8 +253,19 @@ impl World {
         world
     }
 
+    /// Fixed Las Vegas geography. Flight seeds still vary the sky and encounters.
+    pub fn las_vegas(data: &'static crate::LasVegasData) -> Self {
+        let mut world = Self::new(0x4c61_7356_6567_6173);
+        world.las_vegas = Some(data);
+        world
+    }
+
+    pub fn is_las_vegas(&self) -> bool {
+        self.las_vegas.is_some()
+    }
+
     pub fn has_metropolis(&self) -> bool {
-        self.metropolitan
+        self.metropolitan || self.is_las_vegas()
     }
 
     pub(crate) fn metropolis(&self) -> Option<crate::metropolis::Metropolis> {
@@ -260,6 +276,9 @@ impl World {
     }
 
     pub fn city_occupies(&self, x: f32, z: f32) -> bool {
+        if let Some(vegas) = self.las_vegas {
+            return vegas.in_mapped_area(x, z);
+        }
         self.metropolis().is_some_and(|city| city.owns(x, z))
     }
 
@@ -281,13 +300,21 @@ impl World {
 
     pub fn city_surface(&self) -> impl Fn(f32, f32, Sample) -> Option<Sample> + Copy {
         let city = self.metropolis().map(|city| (city, city.transit()));
+        let las_vegas = self.las_vegas;
         move |x, z, base| {
+            if let Some(vegas) = las_vegas {
+                return Some(vegas.detail(x, z, base));
+            }
             let (city, rail) = city?;
             city.overlay_with_transit(rail, x, z, base)
         }
     }
 
     pub(crate) fn built_height(&self, x: f32, z: f32, ground: f32) -> f32 {
+        if let Some(vegas) = self.las_vegas {
+            return vegas.detail(x, z, Sample { elevation: ground, surface: Surface::Mojave }).elevation
+                .max(ground + crate::las_vegas::strat_clearance(x, z));
+        }
         let Some(city) = self.metropolis() else { return ground; };
         let base = Sample { elevation: ground, surface: Surface::Grass };
         let rail = city.transit();
@@ -296,6 +323,9 @@ impl World {
     }
 
     pub(crate) fn city_approach_height(&self, x: f32, z: f32, ground: f32) -> f32 {
+        if self.is_las_vegas() {
+            return ground + crate::las_vegas::safety_height(x, z);
+        }
         self.metropolis().map_or(ground, |city| ground + city.overflight_height(x, z))
     }
 
@@ -306,6 +336,10 @@ impl World {
     // The dry shoreline and the height derive from the same basin. Reuse the
     // ordinary field outside the blend so unaffected areas stay seed-stable.
     fn shaped_ground<const SHAPED: bool>(&self, x: f32, z: f32) -> (f32, f32) {
+        if let Some(vegas) = self.las_vegas {
+            let (sample, shore) = vegas.terrain(self, x, z);
+            return (sample.elevation, shore);
+        }
         let basin = self.basin(x, z);
         if let Some((height, 1.0)) = basin {
             return (height, 0.43);
@@ -349,6 +383,9 @@ impl World {
     }
 
     pub(crate) fn sample_and_shore(&self, x: f32, z: f32) -> (Sample, f32) {
+        if let Some(vegas) = self.las_vegas {
+            return vegas.terrain(self, x, z);
+        }
         let (height, coast) = self.shaped_ground::<true>(x, z);
         if coast <= 0.0 {
             let surface = if coast < -0.105 {
@@ -396,7 +433,7 @@ impl World {
 
     /// A signed, continuous coast field for route planning. Land is positive.
     pub(crate) fn coast_signal(&self, x: f32, z: f32) -> f32 {
-        if !self.metropolitan {
+        if !self.has_metropolis() {
             return self.coast(x, z);
         }
         self.shaped_ground::<false>(x, z).1

@@ -1,0 +1,1576 @@
+{
+  "coordinates": "UTM 11N. One game unit is one metre on all axes.",
+  "origin_utm_m": [
+    664421,
+    3997916
+  ],
+  "detail_bounds_m": [
+    -10560,
+    -11520,
+    13440,
+    13440
+  ],
+  "dem_cell_m": 60,
+  "detail_cell_m": 6,
+  "missing_dem_cells": 0,
+  "tiles": 62533,
+  "coverage": {
+    "road": 150156,
+    "rail": 202,
+    "taxiway": 583,
+    "runway": 5,
+    "runway marking": 205,
+    "source building heights": 4124,
+    "terminal footprints": 16,
+    "building": 195138,
+    "water": 405,
+    "park": 318,
+    "pyramid shell": 16,
+    "apron": 39,
+    "sphere shell": 5,
+    "FAA runway": 4
+  },
+  "sectors": {
+    "city": {
+      "road": 55173,
+      "taxiway": 231,
+      "rail": 115,
+      "runway": 2,
+      "runway marking": 62,
+      "building": 50813,
+      "water": 64,
+      "park": 70,
+      "pyramid shell": 16,
+      "apron": 24,
+      "sphere shell": 5,
+      "FAA runway": 2
+    },
+    "east": {
+      "road": 55010,
+      "rail": 62,
+      "building": 67670,
+      "water": 243,
+      "park": 145,
+      "taxiway": 144,
+      "apron": 12,
+      "FAA runway": 2,
+      "runway marking": 76
+    },
+    "south": {
+      "road": 16101,
+      "rail": 54,
+      "taxiway": 268,
+      "building": 13255,
+      "park": 18,
+      "water": 24,
+      "apron": 17,
+      "FAA runway": 4,
+      "runway marking": 154
+    }
+  },
+  "runways": {
+    "03R/21L": {
+      "source": "OpenStreetMap",
+      "length_m": 3081,
+      "width_m": 46,
+      "ends": [
+        [
+          11343,
+          12733
+        ],
+        [
+          13327,
+          15089
+        ]
+      ]
+    },
+    "03L/21R": {
+      "source": "OpenStreetMap",
+      "length_m": 3076,
+      "width_m": 61,
+      "ends": [
+        [
+          11122,
+          12948
+        ],
+        [
+          13105,
+          15299
+        ]
+      ]
+    },
+    "12R/30L": {
+      "source": "OpenStreetMap",
+      "length_m": 1512,
+      "width_m": 46,
+      "ends": [
+        [
+          -2860,
+          11337
+        ],
+        [
+          -1759,
+          10301
+        ]
+      ]
+    },
+    "07/25": {
+      "source": "OpenStreetMap",
+      "length_m": 1518,
+      "width_m": 46,
+      "ends": [
+        [
+          -2920,
+          11187
+        ],
+        [
+          -1404,
+          11251
+        ]
+      ]
+    },
+    "12L/30R": {
+      "source": "OpenStreetMap",
+      "length_m": 1212,
+      "width_m": 46,
+      "ends": [
+        [
+          -1413,
+          10270
+        ],
+        [
+          -2296,
+          11100
+        ]
+      ]
+    },
+    "01L/19R": {
+      "source": "FAA NASR 2026-11-26",
+      "length_ft": 9770,
+      "width_ft": 150,
+      "length_m": 2978,
+      "width_m": 46,
+      "ends_utm_relative_m": [
+        [
+          331,
+          -4063
+        ],
+        [
+          1535,
+          -1340
+        ]
+      ],
+      "ends_lon_lat": [
+        [
+          -115.17036386,
+          36.07532694
+        ],
+        [
+          -115.15643405,
+          36.09966322
+        ]
+      ]
+    },
+    "01R/19L": {
+      "source": "FAA NASR 2026-11-26",
+      "length_ft": 9769,
+      "width_ft": 150,
+      "length_m": 2978,
+      "width_m": 46,
+      "ends_utm_relative_m": [
+        [
+          593,
+          -4179
+        ],
+        [
+          1796,
+          -1456
+        ]
+      ],
+      "ends_lon_lat": [
+        [
+          -115.16748669,
+          36.07424266
+        ],
+        [
+          -115.15355816,
+          36.09857558
+        ]
+      ]
+    },
+    "08L/26R": {
+      "source": "FAA NASR 2026-11-26",
+      "length_ft": 14835,
+      "width_ft": 150,
+      "length_m": 4522,
+      "width_m": 46,
+      "ends_utm_relative_m": [
+        [
+          247,
+          -3950
+        ],
+        [
+          4767,
+          -3859
+        ]
+      ],
+      "ends_lon_lat": [
+        [
+          -115.17127366,
+          36.07636566
+        ],
+        [
+          -115.12108302,
+          36.07640647
+        ]
+      ]
+    },
+    "08R/26L": {
+      "source": "FAA NASR 2026-11-26",
+      "length_ft": 10526,
+      "width_ft": 150,
+      "length_m": 3208,
+      "width_m": 46,
+      "ends_utm_relative_m": [
+        [
+          1139,
+          -4237
+        ],
+        [
+          4346,
+          -4172
+        ]
+      ],
+      "ends_lon_lat": [
+        [
+          -115.1614338,
+          36.0736288
+        ],
+        [
+          -115.12582402,
+          36.07365752
+        ]
+      ]
+    }
+  },
+  "sphere": [
+    982,
+    1045
+  ],
+  "places": [
+    {
+      "name": "AC Hotel by Marriott Las Vegas Symphony Park",
+      "kind": "landmark",
+      "x": 1662,
+      "z": 6416
+    },
+    {
+      "name": "Ahern",
+      "kind": "landmark",
+      "x": 1049,
+      "z": 3620
+    },
+    {
+      "name": "Allegiant Stadium",
+      "kind": "landmark",
+      "x": -868,
+      "z": -2376
+    },
+    {
+      "name": "Aloft Henderson",
+      "kind": "landmark",
+      "x": 6621,
+      "z": -10770
+    },
+    {
+      "name": "Aria Resort & Casino",
+      "kind": "casino",
+      "x": -421,
+      "z": -560
+    },
+    {
+      "name": "Arizona Charlie's Boulder",
+      "kind": "landmark",
+      "x": 8763,
+      "z": 1509
+    },
+    {
+      "name": "Arizona Charlies Decatur",
+      "kind": "casino",
+      "x": -3194,
+      "z": 5645
+    },
+    {
+      "name": "Aztec Inn",
+      "kind": "landmark",
+      "x": 1461,
+      "z": 3810
+    },
+    {
+      "name": "Baymont Inn & Suites Las Vegas South Strip",
+      "kind": "landmark",
+      "x": 459,
+      "z": -6982
+    },
+    {
+      "name": "Bellagio",
+      "kind": "casino",
+      "x": -498,
+      "z": 27
+    },
+    {
+      "name": "Bellagio Las Vegas",
+      "kind": "landmark",
+      "x": -345,
+      "z": 119
+    },
+    {
+      "name": "Best Western McCarran Inn",
+      "kind": "landmark",
+      "x": 2230,
+      "z": -1310
+    },
+    {
+      "name": "Best Western Plus Casino Royale",
+      "kind": "casino",
+      "x": 110,
+      "z": 927
+    },
+    {
+      "name": "Best Western Plus Casino Royale-Center Strip",
+      "kind": "casino",
+      "x": 121,
+      "z": 972
+    },
+    {
+      "name": "Best Western Plus Las Vegas West",
+      "kind": "landmark",
+      "x": -9734,
+      "z": 3219
+    },
+    {
+      "name": "Binion's Gambling Hall and Hotel",
+      "kind": "casino",
+      "x": 2470,
+      "z": 6640
+    },
+    {
+      "name": "Bluegreen Vacations Club 36, an Ascend Collection Resort",
+      "kind": "landmark",
+      "x": 1497,
+      "z": -1006
+    },
+    {
+      "name": "Bonanza Lounge & Casino",
+      "kind": "casino",
+      "x": 7988,
+      "z": 6902
+    },
+    {
+      "name": "Boulder Station",
+      "kind": "landmark",
+      "x": 7869,
+      "z": 2569
+    },
+    {
+      "name": "Branding Iron Hotel",
+      "kind": "landmark",
+      "x": 5037,
+      "z": 10467
+    },
+    {
+      "name": "Bridger Inn Hotel Las Vegas",
+      "kind": "landmark",
+      "x": 2180,
+      "z": 6374
+    },
+    {
+      "name": "Budget Suites of America - Las Vegas",
+      "kind": "landmark",
+      "x": 325,
+      "z": -8358
+    },
+    {
+      "name": "Caesars Palace Complex",
+      "kind": "casino",
+      "x": -334,
+      "z": 509
+    },
+    {
+      "name": "Caesars Palace Hotel and Casino",
+      "kind": "casino",
+      "x": -334,
+      "z": 509
+    },
+    {
+      "name": "Caesars Palace Poker Room",
+      "kind": "casino",
+      "x": -166,
+      "z": 655
+    },
+    {
+      "name": "California Hotel and Casino",
+      "kind": "casino",
+      "x": 2419,
+      "z": 6834
+    },
+    {
+      "name": "Candlewood Suites Las Vegas",
+      "kind": "landmark",
+      "x": 1748,
+      "z": 458
+    },
+    {
+      "name": "Candlewood Suites Las Vegas - E Tropicana",
+      "kind": "landmark",
+      "x": 754,
+      "z": -1515
+    },
+    {
+      "name": "Circa Resort & Casino",
+      "kind": "casino",
+      "x": 2376,
+      "z": 6709
+    },
+    {
+      "name": "Circus Circus Las Vegas",
+      "kind": "casino",
+      "x": 613,
+      "z": 2864
+    },
+    {
+      "name": "Club De Soleil",
+      "kind": "landmark",
+      "x": -4056,
+      "z": -1441
+    },
+    {
+      "name": "Comfort Inn",
+      "kind": "landmark",
+      "x": 12269,
+      "z": -5634
+    },
+    {
+      "name": "Conrad Las Vegas at Resorts World",
+      "kind": "landmark",
+      "x": 631,
+      "z": 2507
+    },
+    {
+      "name": "Courtyard",
+      "kind": "landmark",
+      "x": 8331,
+      "z": -4272
+    },
+    {
+      "name": "Courtyard Las Vegas Convention Center",
+      "kind": "landmark",
+      "x": 1553,
+      "z": 2055
+    },
+    {
+      "name": "Courtyard by Marriott Las Vegas Stadium Area",
+      "kind": "landmark",
+      "x": -833,
+      "z": -3148
+    },
+    {
+      "name": "Crockfords Las Vegas",
+      "kind": "landmark",
+      "x": 607,
+      "z": 2543
+    },
+    {
+      "name": "Days Inn",
+      "kind": "landmark",
+      "x": 844,
+      "z": -1507
+    },
+    {
+      "name": "Desert Rose Resort",
+      "kind": "landmark",
+      "x": 576,
+      "z": -1535
+    },
+    {
+      "name": "Dotty's",
+      "kind": "casino",
+      "x": -10083,
+      "z": 4991
+    },
+    {
+      "name": "Dotty's Casino",
+      "kind": "casino",
+      "x": -4574,
+      "z": 5199
+    },
+    {
+      "name": "DoubleTree by Hilton Hotel Las Vegas Airport",
+      "kind": "landmark",
+      "x": 2643,
+      "z": -5912
+    },
+    {
+      "name": "DoubleTree by Hilton Las Vegas East Flamingo",
+      "kind": "landmark",
+      "x": 1974,
+      "z": 434
+    },
+    {
+      "name": "Downtown Grand",
+      "kind": "landmark",
+      "x": 2726,
+      "z": 6683
+    },
+    {
+      "name": "Durango Resort",
+      "kind": "landmark",
+      "x": -9746,
+      "z": -5511
+    },
+    {
+      "name": "El Cortez Cabana Suites",
+      "kind": "landmark",
+      "x": 3054,
+      "z": 6466
+    },
+    {
+      "name": "El Cortez Hotel & Casino",
+      "kind": "casino",
+      "x": 2969,
+      "z": 6397
+    },
+    {
+      "name": "El Cortez Hotel and Casino",
+      "kind": "casino",
+      "x": 3077,
+      "z": 6623
+    },
+    {
+      "name": "Elara, a Hilton Grand Vacations Club",
+      "kind": "landmark",
+      "x": 453,
+      "z": -354
+    },
+    {
+      "name": "Element by Marriott Las Vegas Symphony Park",
+      "kind": "landmark",
+      "x": 1704,
+      "z": 6418
+    },
+    {
+      "name": "Ellis Island Casino",
+      "kind": "casino",
+      "x": 878,
+      "z": 141
+    },
+    {
+      "name": "Embassy Suites by Hilton Las Vegas",
+      "kind": "landmark",
+      "x": 1978,
+      "z": -85
+    },
+    {
+      "name": "Encore",
+      "kind": "casino",
+      "x": 768,
+      "z": 1823
+    },
+    {
+      "name": "Encore Casino at Wynn",
+      "kind": "casino",
+      "x": 670,
+      "z": 1892
+    },
+    {
+      "name": "Encore Las Vegas",
+      "kind": "landmark",
+      "x": 712,
+      "z": 1948
+    },
+    {
+      "name": "Excalibur Hotel & Casino",
+      "kind": "casino",
+      "x": -191,
+      "z": -1463
+    },
+    {
+      "name": "Extended Stay America",
+      "kind": "landmark",
+      "x": 8110,
+      "z": 1976
+    },
+    {
+      "name": "Fairfield Inn",
+      "kind": "landmark",
+      "x": 1700,
+      "z": 887
+    },
+    {
+      "name": "Fairfield Inn & Suites Las Vegas Airport South",
+      "kind": "landmark",
+      "x": 1633,
+      "z": -6127
+    },
+    {
+      "name": "Fairfield Inn & Suites Las Vegas Stadium Area",
+      "kind": "landmark",
+      "x": -841,
+      "z": -3066
+    },
+    {
+      "name": "Flamingo Las Vegas",
+      "kind": "casino",
+      "x": 66,
+      "z": 492
+    },
+    {
+      "name": "Fontainebleau Resort & Casino",
+      "kind": "casino",
+      "x": 1205,
+      "z": 2844
+    },
+    {
+      "name": "Fortune Hotel & Suites",
+      "kind": "landmark",
+      "x": 1338,
+      "z": 212
+    },
+    {
+      "name": "Four Queens",
+      "kind": "landmark",
+      "x": 2543,
+      "z": 6490
+    },
+    {
+      "name": "Four Seasons Hotel Las Vegas",
+      "kind": "landmark",
+      "x": -96,
+      "z": -2354
+    },
+    {
+      "name": "Fremont Hotel & Casino Las Vegas",
+      "kind": "casino",
+      "x": 2587,
+      "z": 6615
+    },
+    {
+      "name": "Fremont Street Experience",
+      "kind": "landmark",
+      "x": 2276,
+      "z": 6618
+    },
+    {
+      "name": "Gold Coast Hotel & Casino",
+      "kind": "casino",
+      "x": -1793,
+      "z": 481
+    },
+    {
+      "name": "Gold Spike",
+      "kind": "casino",
+      "x": 2812,
+      "z": 6598
+    },
+    {
+      "name": "Golden Gate Hotel and Casino",
+      "kind": "casino",
+      "x": 2303,
+      "z": 6618
+    },
+    {
+      "name": "Golden Nugget Las Vegas",
+      "kind": "landmark",
+      "x": 2344,
+      "z": 6460
+    },
+    {
+      "name": "Green Valley Ranch",
+      "kind": "landmark",
+      "x": 7591,
+      "z": -9949
+    },
+    {
+      "name": "Hampton",
+      "kind": "landmark",
+      "x": -6859,
+      "z": 10966
+    },
+    {
+      "name": "Hampton Inn & Suites Las Vegas Airport",
+      "kind": "landmark",
+      "x": 4919,
+      "z": -4537
+    },
+    {
+      "name": "Hampton Inn & Suites Las Vegas Convention Center",
+      "kind": "landmark",
+      "x": 2361,
+      "z": 1647
+    },
+    {
+      "name": "Hampton Inn & Suites Las Vegas-Henderson",
+      "kind": "landmark",
+      "x": 12120,
+      "z": -5814
+    },
+    {
+      "name": "Hampton Inn Las Vegas Strip South",
+      "kind": "landmark",
+      "x": 458,
+      "z": -7270
+    },
+    {
+      "name": "Hampton Inn Tropicana",
+      "kind": "landmark",
+      "x": -903,
+      "z": -1390
+    },
+    {
+      "name": "Hard Rock Las Vegas",
+      "kind": "casino",
+      "x": -227,
+      "z": 1080
+    },
+    {
+      "name": "Harrah's Las Vegas",
+      "kind": "casino",
+      "x": 168,
+      "z": 814
+    },
+    {
+      "name": "Harrah's Las Vegas Hotel & Casino",
+      "kind": "casino",
+      "x": 136,
+      "z": 868
+    },
+    {
+      "name": "Harry Reid International Airport",
+      "kind": "landmark",
+      "x": 1147,
+      "z": -2847
+    },
+    {
+      "name": "Hilton Garden Inn",
+      "kind": "landmark",
+      "x": -766,
+      "z": -768
+    },
+    {
+      "name": "Hilton Garden Inn Las Vegas Strip South",
+      "kind": "landmark",
+      "x": 343,
+      "z": -7172
+    },
+    {
+      "name": "Hilton Grand Vacations Suites - Las Vegas (Convention Center)",
+      "kind": "landmark",
+      "x": 1823,
+      "z": 3111
+    },
+    {
+      "name": "Hilton Grand Vacations at the Flamingo",
+      "kind": "landmark",
+      "x": 369,
+      "z": 526
+    },
+    {
+      "name": "Hilton Grand Vacations on the Boulevard",
+      "kind": "landmark",
+      "x": 1078,
+      "z": 3149
+    },
+    {
+      "name": "Hilton Vacation Club Polo Towers Las Vegas",
+      "kind": "landmark",
+      "x": 223,
+      "z": -603
+    },
+    {
+      "name": "Holiday Inn Express & Suites Henderson",
+      "kind": "landmark",
+      "x": 12186,
+      "z": -5776
+    },
+    {
+      "name": "Holiday Inn Express & Suites Las Vegas - E Tropicana",
+      "kind": "landmark",
+      "x": 751,
+      "z": -1396
+    },
+    {
+      "name": "Holiday Inn Express & Suites Las Vegas SW - Spring Valley",
+      "kind": "landmark",
+      "x": -6072,
+      "z": -4135
+    },
+    {
+      "name": "Holiday Inn Express Las Vegas - South",
+      "kind": "landmark",
+      "x": -988,
+      "z": -3039
+    },
+    {
+      "name": "Home2 Suites Las Vegas I-215 Curve",
+      "kind": "landmark",
+      "x": -9222,
+      "z": -4670
+    },
+    {
+      "name": "Home2 Suites by Hilton Las Vegas City Center",
+      "kind": "landmark",
+      "x": -771,
+      "z": -1375
+    },
+    {
+      "name": "Home2 Suites by Hilton Las Vegas Convention Center",
+      "kind": "landmark",
+      "x": 2376,
+      "z": 1633
+    },
+    {
+      "name": "Home2 Suites by Hilton Las Vegas Strip South",
+      "kind": "landmark",
+      "x": 368,
+      "z": -7064
+    },
+    {
+      "name": "Homewood Suites by Hilton Las Vegas Airport",
+      "kind": "landmark",
+      "x": 1145,
+      "z": -5216
+    },
+    {
+      "name": "Homewood Suites by Hilton Las Vegas City Center",
+      "kind": "landmark",
+      "x": -793,
+      "z": -675
+    },
+    {
+      "name": "Horseshoe Las Vegas Hotel & Casino - A Caesars Rewards Destination",
+      "kind": "casino",
+      "x": 370,
+      "z": 171
+    },
+    {
+      "name": "Hotel Apache - Adults Only",
+      "kind": "landmark",
+      "x": 2475,
+      "z": 6701
+    },
+    {
+      "name": "Hotel MGM Grand Las Vegas",
+      "kind": "casino",
+      "x": 361,
+      "z": -1015
+    },
+    {
+      "name": "Howard Johnson Tropicana",
+      "kind": "landmark",
+      "x": 696,
+      "z": -1517
+    },
+    {
+      "name": "Hyatt Place",
+      "kind": "landmark",
+      "x": 2028,
+      "z": -521
+    },
+    {
+      "name": "Hyatt Place Las Vegas At Silverton Village",
+      "kind": "landmark",
+      "x": -721,
+      "z": -8257
+    },
+    {
+      "name": "Jackpot Joanie's",
+      "kind": "casino",
+      "x": -6371,
+      "z": 9641
+    },
+    {
+      "name": "Jackpot Joanie's Casino",
+      "kind": "casino",
+      "x": -5415,
+      "z": 3495
+    },
+    {
+      "name": "Jerry's Nugget Casino",
+      "kind": "casino",
+      "x": 3465,
+      "z": 9105
+    },
+    {
+      "name": "John E. Carson Hotel",
+      "kind": "landmark",
+      "x": 2844,
+      "z": 6262
+    },
+    {
+      "name": "Just Play",
+      "kind": "casino",
+      "x": -156,
+      "z": 5504
+    },
+    {
+      "name": "Knotty Pine Motel",
+      "kind": "landmark",
+      "x": 3723,
+      "z": 9233
+    },
+    {
+      "name": "La Quinta Inn & Suites Las Vegas Airport N Conv.",
+      "kind": "landmark",
+      "x": 1688,
+      "z": 602
+    },
+    {
+      "name": "La Quinta Inn & Suites Las Vegas Airport South",
+      "kind": "landmark",
+      "x": 4584,
+      "z": -4536
+    },
+    {
+      "name": "La Quinta Inn & Suites Las Vegas Summerlin Tech",
+      "kind": "landmark",
+      "x": -6837,
+      "z": 10896
+    },
+    {
+      "name": "La Quinta Inn & Suites by Wyndham LV Tropicana Stadium",
+      "kind": "landmark",
+      "x": -1535,
+      "z": -1294
+    },
+    {
+      "name": "Las Vegas Hilton at Resorts World",
+      "kind": "landmark",
+      "x": 539,
+      "z": 2581
+    },
+    {
+      "name": "Las Vegas Marriott",
+      "kind": "landmark",
+      "x": 1399,
+      "z": 2236
+    },
+    {
+      "name": "Longhorn Casino",
+      "kind": "casino",
+      "x": 10279,
+      "z": -347
+    },
+    {
+      "name": "Lucky Club Hotel & Casino",
+      "kind": "casino",
+      "x": 4450,
+      "z": 11929
+    },
+    {
+      "name": "Luxor Las Vegas",
+      "kind": "casino",
+      "x": -201,
+      "z": -1795
+    },
+    {
+      "name": "MGM Grand",
+      "kind": "casino",
+      "x": 584,
+      "z": -830
+    },
+    {
+      "name": "Main Street Station",
+      "kind": "landmark",
+      "x": 2376,
+      "z": 6957
+    },
+    {
+      "name": "MainStay Suites",
+      "kind": "landmark",
+      "x": 3123,
+      "z": 2612
+    },
+    {
+      "name": "Mandalay Bay",
+      "kind": "casino",
+      "x": -195,
+      "z": -2194
+    },
+    {
+      "name": "Mandalay Bay Resort & Casino",
+      "kind": "casino",
+      "x": -105,
+      "z": -2184
+    },
+    {
+      "name": "Manor Suites",
+      "kind": "landmark",
+      "x": 347,
+      "z": -5961
+    },
+    {
+      "name": "Mardi Gras Hotel & Casino",
+      "kind": "casino",
+      "x": 1664,
+      "z": 1529
+    },
+    {
+      "name": "Marriott's Grand Chateau",
+      "kind": "landmark",
+      "x": 376,
+      "z": -503
+    },
+    {
+      "name": "Miz Lola's Spirits & Gaming",
+      "kind": "casino",
+      "x": 7208,
+      "z": -4284
+    },
+    {
+      "name": "Monterey Grand Manor",
+      "kind": "landmark",
+      "x": 1243,
+      "z": -679
+    },
+    {
+      "name": "NOBU Hotel Las Vegas",
+      "kind": "landmark",
+      "x": -189,
+      "z": 519
+    },
+    {
+      "name": "New York New York Hotel and Casino",
+      "kind": "casino",
+      "x": -96,
+      "z": -1095
+    },
+    {
+      "name": "Nirvana Hotel",
+      "kind": "landmark",
+      "x": 145,
+      "z": -2239
+    },
+    {
+      "name": "NoMad High Limit Casino",
+      "kind": "casino",
+      "x": -212,
+      "z": -819
+    },
+    {
+      "name": "North Las Vegas Airport",
+      "kind": "landmark",
+      "x": -2155,
+      "z": 10843
+    },
+    {
+      "name": "Oasis at Gold Spike",
+      "kind": "landmark",
+      "x": 2880,
+      "z": 6613
+    },
+    {
+      "name": "Otonomus Hotel",
+      "kind": "landmark",
+      "x": -3232,
+      "z": -2790
+    },
+    {
+      "name": "Oyo Casino Hotel",
+      "kind": "casino",
+      "x": 543,
+      "z": -1361
+    },
+    {
+      "name": "Palms",
+      "kind": "casino",
+      "x": -2105,
+      "z": 228
+    },
+    {
+      "name": "Paris Las Vegas",
+      "kind": "casino",
+      "x": 230,
+      "z": 20
+    },
+    {
+      "name": "Park Inn by Radisson",
+      "kind": "landmark",
+      "x": 7968,
+      "z": 2333
+    },
+    {
+      "name": "Park MGM",
+      "kind": "casino",
+      "x": -171,
+      "z": -810
+    },
+    {
+      "name": "Pat's Pub",
+      "kind": "casino",
+      "x": -2896,
+      "z": 3607
+    },
+    {
+      "name": "Planet Hollywood",
+      "kind": "casino",
+      "x": 141,
+      "z": -202
+    },
+    {
+      "name": "Planet Hollywood Las Vegas Resort & Casino",
+      "kind": "casino",
+      "x": 155,
+      "z": -208
+    },
+    {
+      "name": "Platinum Hotel and Spa",
+      "kind": "landmark",
+      "x": 919,
+      "z": 217
+    },
+    {
+      "name": "Plaza Hotel & Casino",
+      "kind": "casino",
+      "x": 2225,
+      "z": 6656
+    },
+    {
+      "name": "Red Dragon",
+      "kind": "casino",
+      "x": -4819,
+      "z": 1443
+    },
+    {
+      "name": "Red Dragon Gaming & Spirits",
+      "kind": "casino",
+      "x": -1428,
+      "z": 3711
+    },
+    {
+      "name": "Red Roof Inn Las Vegas",
+      "kind": "landmark",
+      "x": 1944,
+      "z": -160
+    },
+    {
+      "name": "Residence Inn",
+      "kind": "landmark",
+      "x": 8421,
+      "z": -4099
+    },
+    {
+      "name": "Residence Inn Las Vegas Airport",
+      "kind": "landmark",
+      "x": 505,
+      "z": -6859
+    },
+    {
+      "name": "Residence Inn Las Vegas Convention Center",
+      "kind": "landmark",
+      "x": 1481,
+      "z": 2132
+    },
+    {
+      "name": "Residence Inn Las Vegas Hughes Center",
+      "kind": "landmark",
+      "x": 1564,
+      "z": 450
+    },
+    {
+      "name": "Residence Inn Las Vegas South",
+      "kind": "landmark",
+      "x": -804,
+      "z": -3221
+    },
+    {
+      "name": "Resorts World Las Vegas",
+      "kind": "casino",
+      "x": 587,
+      "z": 2419
+    },
+    {
+      "name": "Rio All Suite Hotel and Casino",
+      "kind": "casino",
+      "x": -1367,
+      "z": 591
+    },
+    {
+      "name": "Sahara Las Vegas Hotel & Casino",
+      "kind": "casino",
+      "x": 1402,
+      "z": 3393
+    },
+    {
+      "name": "Sam's Town Hotel & Gambling Hall",
+      "kind": "landmark",
+      "x": 9937,
+      "z": 300
+    },
+    {
+      "name": "Shalimar Hotel of Las Vegas",
+      "kind": "landmark",
+      "x": 2026,
+      "z": 4796
+    },
+    {
+      "name": "Siegel Select  Flamingo",
+      "kind": "landmark",
+      "x": 5099,
+      "z": 472
+    },
+    {
+      "name": "Siegel Suites Select Convention Center",
+      "kind": "landmark",
+      "x": 1034,
+      "z": 2306
+    },
+    {
+      "name": "Siegel Suites Select \u2013 Las Vegas Boulevard",
+      "kind": "landmark",
+      "x": 332,
+      "z": -6049
+    },
+    {
+      "name": "Silver Sevens Hotel & Casino",
+      "kind": "casino",
+      "x": 1839,
+      "z": 246
+    },
+    {
+      "name": "Silverton Casino Hotel",
+      "kind": "casino",
+      "x": -847,
+      "z": -7815
+    },
+    {
+      "name": "Skylofts at MGM Grand",
+      "kind": "landmark",
+      "x": 409,
+      "z": -1061
+    },
+    {
+      "name": "Sleep Inn & Suites",
+      "kind": "landmark",
+      "x": 12291,
+      "z": -5694
+    },
+    {
+      "name": "Sonesta Select Las Vegas Summerlin",
+      "kind": "landmark",
+      "x": -6497,
+      "z": 8835
+    },
+    {
+      "name": "South Point",
+      "kind": "casino",
+      "x": 51,
+      "z": -11181
+    },
+    {
+      "name": "South Point Hotel, Casino & Spa",
+      "kind": "casino",
+      "x": -55,
+      "z": -11105
+    },
+    {
+      "name": "Spark by Hilton",
+      "kind": "landmark",
+      "x": 1037,
+      "z": -5139
+    },
+    {
+      "name": "Sphere",
+      "kind": "landmark",
+      "x": 982,
+      "z": 1048
+    },
+    {
+      "name": "SpringHill Suites",
+      "kind": "landmark",
+      "x": 11261,
+      "z": -9373
+    },
+    {
+      "name": "SpringHill Suites Las Vegas Airport",
+      "kind": "landmark",
+      "x": -2921,
+      "z": -4693
+    },
+    {
+      "name": "Springhill Suites by Marriott Las Vegas Convention Center",
+      "kind": "landmark",
+      "x": 1542,
+      "z": 2600
+    },
+    {
+      "name": "Stage Door Casino",
+      "kind": "casino",
+      "x": 429,
+      "z": 335
+    },
+    {
+      "name": "Staybridge Suites Las Vegas",
+      "kind": "landmark",
+      "x": -855,
+      "z": -2976
+    },
+    {
+      "name": "Sterling Gardens Hotel",
+      "kind": "landmark",
+      "x": 4327,
+      "z": 5560
+    },
+    {
+      "name": "Sunrise Inn",
+      "kind": "landmark",
+      "x": 3739,
+      "z": 11855
+    },
+    {
+      "name": "Sunset Station",
+      "kind": "casino",
+      "x": 12077,
+      "z": -5510
+    },
+    {
+      "name": "T-Mobile Arena",
+      "kind": "landmark",
+      "x": -434,
+      "z": -1042
+    },
+    {
+      "name": "Tahiti Suites",
+      "kind": "landmark",
+      "x": -3330,
+      "z": -1364
+    },
+    {
+      "name": "Tahiti Village Resort",
+      "kind": "landmark",
+      "x": 269,
+      "z": -5804
+    },
+    {
+      "name": "The Berkley, Las Vegas",
+      "kind": "landmark",
+      "x": -934,
+      "z": -7957
+    },
+    {
+      "name": "The Carriage House",
+      "kind": "landmark",
+      "x": 475,
+      "z": -489
+    },
+    {
+      "name": "The Cosmopolitan of Las Vegas",
+      "kind": "landmark",
+      "x": -77,
+      "z": -206
+    },
+    {
+      "name": "The D Las Vegas",
+      "kind": "landmark",
+      "x": 2599,
+      "z": 6431
+    },
+    {
+      "name": "The Diplomat Apartment",
+      "kind": "landmark",
+      "x": 1647,
+      "z": 1624
+    },
+    {
+      "name": "The English Hotel",
+      "kind": "landmark",
+      "x": 1778,
+      "z": 5498
+    },
+    {
+      "name": "The LINQ Hotel + Experience",
+      "kind": "casino",
+      "x": 221,
+      "z": 708
+    },
+    {
+      "name": "The Mansion at MGM Grand",
+      "kind": "landmark",
+      "x": 158,
+      "z": -968
+    },
+    {
+      "name": "The Orleans Hotel & Casino",
+      "kind": "casino",
+      "x": -2519,
+      "z": -995
+    },
+    {
+      "name": "The Palazzo",
+      "kind": "casino",
+      "x": 426,
+      "z": 1352
+    },
+    {
+      "name": "The Strat",
+      "kind": "casino",
+      "x": 1441,
+      "z": 3989
+    },
+    {
+      "name": "The Venetian Las Vegas",
+      "kind": "casino",
+      "x": 327,
+      "z": 1082
+    },
+    {
+      "name": "The Westin Las Vegas Hotel",
+      "kind": "landmark",
+      "x": 675,
+      "z": 371
+    },
+    {
+      "name": "Tix4Tonight - Slots A Fun",
+      "kind": "casino",
+      "x": 856,
+      "z": 2680
+    },
+    {
+      "name": "TownePlace Suites",
+      "kind": "landmark",
+      "x": 11365,
+      "z": -9344
+    },
+    {
+      "name": "TownePlace Suites Las Vegas Airport South",
+      "kind": "landmark",
+      "x": 1578,
+      "z": -6128
+    },
+    {
+      "name": "TownePlace Suites Las Vegas Stadium District",
+      "kind": "landmark",
+      "x": -776,
+      "z": -1312
+    },
+    {
+      "name": "Travelodge Las Vegas",
+      "kind": "landmark",
+      "x": 889,
+      "z": 2853
+    },
+    {
+      "name": "Travelodge Las Vegas Airport North/Near the Strip",
+      "kind": "landmark",
+      "x": 846,
+      "z": -1508
+    },
+    {
+      "name": "Treasure Island",
+      "kind": "casino",
+      "x": 120,
+      "z": 1403
+    },
+    {
+      "name": "Treasure Island Hotel and Casino",
+      "kind": "casino",
+      "x": 95,
+      "z": 1395
+    },
+    {
+      "name": "Tru by Hilton Las Vegas Airport",
+      "kind": "landmark",
+      "x": 1046,
+      "z": -5207
+    },
+    {
+      "name": "Trump International Hotel Las Vegas",
+      "kind": "landmark",
+      "x": 13,
+      "z": 1938
+    },
+    {
+      "name": "Tuscany Suites & Casino",
+      "kind": "casino",
+      "x": 1194,
+      "z": 150
+    },
+    {
+      "name": "Vanderpump",
+      "kind": "landmark",
+      "x": 132,
+      "z": 347
+    },
+    {
+      "name": "Vdara Hotel & Spa",
+      "kind": "landmark",
+      "x": -410,
+      "z": -292
+    },
+    {
+      "name": "Virgin Hotels Las Vegas, Curio Collection by Hilton",
+      "kind": "landmark",
+      "x": 1773,
+      "z": -232
+    },
+    {
+      "name": "W Las Vegas",
+      "kind": "landmark",
+      "x": -365,
+      "z": -2095
+    },
+    {
+      "name": "Waldorf Astoria Las Vegas",
+      "kind": "landmark",
+      "x": -97,
+      "z": -641
+    },
+    {
+      "name": "Westgate Las Vegas Resort & Casino",
+      "kind": "casino",
+      "x": 1930,
+      "z": 2655
+    },
+    {
+      "name": "Wildfire",
+      "kind": "casino",
+      "x": 12382,
+      "z": -5172
+    },
+    {
+      "name": "Wildfire Casino",
+      "kind": "casino",
+      "x": 8991,
+      "z": -4541
+    },
+    {
+      "name": "WorldMark Las Vegas - Tropicana Avenue",
+      "kind": "landmark",
+      "x": -3577,
+      "z": -1418
+    },
+    {
+      "name": "Wyndham Desert Blue",
+      "kind": "landmark",
+      "x": -961,
+      "z": 1118
+    },
+    {
+      "name": "Wyndham Grand Desert",
+      "kind": "landmark",
+      "x": 1144,
+      "z": -514
+    },
+    {
+      "name": "Wynn Las Vegas",
+      "kind": "landmark",
+      "x": 671,
+      "z": 1635
+    },
+    {
+      "name": "Wynn Las Vegas Casino",
+      "kind": "casino",
+      "x": 634,
+      "z": 1608
+    }
+  ]
+}

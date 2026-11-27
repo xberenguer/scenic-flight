@@ -33,7 +33,7 @@ pub struct Sky {
 
 impl Sky {
     pub fn at(seed: u64, ticks: u64) -> Self {
-        Self::build(seed, ticks, Self::day_at(seed, ticks), None)
+        Self::build(seed, ticks, Self::day_at(seed, ticks), None, None)
     }
 
     /// Keep the astronomical clock global while following the air mass over
@@ -45,7 +45,15 @@ impl Sky {
     pub fn from_time_at_position(
         seed: u64, ticks: u64, day_fraction: f32, position: [f32; 3],
     ) -> Self {
-        Self::build(seed, ticks, day_fraction, Some(position))
+        Self::build(seed, ticks, day_fraction, Some(position), None)
+    }
+
+    pub fn over_world(world: &crate::world::World, seed: u64, ticks: u64, position: [f32; 3]) -> Self {
+        if world.is_las_vegas() {
+            let coordinates = (36.17_f32.to_radians(), 0.0);
+            return Self::build(seed, ticks, Self::day_at(seed, ticks), Some(position), Some(coordinates));
+        }
+        Self::at_position(seed, ticks, position)
     }
 
     fn day_at(seed: u64, ticks: u64) -> f32 {
@@ -54,15 +62,20 @@ impl Sky {
     }
 
     pub fn from_time(seed: u64, ticks: u64, day_fraction: f32) -> Self {
-        Self::build(seed, ticks, day_fraction, None)
+        Self::build(seed, ticks, day_fraction, None, None)
     }
 
-    fn build(seed: u64, ticks: u64, day_fraction: f32, position: Option<[f32; 3]>) -> Self {
-        let latitude = 0.43 + fraction(mix(seed ^ 23)) * 0.39;
+    fn build(
+        seed: u64, ticks: u64, day_fraction: f32, position: Option<[f32; 3]>,
+        orientation: Option<(f32, f32)>,
+    ) -> Self {
+        let (latitude, heading) = orientation.unwrap_or_else(||
+            (0.43 + fraction(mix(seed ^ 23)) * 0.39, fraction(mix(seed ^ 83)) * TAU)
+        );
         let declination = solar_declination(seed, ticks);
         let hour = (day_fraction - 0.5) * TAU;
         let (lat_sin, lat_cos) = sin_cos(latitude);
-        let (turn_sin, turn_cos) = sin_cos(fraction(mix(seed ^ 83)) * TAU);
+        let (turn_sin, turn_cos) = sin_cos(heading);
         let direction = |(hour_sin, hour_cos), declination| {
             let (dec_sin, dec_cos) = sin_cos(declination);
             let up = lat_sin * dec_sin + lat_cos * dec_cos * hour_cos;

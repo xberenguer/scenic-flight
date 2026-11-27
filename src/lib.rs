@@ -40,6 +40,8 @@ pub mod highway_links;
 pub mod highway_stream;
 pub mod horizon_cache;
 pub mod land_stream;
+mod las_vegas;
+pub use las_vegas::{LasVegasData, StratTower};
 pub mod lighthouses;
 pub mod local_routes;
 pub mod lookout_art;
