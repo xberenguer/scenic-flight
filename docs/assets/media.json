@@ -1,5 +1,155 @@
 [
     {
+      "id": "southwest-barstow",
+      "title": "Bush Plane over Barstow",
+      "category": "Built World",
+      "aircraft": "Bush Plane",
+      "biome": "Barstow",
+      "format": "GIF",
+      "poster": "assets/current/southwest-barstow.png",
+      "src": "assets/readme/southwest-barstow.gif"
+    },
+    {
+      "id": "southwest-baker",
+      "title": "Ultralight over Baker",
+      "category": "Built World",
+      "aircraft": "Ultralight",
+      "biome": "Baker",
+      "format": "GIF",
+      "poster": "assets/current/southwest-baker.png",
+      "src": "assets/readme/southwest-baker.gif"
+    },
+    {
+      "id": "southwest-primm",
+      "title": "Bush Plane over Primm",
+      "category": "Built World",
+      "aircraft": "Bush Plane",
+      "biome": "Primm",
+      "format": "GIF",
+      "poster": "assets/current/southwest-primm.png",
+      "src": "assets/readme/southwest-primm.gif"
+    },
+    {
+      "id": "la-lax",
+      "title": "Sport Jet on the ocean approach to LAX",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "Los Angeles International Airport",
+      "format": "Video",
+      "poster": "assets/current/la-lax.png",
+      "src": "assets/current/la-lax.mp4"
+    },
+    {
+      "id": "la-santa-monica",
+      "title": "Bush Plane approaching Santa Monica Pier",
+      "category": "Built World",
+      "aircraft": "Bush Plane",
+      "biome": "Santa Monica",
+      "format": "Video",
+      "poster": "assets/current/la-santa-monica.png",
+      "src": "assets/current/la-santa-monica.mp4"
+    },
+    {
+      "id": "la-venice-beach",
+      "title": "Glider on the Venice Beach coast",
+      "category": "Built World",
+      "aircraft": "Glider",
+      "biome": "Venice Beach",
+      "format": "Video",
+      "poster": "assets/current/la-venice-beach.png",
+      "src": "assets/current/la-venice-beach.mp4"
+    },
+    {
+      "id": "la-getty-center",
+      "title": "Racer near Getty Center",
+      "category": "Built World",
+      "aircraft": "Racer",
+      "biome": "Brentwood Hills",
+      "format": "Video",
+      "poster": "assets/current/la-getty-center.png",
+      "src": "assets/current/la-getty-center.mp4"
+    },
+    {
+      "id": "la-griffith-observatory",
+      "title": "Bush Plane on the Griffith Observatory approach",
+      "category": "Built World",
+      "aircraft": "Bush Plane",
+      "biome": "Griffith Park",
+      "format": "Video",
+      "poster": "assets/current/la-griffith-observatory.png",
+      "src": "assets/current/la-griffith-observatory.mp4"
+    },
+    {
+      "id": "la-hollywood",
+      "title": "Racer over Hollywood",
+      "category": "Built World",
+      "aircraft": "Racer",
+      "biome": "Hollywood",
+      "format": "Video",
+      "poster": "assets/current/la-hollywood.png",
+      "src": "assets/current/la-hollywood.mp4"
+    },
+    {
+      "id": "la-pasadena",
+      "title": "Glider approaching Pasadena",
+      "category": "Built World",
+      "aircraft": "Glider",
+      "biome": "Pasadena",
+      "format": "Video",
+      "poster": "assets/current/la-pasadena.png",
+      "src": "assets/current/la-pasadena.mp4"
+    },
+    {
+      "id": "la-inglewood",
+      "title": "Sport Jet approaching SoFi Stadium",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "Inglewood",
+      "format": "Video",
+      "poster": "assets/current/la-inglewood.png",
+      "src": "assets/current/la-inglewood.mp4"
+    },
+    {
+      "id": "la-downtown",
+      "title": "Glider over Downtown Los Angeles",
+      "category": "Built World",
+      "aircraft": "Glider",
+      "biome": "Downtown Los Angeles",
+      "format": "Video",
+      "poster": "assets/current/la-downtown.png",
+      "src": "assets/current/la-downtown.mp4"
+    },
+    {
+      "id": "la-dodger-stadium",
+      "title": "Bush Plane near Dodger Stadium",
+      "category": "Built World",
+      "aircraft": "Bush Plane",
+      "biome": "Elysian Park",
+      "format": "Video",
+      "poster": "assets/current/la-dodger-stadium.png",
+      "src": "assets/current/la-dodger-stadium.mp4"
+    },
+    {
+      "id": "la-exposition-park",
+      "title": "Glider near Exposition Park",
+      "category": "Built World",
+      "aircraft": "Glider",
+      "biome": "Exposition Park",
+      "format": "Video",
+      "poster": "assets/current/la-exposition-park.png",
+      "src": "assets/current/la-exposition-park.mp4"
+    },
+    {
+      "id": "la-union-station",
+      "title": "Sport Jet approaching Union Station",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "Union Station",
+      "format": "Video",
+      "poster": "assets/current/la-union-station.png",
+      "src": "assets/current/la-union-station.mp4"
+    },
+    {
       "id": "vegas-strip",
       "title": "Racer along the Las Vegas Strip",
       "category": "Built World",
@@ -31,13 +181,63 @@
     },
     {
       "id": "vegas-sphere",
-      "title": "Racer passing the Sphere",
+      "title": "Racer passing the Sphere's animated emoji",
       "category": "Built World",
       "aircraft": "Racer",
       "biome": "The Sphere",
       "format": "Video",
       "poster": "assets/current/vegas-sphere.png",
       "src": "assets/current/vegas-sphere.mp4"
+    },
+    {
+      "id": "vegas-paris",
+      "title": "Sport Jet past the Paris Las Vegas Eiffel Tower",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "Paris Las Vegas",
+      "format": "Video",
+      "poster": "assets/current/vegas-paris.png",
+      "src": "assets/current/vegas-paris.mp4"
+    },
+    {
+      "id": "vegas-high-roller",
+      "title": "Sport Jet past the High Roller",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "High Roller",
+      "format": "Video",
+      "poster": "assets/current/vegas-high-roller.png",
+      "src": "assets/current/vegas-high-roller.mp4"
+    },
+    {
+      "id": "vegas-venetian",
+      "title": "Sport Jet past the Venetian and Palazzo",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "The Strip",
+      "format": "Video",
+      "poster": "assets/current/vegas-venetian.png",
+      "src": "assets/current/vegas-venetian.mp4"
+    },
+    {
+      "id": "vegas-stadium",
+      "title": "Sport Jet over Allegiant Stadium",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "Allegiant Stadium",
+      "format": "Video",
+      "poster": "assets/current/vegas-stadium.png",
+      "src": "assets/current/vegas-stadium.mp4"
+    },
+    {
+      "id": "vegas-fremont",
+      "title": "Viva Vision lights over Fremont Street",
+      "category": "Built World",
+      "aircraft": "Sport Jet",
+      "biome": "Downtown Las Vegas",
+      "format": "Video",
+      "poster": "assets/current/vegas-fremont.png",
+      "src": "assets/current/vegas-fremont.mp4"
     },
   {
     "id": "dryland-basin-pass",

@@ -2,8 +2,11 @@
 set -eu
 
 web=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-target="$web/target"
-cargo build --manifest-path "$web/Cargo.toml" --locked --release \
-    --target wasm32-unknown-unknown --target-dir "$target"
-cp "$target/wasm32-unknown-unknown/release/scenic_flight_web.wasm" \
-    "$web/../docs/assets/scenic-flight.wasm"
+assets="$web/../docs/assets"
+exec python3 "$web/../tools/build-scratch.py" "$assets" 768 sh -eu -c '
+    cargo build --manifest-path "$1/Cargo.toml" --locked --release \
+        --target wasm32-unknown-unknown
+    cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/scenic_flight_web.wasm" \
+        "$SCENIC_BUILD_SCRATCH/scenic-flight.wasm"
+    mv "$SCENIC_BUILD_SCRATCH/scenic-flight.wasm" "$2/scenic-flight.wasm"
+' scenic-web "$web" "$assets"

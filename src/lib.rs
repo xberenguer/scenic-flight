@@ -41,7 +41,12 @@ pub mod highway_stream;
 pub mod horizon_cache;
 pub mod land_stream;
 mod las_vegas;
-pub use las_vegas::{LasVegasData, StratTower};
+mod los_angeles;
+pub use las_vegas::{LasVegasData, MappedCity, StripLandmarks};
+pub use los_angeles::DowntownLandmarks;
+pub use las_vegas::native_pack;
+#[cfg(feature = "landmark-gallery")]
+pub use las_vegas::landmark_gallery;
 pub mod lighthouses;
 pub mod local_routes;
 pub mod lookout_art;

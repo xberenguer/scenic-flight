@@ -1,6 +1,6 @@
 [package]
 name = "scenic-flight"
-version = "0.1.132"
+version = "0.1.142"
 edition = "2021"
 description = "Procedural scenic flight for desktop and embedded displays"
 
@@ -9,6 +9,12 @@ terrain-fork = []
 small-raster-ray-budget = []
 ground-cover = []
 regional-climate = []
+landmark-gallery = []
+
+[[example]]
+name = "vegas-landmarks"
+path = "examples/vegas-landmarks.rs"
+required-features = ["landmark-gallery"]
 
 [profile.release]
 lto = "thin"

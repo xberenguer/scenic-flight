@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render four reference maps from the same packed data sampled by the game."""
+"""Render reference maps from the same packed data sampled by the game."""
 import argparse
 import gzip
 from pathlib import Path
@@ -10,6 +10,7 @@ from rasterio.io import MemoryFile
 
 MAPS = {
     "strip": (-1750, -2700, 2600, 4650, 7),
+    "resorts": (-840, -480, 1200, 1710, 3),
     "airport": (-850, -5800, 5350, -540, 7),
     "downtown": (275, 4580, 4780, 8360, 7),
     "wide": (-34000, -12500, 44000, 22700, 90),
@@ -19,6 +20,10 @@ COLORS = {
     1: (68, 72, 77), 2: (65, 128, 161), 3: (157, 153, 145), 5: (241, 238, 217),
     6: (35, 42, 47), 7: (92, 124, 81), 8: (104, 94, 80), 10: (98, 179, 213),
     19: (212, 177, 134), 20: (43, 39, 45),
+    21: (162, 154, 142), 22: (201, 195, 182), 23: (172, 152, 157),
+    24: (119, 131, 138), 25: (123, 112, 104), 26: (127, 92, 75),
+    27: (110, 132, 148), 28: (152, 139, 118), 29: (151, 123, 107),
+    30: (154, 157, 157),
 }
 
 

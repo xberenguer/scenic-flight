@@ -2356,9 +2356,12 @@ fn paint_visible_surface(
     distance: f32, depth: f32, view: &View, light: GroundLight,
     _rock_phase: f32, mut paint: impl FnMut(usize, usize, u16),
 ) {
-    if distance < 160.0 && rows.len() >= 3 && (surface.is_station_roof() || surface.is_industry() || surface.building_palette().is_some() || matches!(
-        surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof | Surface::ShipCabin
-    )) {
+    let resort = surface.vegas_facade();
+    if rows.len() >= 3 && (resort.is_some()
+        || distance < 160.0 && (surface.is_station_roof() || surface.is_industry()
+            || surface.building_palette().is_some()
+            || matches!(surface, Surface::PitchedRoof | Surface::FlatRoof | Surface::TowerRoof | Surface::ShipCabin)))
+    {
         paint_facade(surface, position, color, rows, view.focal / depth, light, paint);
         return;
     }
@@ -2418,18 +2421,32 @@ fn paint_facade(
     let facade = facade_color(surface, light.daylight, light.horizon, light.fog);
     paint(rows.start, roof_end, roof);
     let column = floor_i32(x * 0.31 + z * 0.19);
+    let resort = surface.vegas_facade();
+    let distant_resort = resort.is_some() && pixel_scale < 0.50;
     if surface.is_industry() || matches!(surface, Surface::RailTimber | Surface::RailMetal | Surface::RailRust)
-        || pixel_scale < 0.50 || column.rem_euclid(5) >= 3 || roof_end + 2 >= rows.end
+        || (!distant_resort && (pixel_scale < 0.50 || column.rem_euclid(5) >= 3))
+        || roof_end + 2 >= rows.end
     {
         paint(roof_end, rows.end, facade);
         return;
     }
-    let reflective = mix([73.0, 89.0, 103.0], [104.0, 149.0, 174.0], light.daylight);
+    let reflective = resort.map_or_else(
+        || mix([73.0, 89.0, 103.0], [104.0, 149.0, 174.0], light.daylight),
+        |finish| mix([37.0, 43.0, 57.0], finish.glass.map(f32::from), light.daylight),
+    );
     let night = smoothstep((0.39 - light.daylight) / 0.39);
-    let lighted = (column ^ floor_i32(z * 0.25)).rem_euclid(7) >= 2;
+    let lighted = distant_resort || (column ^ floor_i32(z * 0.25)).rem_euclid(7) >= 2;
     let windows = if lighted { mix(reflective, [240.0, 165.0, 87.0], night) } else { reflective };
     let glass = rgb565(mix(windows, light.horizon, light.fog)).max(1);
-    let floor = ((2.85 * pixel_scale) as usize).clamp(2, 9);
+    // Group the floors at a distance so individual window rows do not alias.
+    let glass = if distant_resort {
+        let coverage = smoothstep((pixel_scale - 0.10) / 0.40);
+        blend565(facade, glass, (coverage * 27.0) as u32).max(1)
+    } else {
+        glass
+    };
+    let floor_height = resort.map_or(2.85, |finish| finish.floor_height);
+    let floor = if distant_resort { 3 } else { ((floor_height * pixel_scale) as usize).clamp(2, 9) };
     let mut top = roof_end;
     while top < rows.end {
         let glass_end = (top + floor / 2).min(rows.end);

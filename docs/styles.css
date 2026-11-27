@@ -99,6 +99,14 @@ details[open] summary { margin-bottom:16px; }
   margin: 0;
   list-style: none;
 }
+.vegas-artwork-group + .vegas-artwork-group { margin-top: 26px; }
+.vegas-artwork-group h3 { margin-bottom: 10px; }
+.vegas-artwork-grid { grid-template-columns: repeat(auto-fill, minmax(min(130px, 100%), 1fr)); }
+.vegas-artwork-grid .card { height: 100%; color: inherit; text-decoration: none; }
+.vegas-artwork-grid img { aspect-ratio: 1; background: #141a20; }
+.vegas-artwork-grid .card-text { padding: 8px; overflow-wrap: anywhere; }
+.vegas-artwork-grid b { font-size: .85rem; }
+.vegas-artwork-grid small { font-size: .73rem; }
 .artwork-tile {
   width: 100%;
   padding: 0 0 4px;

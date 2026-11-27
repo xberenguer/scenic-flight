@@ -20,12 +20,14 @@
     "taxiway": 583,
     "runway": 5,
     "runway marking": 205,
-    "source building heights": 4124,
+    "source building heights": 4120,
     "terminal footprints": 16,
-    "building": 195138,
+    "building": 195134,
     "water": 405,
+    "reviewed buildings": 36,
     "park": 318,
     "pyramid shell": 16,
+    "reviewed roof layer": 6,
     "apron": 39,
     "sphere shell": 5,
     "FAA runway": 4
@@ -37,10 +39,11 @@
       "rail": 115,
       "runway": 2,
       "runway marking": 62,
-      "building": 50813,
+      "building": 50809,
       "water": 64,
       "park": 70,
       "pyramid shell": 16,
+      "reviewed roof layer": 6,
       "apron": 24,
       "sphere shell": 5,
       "FAA runway": 2
@@ -283,6 +286,12 @@
       "z": -10770
     },
     {
+      "name": "Americana Apartments",
+      "kind": "landmark",
+      "x": 1403,
+      "z": -553
+    },
+    {
       "name": "Aria Resort & Casino",
       "kind": "casino",
       "x": -421,
@@ -413,6 +422,12 @@
       "kind": "casino",
       "x": 2419,
       "z": 6834
+    },
+    {
+      "name": "Cancun Resort Las Vegas",
+      "kind": "landmark",
+      "x": 24,
+      "z": -8208
     },
     {
       "name": "Candlewood Suites Las Vegas",
@@ -565,10 +580,22 @@
       "z": 141
     },
     {
+      "name": "Embassy Suites by Hilton Convention Center Las Vegas",
+      "kind": "landmark",
+      "x": 1711,
+      "z": 1364
+    },
+    {
       "name": "Embassy Suites by Hilton Las Vegas",
       "kind": "landmark",
       "x": 1978,
       "z": -85
+    },
+    {
+      "name": "Emerald Suites",
+      "kind": "landmark",
+      "x": 33,
+      "z": -9750
     },
     {
       "name": "Encore",
@@ -685,6 +712,12 @@
       "z": 6460
     },
     {
+      "name": "Grandview at Las Vegas",
+      "kind": "landmark",
+      "x": -78,
+      "z": -11474
+    },
+    {
       "name": "Green Valley Ranch",
       "kind": "landmark",
       "x": 7591,
@@ -751,6 +784,12 @@
       "z": -2847
     },
     {
+      "name": "Highland Inn",
+      "kind": "landmark",
+      "x": -1163,
+      "z": -7520
+    },
+    {
       "name": "Hilton Garden Inn",
       "kind": "landmark",
       "x": -766,
@@ -761,6 +800,12 @@
       "kind": "landmark",
       "x": 343,
       "z": -7172
+    },
+    {
+      "name": "Hilton Garden Inn Las Vegas/Henderson",
+      "kind": "landmark",
+      "x": 11805,
+      "z": -5871
     },
     {
       "name": "Hilton Grand Vacations Suites - Las Vegas (Convention Center)",
@@ -901,6 +946,12 @@
       "z": 9105
     },
     {
+      "name": "Jockey Club",
+      "kind": "landmark",
+      "x": -192,
+      "z": -201
+    },
+    {
       "name": "John E. Carson Hotel",
       "kind": "landmark",
       "x": 2844,
@@ -943,6 +994,12 @@
       "z": -1294
     },
     {
+      "name": "Las Vegas Desert Club Resort",
+      "kind": "landmark",
+      "x": 1025,
+      "z": 674
+    },
+    {
       "name": "Las Vegas Hilton at Resorts World",
       "kind": "landmark",
       "x": 539,
@@ -965,6 +1022,12 @@
       "kind": "casino",
       "x": 4450,
       "z": 11929
+    },
+    {
+      "name": "Lucky's Gaming & Spirits Casino",
+      "kind": "casino",
+      "x": 5062,
+      "z": 5327
     },
     {
       "name": "Luxor Las Vegas",
@@ -1081,6 +1144,12 @@
       "z": -1361
     },
     {
+      "name": "Palace Station",
+      "kind": "casino",
+      "x": -220,
+      "z": 3372
+    },
+    {
       "name": "Palms",
       "kind": "casino",
       "x": -2105,
@@ -1109,6 +1178,12 @@
       "kind": "casino",
       "x": -2896,
       "z": 3607
+    },
+    {
+      "name": "Peppermill",
+      "kind": "landmark",
+      "x": 864,
+      "z": 2419
     },
     {
       "name": "Planet Hollywood",
@@ -1153,6 +1228,12 @@
       "z": -160
     },
     {
+      "name": "Renaissance Las Vegas Hotel",
+      "kind": "landmark",
+      "x": 1691,
+      "z": 1737
+    },
+    {
       "name": "Residence Inn",
       "kind": "landmark",
       "x": 8421,
@@ -1195,6 +1276,12 @@
       "z": 591
     },
     {
+      "name": "Riu",
+      "kind": "landmark",
+      "x": 390,
+      "z": -11382
+    },
+    {
       "name": "Sahara Las Vegas Hotel & Casino",
       "kind": "casino",
       "x": 1402,
@@ -1205,6 +1292,12 @@
       "kind": "landmark",
       "x": 9937,
       "z": 300
+    },
+    {
+      "name": "Serene",
+      "kind": "landmark",
+      "x": 1725,
+      "z": -479
     },
     {
       "name": "Shalimar Hotel of Las Vegas",
@@ -1363,6 +1456,12 @@
       "z": -489
     },
     {
+      "name": "The Club LAS",
+      "kind": "landmark",
+      "x": 3600,
+      "z": -2816
+    },
+    {
       "name": "The Cosmopolitan of Las Vegas",
       "kind": "landmark",
       "x": -77,
@@ -1409,6 +1508,18 @@
       "kind": "casino",
       "x": 426,
       "z": 1352
+    },
+    {
+      "name": "The Rita Suites",
+      "kind": "landmark",
+      "x": 1051,
+      "z": 2032
+    },
+    {
+      "name": "The Signature at MGM Grand",
+      "kind": "landmark",
+      "x": 611,
+      "z": -545
     },
     {
       "name": "The Strat",
@@ -1543,6 +1654,30 @@
       "z": -4541
     },
     {
+      "name": "Wildfire Fremont",
+      "kind": "casino",
+      "x": 5251,
+      "z": 4919
+    },
+    {
+      "name": "Wildfire Rancho",
+      "kind": "landmark",
+      "x": -1877,
+      "z": 9123
+    },
+    {
+      "name": "WorldMark Las Vegas",
+      "kind": "landmark",
+      "x": 3968,
+      "z": 127
+    },
+    {
+      "name": "WorldMark Las Vegas - Boulevard",
+      "kind": "landmark",
+      "x": 136,
+      "z": -8701
+    },
+    {
       "name": "WorldMark Las Vegas - Tropicana Avenue",
       "kind": "landmark",
       "x": -3577,
@@ -1572,5 +1707,444 @@
       "x": 634,
       "z": 1608
     }
-  ]
+  ],
+  "reviewed_buildings": [
+    {
+      "property": "Bellagio",
+      "name": "Bellagio Conservatory roof",
+      "osm_type": "way",
+      "osm_id": 114718351,
+      "x": -303,
+      "z": -5,
+      "height_m": 16,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 30
+    },
+    {
+      "property": "Bellagio",
+      "name": "Bellagio Spa Tower",
+      "osm_type": "way",
+      "osm_id": 114716301,
+      "x": -373,
+      "z": -122,
+      "height_m": 120,
+      "height_source": "OpenStreetMap height",
+      "material": 27
+    },
+    {
+      "property": "Bellagio",
+      "name": "Bellagio Spa Tower base",
+      "osm_type": "way",
+      "osm_id": 25723910,
+      "x": -373,
+      "z": -122,
+      "height_m": 100,
+      "height_source": "OpenStreetMap height",
+      "material": 21
+    },
+    {
+      "property": "Bellagio",
+      "name": "Bellagio domed crown",
+      "osm_type": "way",
+      "osm_id": 114703388,
+      "x": -287,
+      "z": 119,
+      "height_m": 155,
+      "height_source": "OpenStreetMap height",
+      "material": 27,
+      "roof_profile": "dome"
+    },
+    {
+      "property": "Bellagio",
+      "name": "Bellagio main tower",
+      "osm_type": "way",
+      "osm_id": 25723909,
+      "x": -345,
+      "z": 119,
+      "height_m": 120,
+      "height_source": "OpenStreetMap height",
+      "material": 27
+    },
+    {
+      "property": "Bellagio",
+      "name": "Bellagio north entrance roof",
+      "osm_type": "way",
+      "osm_id": 114714407,
+      "x": -117,
+      "z": 222,
+      "height_m": 13,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 21
+    },
+    {
+      "property": "Bellagio",
+      "name": "Bellagio podium",
+      "osm_type": "relation",
+      "osm_id": 1599958,
+      "x": -498,
+      "z": 27,
+      "height_m": 10,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 21
+    },
+    {
+      "property": "Caesars Palace",
+      "name": "Augustus Tower",
+      "osm_type": "way",
+      "osm_id": 1176928048,
+      "x": -203,
+      "z": 353,
+      "height_m": 111,
+      "height_source": "OpenStreetMap height",
+      "material": 22
+    },
+    {
+      "property": "Caesars Palace",
+      "name": "Octavius Tower",
+      "osm_type": "way",
+      "osm_id": 126267789,
+      "x": -348,
+      "z": 371,
+      "height_m": 107,
+      "height_source": "OpenStreetMap height",
+      "material": 22
+    },
+    {
+      "property": "Flamingo",
+      "name": "Flamingo casino podium",
+      "osm_type": "way",
+      "osm_id": 116761428,
+      "x": 66,
+      "z": 492,
+      "height_m": 14,
+      "height_source": "Footprint-based estimate",
+      "material": 23
+    },
+    {
+      "property": "Flamingo",
+      "name": "Flamingo low-rise wing",
+      "osm_type": "way",
+      "osm_id": 310585854,
+      "x": 128,
+      "z": 485,
+      "height_m": 6,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 30
+    },
+    {
+      "property": "Flamingo",
+      "name": "Flamingo north tower",
+      "osm_type": "way",
+      "osm_id": 115766957,
+      "x": 120,
+      "z": 546,
+      "height_m": 83,
+      "height_source": "OpenStreetMap height",
+      "material": 23
+    },
+    {
+      "property": "Flamingo",
+      "name": "Flamingo south tower",
+      "osm_type": "way",
+      "osm_id": 115766962,
+      "x": 98,
+      "z": 446,
+      "height_m": 83,
+      "height_source": "OpenStreetMap height",
+      "material": 23
+    },
+    {
+      "property": "Flamingo",
+      "name": "Flamingo west roof section",
+      "osm_type": "way",
+      "osm_id": 116761280,
+      "x": 74,
+      "z": 498,
+      "height_m": 29,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 23
+    },
+    {
+      "property": "Flamingo",
+      "name": "Flamingo west wing",
+      "osm_type": "way",
+      "osm_id": 116761035,
+      "x": 63,
+      "z": 533,
+      "height_m": 22,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 23
+    },
+    {
+      "property": "Horseshoe",
+      "name": "Horseshoe Resort Tower",
+      "osm_type": "way",
+      "osm_id": 27897922,
+      "x": 377,
+      "z": 186,
+      "height_m": 80,
+      "height_source": "OpenStreetMap height",
+      "material": 30
+    },
+    {
+      "property": "Horseshoe",
+      "name": "Horseshoe east pavilion",
+      "osm_type": "way",
+      "osm_id": 1582510991,
+      "x": 524,
+      "z": 119,
+      "height_m": 3,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 30
+    },
+    {
+      "property": "Horseshoe",
+      "name": "Horseshoe east podium",
+      "osm_type": "way",
+      "osm_id": 1582510990,
+      "x": 457,
+      "z": 194,
+      "height_m": 16,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 30
+    },
+    {
+      "property": "Horseshoe",
+      "name": "Horseshoe podium",
+      "osm_type": "way",
+      "osm_id": 116867081,
+      "x": 370,
+      "z": 171,
+      "height_m": 16,
+      "height_source": "Estimated from adjacent five-storey OSM parts. The enclosing way carries the resort tower floor count.",
+      "material": 30
+    },
+    {
+      "property": "Horseshoe",
+      "name": "Horseshoe west podium",
+      "osm_type": "way",
+      "osm_id": 1582510992,
+      "x": 292,
+      "z": 204,
+      "height_m": 16,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 22
+    },
+    {
+      "property": "Paris",
+      "name": "Paris casino podium",
+      "osm_type": "way",
+      "osm_id": 33974140,
+      "x": 230,
+      "z": 20,
+      "height_m": 10,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 21
+    },
+    {
+      "property": "Paris",
+      "name": "Paris main tower",
+      "osm_type": "way",
+      "osm_id": 27831697,
+      "x": 245,
+      "z": 56,
+      "height_m": 112,
+      "height_source": "OpenStreetMap height",
+      "material": 27
+    },
+    {
+      "property": "Paris",
+      "name": "Versailles Tower",
+      "osm_type": "way",
+      "osm_id": 27897921,
+      "x": 165,
+      "z": 164,
+      "height_m": 80,
+      "height_source": "OpenStreetMap height",
+      "material": 27
+    },
+    {
+      "property": "Planet Hollywood",
+      "name": "Planet Hollywood main tower",
+      "osm_type": "way",
+      "osm_id": 134921373,
+      "x": 155,
+      "z": -208,
+      "height_m": 122,
+      "height_source": "OpenStreetMap height",
+      "material": 30
+    },
+    {
+      "property": "The Cosmopolitan",
+      "name": "Cosmopolitan Boulevard Tower",
+      "osm_type": "way",
+      "osm_id": 134795273,
+      "x": -77,
+      "z": -206,
+      "height_m": 184,
+      "height_source": "OpenStreetMap height",
+      "material": 24
+    },
+    {
+      "property": "The Cosmopolitan",
+      "name": "Cosmopolitan Boulevard low-rise",
+      "osm_type": "way",
+      "osm_id": 472669744,
+      "x": -129,
+      "z": -255,
+      "height_m": 50,
+      "height_source": "OpenStreetMap height",
+      "material": 24
+    },
+    {
+      "property": "The Cosmopolitan",
+      "name": "Cosmopolitan Chelsea Tower",
+      "osm_type": "way",
+      "osm_id": 27897905,
+      "x": -261,
+      "z": -244,
+      "height_m": 184,
+      "height_source": "OpenStreetMap height",
+      "material": 24
+    },
+    {
+      "property": "The LINQ",
+      "name": "LINQ casino podium",
+      "osm_type": "way",
+      "osm_id": 115771295,
+      "x": 221,
+      "z": 708,
+      "height_m": 16,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 30
+    },
+    {
+      "property": "The LINQ",
+      "name": "LINQ hotel tower",
+      "osm_type": "way",
+      "osm_id": 115773426,
+      "x": 251,
+      "z": 708,
+      "height_m": 64,
+      "height_source": "OpenStreetMap levels \u00d7 3.2 m",
+      "material": 24
+    },
+    {
+      "property": "The Palazzo",
+      "name": "Palazzo Tower",
+      "osm_type": "way",
+      "osm_id": 30424125,
+      "x": 467,
+      "z": 1350,
+      "height_m": 196,
+      "height_source": "OpenStreetMap height",
+      "material": 28
+    },
+    {
+      "property": "The Palazzo",
+      "name": "Palazzo podium",
+      "osm_type": "way",
+      "osm_id": 180584269,
+      "x": 417,
+      "z": 1359,
+      "height_m": 14,
+      "height_source": "Footprint-based estimate",
+      "material": 21
+    },
+    {
+      "property": "The Venetian",
+      "name": "Campanile",
+      "osm_type": "way",
+      "osm_id": 43875964,
+      "x": 147,
+      "z": 1058,
+      "height_m": 96,
+      "height_source": "OpenStreetMap height",
+      "material": 26,
+      "roof_profile": "pyramidal"
+    },
+    {
+      "property": "The Venetian",
+      "name": "Venetian Expo",
+      "osm_type": "way",
+      "osm_id": 111367819,
+      "x": 606,
+      "z": 1109,
+      "height_m": 14,
+      "height_source": "Footprint-based estimate",
+      "material": 30
+    },
+    {
+      "property": "The Venetian",
+      "name": "Venetian Tower",
+      "osm_type": "way",
+      "osm_id": 30618090,
+      "x": 319,
+      "z": 1064,
+      "height_m": 145,
+      "height_source": "OpenStreetMap height",
+      "material": 22
+    },
+    {
+      "property": "The Venetian",
+      "name": "Venetian podium",
+      "osm_type": "relation",
+      "osm_id": 7770314,
+      "x": 327,
+      "z": 1082,
+      "height_m": 14,
+      "height_source": "Footprint-based estimate",
+      "material": 21
+    },
+    {
+      "property": "The Venetian",
+      "name": "Venezia Tower",
+      "osm_type": "way",
+      "osm_id": 111322067,
+      "x": 367,
+      "z": 970,
+      "height_m": 99,
+      "height_source": "OpenStreetMap height",
+      "material": 22
+    }
+  ],
+  "reviewed_building_sources": {
+    "The Venetian": [
+      "https://www.watg.com/project/venetian-las-vegas-usa/",
+      "https://www.venetianlasvegas.com/media/press-kit/photos.html"
+    ],
+    "The Palazzo": [
+      "https://www.venetianlasvegas.com/media/press-kit/photos.html",
+      "https://www.vanderweil.com/project/venetian-resort-hotel-casino-the-palazzo/"
+    ],
+    "Flamingo": [
+      "https://newsroom.caesars.com/Property-Fact-Sheets/Flamingo-Las-Vegas/default.aspx",
+      "https://special.library.unlv.edu/ark%3A/62930/d1wh2dn67"
+    ],
+    "The LINQ": [
+      "https://newsroom.caesars.com/Property-Fact-Sheets/The-LINQ-Hotel--Experience/default.aspx"
+    ],
+    "Horseshoe": [
+      "https://newsroom.caesars.com/Property-Fact-Sheets/Horseshoe-Las-Vegas/default.aspx",
+      "https://www.businesswire.com/news/home/20230327005624/en/Horseshoe-Las-Vegas-Celebrates-its-Grand-Opening-on-the-Las-Vegas-Strip"
+    ],
+    "Paris": [
+      "https://newsroom.caesars.com/Property-Fact-Sheets/Paris-Las-Vegas/",
+      "https://www.bwaltd.com/project-detail/versailles-tower-remodel"
+    ],
+    "Bellagio": [
+      "https://www.jerde.com/projects/7501/bellagio",
+      "https://bellagio.mgmresorts.com/en/contact-us.html"
+    ],
+    "The Cosmopolitan": [
+      "https://arquitectonica.com/architecture/project/cosmopolitan/",
+      "https://www.cdc-usa.com/projects/cosmopolitan"
+    ],
+    "Caesars Palace": [
+      "https://newsroom.caesars.com/media-resources/property-fact-sheets/default.aspx"
+    ],
+    "Planet Hollywood": [
+      "https://newsroom.caesars.com/Property-Fact-Sheets/Planet-Hollywood-Resort--Casino/default.aspx"
+    ]
+  }
 }

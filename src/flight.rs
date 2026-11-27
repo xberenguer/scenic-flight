@@ -95,6 +95,23 @@ impl Aircraft {
         ];
         PROFILES[self as usize]
     }
+
+    fn world_profile(self, world: &World) -> Profile {
+        let mut profile = self.profile();
+        if world.is_mapped_city() {
+            // Georeferenced city coordinates use metres. Retain the original
+            // abstract pace for the procedural world.
+            const SPEED: [f32; 8] = [34.0, 42.0, 66.0, 24.0, 29.0, 95.0, 150.0, 18.0];
+            const YAW: [f32; 8] = [0.205, 0.245, 0.157, 0.179, 0.167, 0.183, 0.111, 0.195];
+            const BANK: [f32; 8] = [0.34, 0.42, 0.27, 0.30, 0.34, 0.40, 0.232, 0.32];
+            let index = self as usize;
+            profile.speed = SPEED[index];
+            profile.yaw_rate = YAW[index];
+            profile.max_bank = BANK[index];
+            profile.turn_response = profile.turn_response.min(0.065);
+        }
+        profile
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -160,7 +177,10 @@ pub struct Flight {
     course: f32,
     speed: f32,
     town_approach_staged: bool,
-    vegas_leg: usize,
+    city_leg: usize,
+    atlas_city: Option<crate::MappedCity>,
+    atlas_arrival: Option<crate::MappedCity>,
+    atlas_cruise_altitude: f32,
     route_intent: RouteIntent,
     scenic_progress: ScenicProgress,
     train_follow: crate::train_follow::TrainFollow,
@@ -580,8 +600,11 @@ fn wider_land_departure(
 
 impl Flight {
     pub fn start(world: &World, seed: u64, aircraft: Aircraft) -> Self {
-        if world.is_las_vegas() {
-            return Self::start_at(world, seed, aircraft, crate::las_vegas::DEPARTURE);
+        if let Some(city) = world.mapped_city() {
+            let (departure, leg) = city.departure(0);
+            let mut flight = Self::start_at(world, seed, aircraft, departure);
+            flight.city_leg = leg;
+            return flight;
         }
         if let Some(approach) = world.city_airport_departure().or_else(|| world.city_rail_departure())
             .or_else(|| world.city_fringe_departure()) {
@@ -598,7 +621,8 @@ impl Flight {
     }
 
     fn start_at(world: &World, seed: u64, aircraft: Aircraft, (x, z, heading): (f32, f32, f32)) -> Self {
-        let profile = aircraft.profile();
+        let profile = aircraft.world_profile(world);
+        let mapped = world.is_mapped_city();
         let terrain = world.city_approach_height(x, z, surface(world, x, z));
         let (sin, cos) = sin_cos(heading);
         let lead = (x + sin * profile.speed * 2.0, z + cos * profile.speed * 2.0);
@@ -608,11 +632,19 @@ impl Flight {
         } else {
             terrain.max(ahead) + profile.clearance
         };
-        if world.is_las_vegas() {
+        if mapped {
             altitude = altitude.max(surface(world, x, z) + crate::las_vegas::cruise_clearance(aircraft));
         }
-        let ridge_preview_floor = if aircraft == Aircraft::SportJet {
-            let preview = Self::cruise_terrain_preview(world, aircraft, x, z, heading, 0.0, terrain);
+        let ridge_preview_floor = if mapped && aircraft != Aircraft::Blackbird {
+            let preview = vegas_clearance_forecast(
+                [x, z], heading, heading, profile, profile.speed, |x, z| {
+                    world.built_height(x, z, surface(world, x, z))
+                },
+            );
+            altitude = altitude.max(preview + profile.clearance);
+            preview
+        } else if aircraft == Aircraft::SportJet {
+            let preview = Self::cruise_terrain_preview(world, aircraft, profile.speed, x, z, heading, 0.0, terrain);
             // Give a seeded flight enough room from the moment it starts,
             // while leaving the autopilot a gradual climb into the cruise.
             altitude = altitude.max(preview + profile.clearance - 12.0);
@@ -640,7 +672,10 @@ impl Flight {
             turn: 0.0, climb_rate: 0.0, attitude_pitch: 0.0, pitch_intent: 0.0,
             ridge_preview_floor, blackbird_cruise_altitude: altitude, course: heading, speed: profile.speed,
             town_approach_staged: false,
-            vegas_leg: 0,
+            city_leg: 0,
+            atlas_city: None,
+            atlas_arrival: None,
+            atlas_cruise_altitude: 0.0,
             route_intent: RouteIntent::default(),
             scenic_progress: ScenicProgress::new(),
             train_follow: crate::train_follow::TrainFollow::default(),
@@ -834,7 +869,7 @@ impl Flight {
     pub fn update_with_obstacles(&mut self, world: &World, obstruction: impl Fn(f32, f32) -> f32) {
         self.previous_pose = Pose { x: self.x, z: self.z, altitude: self.altitude,
             heading: self.heading, bank: self.bank, attitude_pitch: self.attitude_pitch, view: self.view };
-        let profile = self.aircraft.profile();
+        let profile = self.aircraft.world_profile(world);
         let ridge_guidance = !matches!(self.aircraft, Aircraft::BaldEagle | Aircraft::Blackbird);
         self.ticks += 1;
         let blackbird = self.aircraft == Aircraft::Blackbird;
@@ -851,18 +886,34 @@ impl Flight {
         } else {
             0.0
         };
-        let las_vegas = world.is_las_vegas();
-        if las_vegas {
-            let tour = &crate::las_vegas::TOUR;
-            let waypoint = tour[self.vegas_leg];
-            let east = waypoint[0] - self.x;
-            let north = waypoint[1] - self.z;
-            let arrival = (profile.speed * 4.5).clamp(95.0, 375.0);
-            if east * east + north * north < arrival * arrival {
-                self.vegas_leg = (self.vegas_leg + 1) % tour.len();
+        let city = self.atlas_city.or_else(|| world.mapped_city());
+        let mapped = city.is_some();
+        if let Some(destination) = self.atlas_arrival {
+            let [east, north] = atlas_waypoint(world, destination, self.city_leg);
+            let dx = east - self.x;
+            let dz = north - self.z;
+            self.course = bearing(dx, dz);
+            let threshold = (self.speed * 5.0).clamp(650.0, 1_100.0);
+            if dx * dx + dz * dz < threshold * threshold {
+                if self.city_leg < SOUTHWEST_WAYPOINTS.len() {
+                    self.city_leg += 1;
+                } else {
+                    self.atlas_city = Some(destination);
+                    self.atlas_arrival = None;
+                    self.city_leg = destination.departure(0).1;
+                }
             }
-            let target = tour[self.vegas_leg];
-            self.course = bearing(target[0] - self.x, target[1] - self.z);
+        } else if let Some(city) = city {
+            let (waypoint, next) = city.waypoint(self.city_leg, world);
+            let [x, z] = world.city_origin(city);
+            let east = waypoint[0] + x - self.x;
+            let north = waypoint[1] + z - self.z;
+            let arrival = (self.speed * 4.7).clamp(95.0, 750.0);
+            if east * east + north * north < arrival * arrival {
+                self.city_leg = next;
+            }
+            let (target, _) = city.waypoint(self.city_leg, world);
+            self.course = bearing(target[0] + x - self.x, target[1] + z - self.z);
         } else if self.ticks.is_multiple_of(60) {
             let distance = 60.0 + profile.speed * 2.2;
             let left = ahead(world, self.x, self.z, self.heading - 0.42, distance);
@@ -896,7 +947,7 @@ impl Flight {
             }
         }
         let train = self.train_follow.guide(self.train_pose(), profile.speed);
-        if !las_vegas && ridge_guidance && self.aircraft != Aircraft::BushPlane && self.ticks.is_multiple_of(60)
+        if !mapped && ridge_guidance && self.aircraft != Aircraft::BushPlane && self.ticks.is_multiple_of(60)
             && edge < 24_000.0 && train.is_none() && self.scenic_progress.leg.is_none()
         {
             self.track_mountain_pass(world, profile);
@@ -936,17 +987,21 @@ impl Flight {
         self.bank = bank_limit * coordinated_bank(self.turn / turn_limit);
 
         let (sin, cos) = sin_cos(self.heading);
+        let forecast_speed = if mapped { self.speed } else { profile.speed };
+        let climb_credit_speed = if mapped { self.aircraft.profile().speed } else { profile.speed };
         let old_surface = surface(world, self.x, self.z);
         let terrain_and_objects = |x, z| world.built_height(x, z, surface(world, x, z))
             .max(obstruction(x, z));
-        let near = terrain_and_objects(self.x + sin * profile.speed, self.z + cos * profile.speed);
-        let mid = terrain_and_objects(self.x + sin * profile.speed * 2.4, self.z + cos * profile.speed * 2.4);
-        let far = terrain_and_objects(self.x + sin * profile.speed * 4.0, self.z + cos * profile.speed * 4.0);
+        let near = terrain_and_objects(self.x + sin * forecast_speed, self.z + cos * forecast_speed);
+        let mid = terrain_and_objects(self.x + sin * forecast_speed * 2.4, self.z + cos * forecast_speed * 2.4);
+        let far = terrain_and_objects(self.x + sin * forecast_speed * 4.0, self.z + cos * forecast_speed * 4.0);
 
-        let mut envelope = old_surface.max(near).max(mid - profile.speed * 0.21)
-            .max(far - profile.speed * 0.54);
+        // A faster route moves the forecast samples forward without giving
+        // the aircraft more vertical acceleration to clear the sampled ridge.
+        let mut envelope = old_surface.max(near).max(mid - climb_credit_speed * 0.21)
+            .max(far - climb_credit_speed * 0.54);
         if world.has_metropolis() {
-            let lead = profile.speed * 4.0;
+            let lead = forecast_speed * 4.0;
             let city = |x, z| world.city_approach_height(x, z, surface(world, x, z));
             envelope = envelope.max(city(self.x, self.z))
                 .max(city(self.x + sin * lead, self.z + cos * lead));
@@ -958,15 +1013,22 @@ impl Flight {
                 let (sin, cos) = sin_cos(self.heading + self.turn * seconds);
                 terrain_and_objects(self.x + sin * distance, self.z + cos * distance)
             };
-            let inner = predicted(0.65, profile.speed * 1.4);
-            let outer = predicted(1.20, profile.speed * 2.7);
-            envelope = envelope.max(inner - profile.speed * 0.12).max(outer - profile.speed * 0.29);
+            let inner = predicted(0.65, forecast_speed * 1.4);
+            let outer = predicted(1.20, forecast_speed * 2.7);
+            envelope = envelope.max(inner - climb_credit_speed * 0.12).max(outer - climb_credit_speed * 0.29);
         }
-        if ridge_guidance && train.is_none() {
+        if mapped && !blackbird {
+            if self.ticks % 8 == 1 {
+                self.ridge_preview_floor = vegas_clearance_forecast(
+                    [self.x, self.z], self.heading, course, profile, forecast_speed, &terrain_and_objects,
+                );
+            }
+            envelope = envelope.max(self.ridge_preview_floor);
+        } else if ridge_guidance && train.is_none() {
             if self.ticks == 1 || self.ticks.is_multiple_of(15) {
                 self.ridge_preview_floor = match self.aircraft {
                     Aircraft::BushPlane | Aircraft::SportJet => {
-                        Self::cruise_terrain_preview(world, self.aircraft, self.x, self.z,
+                        Self::cruise_terrain_preview(world, self.aircraft, forecast_speed, self.x, self.z,
                             self.heading, wrap_angle(self.course - self.heading), old_surface)
                     }
                     _ => self.ridge_terrain_preview(world, profile, old_surface),
@@ -981,11 +1043,12 @@ impl Flight {
             0.0
         };
         let desired = if self.aircraft == Aircraft::Blackbird {
-            (profile.clearance + sin_cos(long_cycle).0 * 10.0).max(envelope + profile.floor + 10.0)
+            let cruise = if self.atlas_arrival.is_some() { self.atlas_cruise_altitude } else { profile.clearance };
+            (cruise + sin_cos(long_cycle).0 * 10.0).max(envelope + profile.floor + 10.0)
         } else {
             envelope + profile.clearance + self.energy_altitude - coastal_pass * 15.0
         };
-        let desired = if las_vegas {
+        let desired = if mapped {
             desired.max(old_surface + crate::las_vegas::cruise_clearance(self.aircraft))
         } else {
             desired
@@ -1007,6 +1070,7 @@ impl Flight {
         let acceleration = match self.aircraft {
             Aircraft::SportJet => 7.5,
             Aircraft::BushPlane => 9.0,
+            Aircraft::Fighter | Aircraft::Blackbird if mapped => 12.0,
             _ => f32::INFINITY,
         };
         self.climb_rate += climb_response.clamp(-acceleration * DT, acceleration * DT);
@@ -1182,7 +1246,7 @@ impl Flight {
     }
 
     fn cruise_terrain_preview(
-        world: &World, aircraft: Aircraft, x: f32, z: f32, heading: f32, turn: f32, ground: f32,
+        world: &World, aircraft: Aircraft, speed: f32, x: f32, z: f32, heading: f32, turn: f32, ground: f32,
     ) -> f32 {
         // Start a shallow climb while there is still room. For the jet, include
         // rising ground beside the route so a narrow slot does not look clear.
@@ -1195,7 +1259,6 @@ impl Flight {
             (&CUB_TIMES, 3.6)
         };
         let turn = turn.clamp(-0.55, 0.55);
-        let speed = aircraft.profile().speed;
         times.iter().map(|&seconds| {
             let heading = heading + turn * smoothstep(seconds / 12.5);
             let (sin, cos) = sin_cos(heading);
@@ -1571,10 +1634,46 @@ impl Flight {
     }
 }
 
+fn vegas_clearance_forecast(
+    [x, z]: [f32; 2], heading: f32, course: f32, profile: Profile, speed: f32,
+    sample: impl Fn(f32, f32) -> f32,
+) -> f32 {
+    // Follow the upcoming turn and check the wings of the corridor before
+    // a narrow roof enters the two to four second near-field sampler.
+    let speed = speed.max(8.0);
+    let reach = (speed * 13.0).clamp(144.0, 1_260.0);
+    let steps = (reach / 6.0) as u32 + 1;
+    let step = reach / steps as f32;
+    let delta = wrap_angle(course - heading);
+    let turn_time = delta.abs() / (profile.yaw_rate * 0.83);
+    let mut envelope = sample(x, z);
+    for i in 1..=steps {
+        let distance = i as f32 * step;
+        let time = distance / speed;
+        let angle = if time < turn_time {
+            heading + delta * (0.5 * time / turn_time)
+        } else {
+            heading + delta * (1.0 - 0.5 * turn_time / time)
+        };
+        let (east, north) = sin_cos(angle);
+        let position = [x + east * distance, z + north * distance];
+        let mut roof = sample(position[0], position[1]);
+        if i.is_multiple_of(3) {
+            let shoulder = (distance * 0.035).clamp(6.0, 30.0);
+            roof = roof.max(sample(position[0] + north * shoulder, position[1] - east * shoulder));
+            roof = roof.max(sample(position[0] - north * shoulder, position[1] + east * shoulder));
+        }
+        let climb_credit = (time - 2.2).max(0.0) * profile.climb * 0.31;
+        envelope = envelope.max(roof - climb_credit);
+    }
+    // Allow for motion while the previously surveyed corridor remains cached.
+    envelope + 8.0
+}
+
 fn chase_pitch(aircraft: Aircraft, world: &World) -> f32 {
     if aircraft == Aircraft::Blackbird {
         BLACKBIRD_PITCH
-    } else if world.is_las_vegas() {
+    } else if world.is_mapped_city() {
         0.34
     } else {
         0.15
@@ -1583,8 +1682,9 @@ fn chase_pitch(aircraft: Aircraft, world: &World) -> f32 {
 
 pub struct Game {
     seed_state: u64,
-    las_vegas: Option<&'static crate::LasVegasData>,
-    vegas_departure: u32,
+    mapped: Option<&'static crate::LasVegasData>,
+    city_departure: u32,
+    atlas: Option<AtlasLaunch>,
     controls: Controls,
     aircraft: Aircraft,
     world_seed: u64,
@@ -1592,6 +1692,33 @@ pub struct Game {
     flight: Option<Flight>,
     flight_info: bool,
     startup_untouched: bool,
+}
+
+struct AtlasLaunch {
+    maps: &'static crate::world::AtlasMaps,
+    city: crate::MappedCity,
+    crossing: bool,
+    alternate_departure: bool,
+}
+
+// Main Street in Barstow, Baker Boulevard and the I-15 approach to Primm.
+const SOUTHWEST_WAYPOINTS: [[f32; 2]; 3] = [
+    [113_258.0, 93_410.0], [199_534.0, 134_482.0], [261_172.0, 173_505.0],
+];
+
+fn atlas_waypoint(world: &World, destination: crate::MappedCity, leg: usize) -> [f32; 2] {
+    if leg >= SOUTHWEST_WAYPOINTS.len() { return atlas_entry(world, destination); }
+    let index = match destination {
+        crate::MappedCity::LasVegas => leg,
+        crate::MappedCity::LosAngeles => SOUTHWEST_WAYPOINTS.len() - 1 - leg,
+    };
+    SOUTHWEST_WAYPOINTS[index]
+}
+
+fn atlas_entry(world: &World, city: crate::MappedCity) -> [f32; 2] {
+    let (departure, _) = city.departure(0);
+    let [east, north] = world.city_origin(city);
+    [departure.0 + east, departure.1 + north]
 }
 
 fn distance(east: f32, north: f32) -> f32 {
@@ -1617,8 +1744,9 @@ impl Game {
     pub fn new(seed: u64) -> Self {
         Self {
             seed_state: seed,
-            las_vegas: None,
-            vegas_departure: 0,
+            mapped: None,
+            city_departure: 0,
+            atlas: None,
             controls: Controls::default(),
             aircraft: Aircraft::PICKER_ORDER[0],
             world_seed: 0,
@@ -1630,7 +1758,29 @@ impl Game {
     }
 
     pub fn new_las_vegas(seed: u64, data: &'static crate::LasVegasData, departure: u32) -> Self {
-        Self { las_vegas: Some(data), vegas_departure: departure, ..Self::new(seed) }
+        Self::new_mapped_city(seed, data, departure)
+    }
+
+    pub fn new_mapped_city(seed: u64, data: &'static crate::LasVegasData, departure: u32) -> Self {
+        Self { mapped: Some(data), city_departure: departure, ..Self::new(seed) }
+    }
+
+    pub fn new_atlas(
+        seed: u64, maps: &'static crate::world::AtlasMaps, city: crate::MappedCity,
+        departure: u32, crossing: bool,
+    ) -> Self {
+        Self {
+            city_departure: departure,
+            atlas: Some(AtlasLaunch { maps, city, crossing, alternate_departure: false }),
+            ..Self::new(seed)
+        }
+    }
+
+    pub fn with_alternating_atlas_departures(mut self) -> Self {
+        if let Some(atlas) = &mut self.atlas {
+            atlas.alternate_departure = true;
+        }
+        self
     }
 
     pub fn screen(&self) -> Screen {
@@ -1682,13 +1832,56 @@ impl Game {
         self.startup_untouched = false;
         self.seed_state = self.seed_state.wrapping_add(0x9e37_79b9_7f4a_7c15);
         self.world_seed = mix(self.seed_state);
-        let world = self.las_vegas.map_or_else(
-            || World::for_flight_seed(self.world_seed), World::las_vegas,
-        );
-        let flight = if world.is_las_vegas() {
-            let (departure, leg) = crate::las_vegas::departure(self.vegas_departure);
-            let mut flight = Flight::start_at(&world, self.world_seed, self.aircraft, departure);
-            flight.vegas_leg = leg;
+        let world = if let Some(atlas) = &self.atlas {
+            World::atlas(self.world_seed, atlas.maps)
+        } else {
+            self.mapped.map_or_else(|| World::for_flight_seed(self.world_seed), World::mapped)
+        };
+        let city = self.atlas.as_ref().map(|atlas| atlas.city).or_else(|| world.mapped_city());
+        let flight = if let Some(city) = city {
+            let (departure, leg) = city.departure(self.city_departure);
+            let [east, north] = world.city_origin(city);
+            let (departure, leg) = if city == crate::MappedCity::LosAngeles
+                && !world.city_occupies(departure.0, departure.1)
+            {
+                city.departure(0)
+            } else {
+                (departure, leg)
+            };
+            let position = (departure.0 + east, departure.1 + north);
+            let crossing = self.atlas.as_ref().filter(|atlas| atlas.crossing).map(|atlas| match atlas.city {
+                crate::MappedCity::LasVegas => crate::MappedCity::LosAngeles,
+                crate::MappedCity::LosAngeles => crate::MappedCity::LasVegas,
+            });
+            let heading = crossing.map_or(departure.2, |destination| {
+                let [x, z] = atlas_waypoint(&world, destination, 0);
+                bearing(x - position.0, z - position.1)
+            });
+            let mut flight = Flight::start_at(&world, self.world_seed, self.aircraft, (position.0, position.1, heading));
+            flight.city_leg = if crossing.is_some() { 0 } else { leg };
+            flight.atlas_city = self.atlas.as_ref().map(|atlas| atlas.city);
+            flight.atlas_arrival = crossing;
+            if let Some(destination) = crossing.filter(|_| self.aircraft == Aircraft::Blackbird) {
+                let mut previous = [position.0, position.1];
+                let mut highest = 0.0f32;
+                for leg in 0..=SOUTHWEST_WAYPOINTS.len() {
+                    let [x, z] = atlas_waypoint(&world, destination, leg);
+                    for step in 0..=128 {
+                        let t = step as f32 / 128.0;
+                        highest = highest.max(world.route_elevation(previous[0] + (x - previous[0]) * t,
+                            previous[1] + (z - previous[1]) * t));
+                    }
+                    previous = [x, z];
+                }
+                let cruise = flight.altitude.max(highest + 560.0);
+                let lift = cruise - flight.altitude;
+                flight.altitude = cruise;
+                flight.atlas_cruise_altitude = cruise;
+                flight.blackbird_cruise_altitude = cruise;
+                flight.view.altitude += lift;
+                flight.previous_pose.altitude = cruise;
+                flight.previous_pose.view = flight.view;
+            }
             flight
         } else {
             Flight::start(&world, self.world_seed, self.aircraft)
@@ -1711,6 +1904,14 @@ impl Game {
                 self.flight = None;
                 self.world = None;
                 self.flight_info = false;
+                if let Some(atlas) = &mut self.atlas {
+                    if atlas.alternate_departure {
+                        atlas.city = match atlas.city {
+                            crate::MappedCity::LosAngeles => crate::MappedCity::LasVegas,
+                            crate::MappedCity::LasVegas => crate::MappedCity::LosAngeles,
+                        };
+                    }
+                }
             }
         }
         Some(command)

@@ -104,6 +104,17 @@ impl<'a> WorldMesh<'a> {
         self.clip_far = original;
     }
 
+    pub(crate) fn with_origin(&mut self, [east, up, north]: [f32; 3], draw: impl FnOnce(&mut Self)) {
+        let camera = self.camera;
+        self.camera.x -= east;
+        self.camera.altitude -= up;
+        self.camera.z -= north;
+        draw(self);
+        self.camera = camera;
+    }
+
+    pub(crate) fn daylight(&self) -> f32 { self.daylight }
+
     /// Positions are [east, height, north]. Winding may be either direction.
     pub fn triangle(&mut self, points: [[f32; 3]; 3], color: [u8; 3]) {
         self.faded_triangle(points, color, 1.0);
@@ -138,6 +149,59 @@ impl<'a> WorldMesh<'a> {
 
     pub fn luminous_triangle(&mut self, points: [[f32; 3]; 3], color: [u8; 3], emission: f32) {
         self.raster_triangle(points, color, 1.0, emission.clamp(0.0, 1.0));
+    }
+
+    /// Shade the visible cap of a sphere in world space with terrain depth.
+    pub(crate) fn luminous_sphere(
+        &mut self, mut center: [f32; 3], radius: f32, ground: f32,
+        region: crate::render::ScreenRect, ink: impl Fn([f32; 3]) -> [u8; 3],
+    ) {
+        let dx = center[0] - self.camera.x;
+        let dz = center[2] - self.camera.z;
+        let fall = self.curvature * (dx * dx + dz * dz);
+        center[1] -= fall;
+        let cutoff = (ground - fall - center[1]) / radius;
+        let origin = [
+            -dx / radius, (self.camera.altitude - center[1]) / radius, -dz / radius,
+        ];
+        let c = dot(origin, origin) - 1.0;
+        let (hs, hc) = self.heading;
+        let (ps, pc) = self.pitch;
+        let (rs, rc) = self.roll;
+        let cx = (self.width - 1) as f32 * 0.5;
+        let cy = (self.height - 1) as f32 * 0.5;
+        let aperture = self.width.min(self.height) as i32;
+        for y in region.top.min(self.height)..region.bottom.min(self.height) {
+            let screen_y = (y as f32 - cy) / self.focal;
+            let dy = 2 * y as i32 + 1 - self.height as i32;
+            for x in region.left.min(self.width)..region.right.min(self.width) {
+                let dx = 2 * x as i32 + 1 - self.width as i32;
+                if dx * dx + dy * dy > aperture * aperture { continue; }
+                let screen_x = (x as f32 - cx) / self.focal;
+                let right = screen_x * rc + screen_y * rs;
+                let down = screen_y * rc - screen_x * rs;
+                let forward = pc - ps * down;
+                let ray = [hc * right + hs * forward, -ps - pc * down, hc * forward - hs * right];
+                let a = dot(ray, ray);
+                let b = dot(origin, ray);
+                let discriminant = b * b - a * c;
+                if discriminant <= 0.0 { continue; }
+                let root = positive_sqrt(discriminant);
+                let near = (-b - root) / a;
+                let far = (-b + root) / a;
+                let distance = if near * radius >= NEAR { near } else { far };
+                let depth = distance * radius;
+                if !(NEAR..self.clip_far).contains(&depth) { continue; }
+                let normal = core::array::from_fn(|axis| origin[axis] + ray[axis] * distance);
+                if normal[1] < cutoff { continue; }
+                let index = y * self.width + x;
+                let encoded = encoded_depth(depth);
+                if encoded < self.depth[index] {
+                    self.depth[index] = encoded;
+                    self.pixels[index] = self.shade(ink(normal), depth, 0.98).max(1);
+                }
+            }
+        }
     }
 
     fn raster_triangle(&mut self, points: [[f32; 3]; 3], color: [u8; 3], opacity: f32, emission: f32) {
@@ -263,7 +327,15 @@ impl<'a> WorldMesh<'a> {
     }
 
     /// Draw small distant geometry with fractional pixel coverage and terrain depth.
-    pub(crate) fn faded_segment(&mut self, [from, to]: [[f32; 3]; 2], diameter: f32, color: [u8; 3], opacity: f32) {
+    pub(crate) fn faded_segment(&mut self, points: [[f32; 3]; 2], diameter: f32, color: [u8; 3], opacity: f32) {
+        self.segment(points, diameter, color, opacity, 0.0);
+    }
+
+    pub(crate) fn luminous_segment(&mut self, points: [[f32; 3]; 2], diameter: f32, color: [u8; 3]) {
+        self.segment(points, diameter, color, 1.0, 0.96);
+    }
+
+    fn segment(&mut self, [from, to]: [[f32; 3]; 2], diameter: f32, color: [u8; 3], opacity: f32, emission: f32) {
         let [a, b] = [from, to].map(|point| self.camera_point(point));
         if [a, b].iter().any(|point| point[2] < NEAR || point.iter().any(|v| !v.is_finite())) {
             return;
@@ -282,7 +354,7 @@ impl<'a> WorldMesh<'a> {
         let size = (diameter * self.focal * (a.inverse_depth + b.inverse_depth) * 0.5).clamp(0.46, 1.0);
         let strength = opacity * size * 32.0;
         if strength * (upper - lower).min(1.0) < 0.499 { return; }
-        let fill = self.shade(color, 2.0 / (a.inverse_depth + b.inverse_depth), 0.0);
+        let fill = self.shade(color, 2.0 / (a.inverse_depth + b.inverse_depth), emission);
         let step = 1.0 / (b_major - a_major);
         let radius = self.width.min(self.height) as i32;
         for major in first..end {
@@ -387,6 +459,16 @@ impl<'a> WorldMesh<'a> {
             }
         }
     }
+}
+
+fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn positive_sqrt(value: f32) -> f32 {
+    let estimate = f32::from_bits((value.to_bits() >> 1) + 0x1fc0_0000);
+    let estimate = 0.5 * (estimate + value / estimate);
+    0.5 * (estimate + value / estimate)
 }
 
 fn orient(a: Vertex, b: Vertex, x: f32, y: f32) -> f32 {

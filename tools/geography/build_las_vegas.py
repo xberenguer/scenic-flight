@@ -25,6 +25,8 @@ from shapely import from_wkb
 from shapely.geometry import LineString, Point, box
 from shapely.ops import transform
 
+from vegas_buildings import OPEN_STRUCTURE_WAYS, REVIEWED_BUILDINGS, SOURCE_REFERENCES
+
 PROJECTION = Transformer.from_crs(4326, 32611, always_xy=True)
 ORIGIN = tuple(round(value) for value in PROJECTION.transform(-115.1732, 36.1120))
 CELL = 6
@@ -51,6 +53,11 @@ WIDTHS = dict(motorway=22, trunk=17, primary=15, secondary=12, tertiary=10,
               residential=8, unclassified=8, service=5, living_street=6,
               motorway_link=8, trunk_link=8, primary_link=7, secondary_link=6,
               tertiary_link=5, pedestrian=7, cycleway=3, footway=3, path=2.5)
+REVIEWED_SITES = {
+    409410921: ("Lucky's Gaming & Spirits Casino", "casino"),
+    698199401: ("Palace Station", "casino"),
+    1427634523: ("Wildfire Fremont", "casino"),
+}
 HEIGHT = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(m|ft|')?")
 
 
@@ -85,6 +92,7 @@ class Features(osmium.SimpleHandler):
         self.runways = {}
         self.official_runways = official_runways
         self.sphere = None
+        self.reviewed_buildings = {}
 
     def add(self, shape, layer, value, kind):
         if shape.is_empty:
@@ -110,7 +118,7 @@ class Features(osmium.SimpleHandler):
                   or "casino" in name.lower() and tags.get("tourism") == "hotel")
         if casino or tags.get("tourism") == "hotel" or tags.get("aeroway") == "aerodrome" or name in {
             "Sphere", "Allegiant Stadium", "T-Mobile Arena", "High Roller", "Hoover Dam",
-            "Fremont Street Experience", "Harry Reid International Airport",
+            "Fremont Street Experience", "Harry Reid International Airport", "Peppermill",
         }:
             kind = "casino" if casino else "landmark"
             key = name.casefold()
@@ -167,10 +175,16 @@ class Features(osmium.SimpleHandler):
         apr = tags.get("aeroway") == "apron"
         park = tags.get("leisure") in ("park", "golf_course", "recreation_ground")
         if not (building or part or water or apr or park or tags.get("aeroway") == "aerodrome"
-                or tags.get("amenity") == "casino"):
+                or tags.get("amenity") == "casino" or tags.get("tourism") == "hotel"):
             return
         rings = list(area.outer_rings())
         if not rings or not rings[0] or not near_vegas(rings[0][0].lon, rings[0][0].lat):
+            return
+        osm_id = area.orig_id()
+        osm_type = "way" if area.from_way() else "relation"
+        review_key = (osm_type, osm_id)
+        reviewed = REVIEWED_BUILDINGS.get(review_key)
+        if osm_type == "way" and osm_id in OPEN_STRUCTURE_WAYS:
             return
         shape = projected(from_wkb(bytes.fromhex(SHAPES.create_multipolygon(area))))
         if not shape.is_valid:
@@ -179,6 +193,11 @@ class Features(osmium.SimpleHandler):
             return
         point = shape.representative_point()
         self.named(tags, point.x, point.y)
+        site = REVIEWED_SITES.get(osm_id) if osm_type == "way" else None
+        if site and DETAIL_BOUNDS.covers(point):
+            name, kind = site
+            self.points[name.casefold()] = {"name": name, "kind": kind,
+                                             "x": round(point.x), "z": round(point.y)}
         if water:
             self.add(shape, 2, 2, "water")
         elif park:
@@ -200,11 +219,11 @@ class Features(osmium.SimpleHandler):
                                                    (14, 56, 85), (15, 36, 102), (16, 15, 112)]:
                     self.add(root.buffer(radius, quad_segs=32), layer, (metres_high << 7) | 10, "sphere shell")
                 return
-            if area.orig_id() == 135457469:
+            if osm_id == 135457469:
                 # The renderer draws the shaft, observation pod, and mast over this base.
                 height = 15
-            material = 11 + (area.orig_id() % 8)
-            if area.orig_id() == 27858544 and shape.area > 5500:
+            material = 11 + (osm_id % 8)
+            if osm_id == 27858544 and shape.area > 5500:
                 bounds = shape.bounds
                 half_width = min(bounds[2] - bounds[0], bounds[3] - bounds[1]) / 2
                 for layer in range(12, 28):
@@ -215,7 +234,59 @@ class Features(osmium.SimpleHandler):
             if tags.get("aeroway") == "terminal" or building == "terminal":
                 material = 19
                 self.count["terminal footprints"] += 1
-            self.add(shape, 10 if part else 9, (min(511, max(1, round(height))) << 7) | material, "building")
+            layer = 10 if part else 9
+            if reviewed:
+                if reviewed.height_m is not None:
+                    height = reviewed.height_m
+                material = reviewed.material
+                self.record_reviewed(review_key, reviewed, tags, point, height)
+                if reviewed.roof_profile:
+                    self.add_profiled_roof(shape, point, layer, material, height, reviewed.roof_profile, tags)
+                    return
+            self.add(shape, layer, (min(511, max(1, round(height))) << 7) | material, "building")
+
+    def record_reviewed(self, key, component, tags, point, height):
+        if not DETAIL_BOUNDS.covers(point):
+            return
+        height_source = component.height_note
+        if height_source is None:
+            if metres(tags.get("height"), None) is not None:
+                height_source = "OpenStreetMap height"
+            elif metres(tags.get("building:levels"), None) is not None:
+                height_source = "OpenStreetMap levels × 3.2 m"
+            else:
+                height_source = "Footprint-based estimate"
+        entry = {
+            "property": component.property_name, "name": component.name,
+            "osm_type": component.osm_type, "osm_id": component.osm_id,
+            "x": round(point.x), "z": round(point.y), "height_m": round(height),
+            "height_source": height_source, "material": int(component.material),
+        }
+        if component.roof_profile:
+            entry["roof_profile"] = component.roof_profile
+        self.reviewed_buildings[key] = entry
+        self.count["reviewed buildings"] += 1
+
+    def add_profiled_roof(self, shape, point, layer, material, height, profile, tags):
+        left, bottom, right, top = shape.bounds
+        half_span = min(right - left, top - bottom) / 2
+        # Use the mapped dome rise. For the Campanile, the mapped footprint
+        # provides an approximate roof rise when the source gives no rise.
+        roof_rise = metres(tags.get("roof:height"), half_span)
+        eaves = max(1, round(height - roof_rise))
+        self.add(shape, layer, (eaves << 7) | material, "building")
+        inset = max(0, half_span - CELL / math.sqrt(2))
+        for fraction in (1 / 3, 2 / 3, 1):
+            if profile == "dome":
+                radius = max(CELL / math.sqrt(2), half_span * math.sqrt(1 - fraction**2))
+                shell = shape.intersection(point.buffer(radius))
+            else:
+                shell = shape.buffer(-inset * fraction, join_style="mitre")
+            # Keep the source height on the center cell at six-metre spacing.
+            if fraction == 1:
+                shell = shape.intersection(point.buffer(CELL / math.sqrt(2) + 0.1))
+            roof_height = round(eaves + fraction * (height - eaves))
+            self.add(shell, layer, (roof_height << 7) | material, "reviewed roof layer")
 
 
 def faa_runways(apt_zip):
@@ -279,7 +350,9 @@ def build(features, dem, out):
                 continue
             width, height = tile_cols * SIDE, tile_rows * SIDE
             tx = Affine.translation(WEST + col*TILE, SOUTH + (row+tile_rows)*TILE) * Affine.scale(CELL, -CELL)
-            patch = rasterize(((shape, value) for _, shape, value in sorted(shapes, key=lambda item:item[0])),
+            # Late-arriving hotel outlines must not paint over taller towers at the same layer.
+            ordered = sorted(shapes, key=lambda item: (item[0], item[2] >> 7 if item[0] in (9, 10) else 0))
+            patch = rasterize(((shape, value) for _, shape, value in ordered),
                               out_shape=(height,width), transform=tx, dtype="uint16")[::-1]
             for y in range(tile_rows):
                 for x in range(tile_cols):
@@ -309,9 +382,11 @@ def build(features, dem, out):
         "tiles": count, "coverage": dict(features.count), "sectors": dict(features.sectors),
         "runways": features.runways, "sphere": features.sphere,
         "places": sorted(features.points.values(), key=lambda item: item["name"]),
+        "reviewed_buildings": sorted(features.reviewed_buildings.values(), key=lambda item: (item["property"], item["name"])),
+        "reviewed_building_sources": SOURCE_REFERENCES,
     }
     (out/"las-vegas.json").write_text(json.dumps(manifest, indent=2)+"\n")
-    print({key: value for key,value in manifest.items() if key != "places"}, flush=True)
+    print({key: value for key,value in manifest.items() if key not in {"places", "reviewed_buildings", "reviewed_building_sources"}}, flush=True)
     assert count > 500 and features.count["building"] > 1000 and features.count["road"] > 1000
     assert features.sphere and features.runways
 

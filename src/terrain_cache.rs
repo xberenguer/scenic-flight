@@ -9,7 +9,7 @@ const FAR_STEP: f32 = 20.0;
 const CRUISE_STEP: f32 = 36.0;
 const CRUISE_NEAR_STEP: f32 = 10.0;
 
-const MATERIALS: [Surface; 117] = [
+const MATERIALS: [Surface; Surface::VegasConcrete as usize + 1] = [
     Surface::DeepWater,
     Surface::Shallows,
     Surface::Sand,
@@ -127,6 +127,16 @@ const MATERIALS: [Surface; 117] = [
     Surface::Mojave,
     Surface::SphereShell,
     Surface::PyramidGlass,
+    Surface::VegasLimestone,
+    Surface::VegasIvory,
+    Surface::VegasRose,
+    Surface::VegasSlateGlass,
+    Surface::VegasBronzeGlass,
+    Surface::VegasTerracotta,
+    Surface::VegasCreamSlate,
+    Surface::VegasGoldGlass,
+    Surface::VegasStucco,
+    Surface::VegasConcrete,
 ];
 const _: () = {
     let mut index = 0;

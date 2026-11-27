@@ -49,8 +49,12 @@ impl Sky {
     }
 
     pub fn over_world(world: &crate::world::World, seed: u64, ticks: u64, position: [f32; 3]) -> Self {
-        if world.is_las_vegas() {
-            let coordinates = (36.17_f32.to_radians(), 0.0);
+        if let Some(city) = world.mapped_city() {
+            let latitude: f32 = match city {
+                crate::MappedCity::LasVegas => 36.17,
+                crate::MappedCity::LosAngeles => 34.05,
+            };
+            let coordinates = (latitude.to_radians(), 0.0);
             return Self::build(seed, ticks, Self::day_at(seed, ticks), Some(position), Some(coordinates));
         }
         Self::at_position(seed, ticks, position)

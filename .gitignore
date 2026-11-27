@@ -2,3 +2,5 @@
 /.cargo-cache
 /board/target
 /board/build
+.scenic-build-*/
+__pycache__/

@@ -1,0 +1,230 @@
+{
+  "schema": 1,
+  "background": "#141a20",
+  "groups": [
+    {
+      "key": "sphere-programs",
+      "title": "Sphere LED programs",
+      "entries": [
+        {
+          "id": "sphere-face",
+          "name": "Face",
+          "image": "sphere-face.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "venue": "Sphere",
+          "poster": "sphere-face.png",
+          "animation": "sphere-face.gif"
+        },
+        {
+          "id": "sphere-waves",
+          "name": "Waves",
+          "image": "sphere-waves.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-waves.png",
+          "animation": "sphere-waves.gif"
+        },
+        {
+          "id": "sphere-moon",
+          "name": "Moon",
+          "image": "sphere-moon.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-moon.png",
+          "animation": "sphere-moon.gif"
+        },
+        {
+          "id": "sphere-ribbons",
+          "name": "Ribbons",
+          "image": "sphere-ribbons.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-ribbons.png",
+          "animation": "sphere-ribbons.gif"
+        },
+        {
+          "id": "sphere-eclipse",
+          "name": "Eclipse",
+          "image": "sphere-eclipse.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-eclipse.png",
+          "animation": "sphere-eclipse.gif"
+        },
+        {
+          "id": "sphere-earth",
+          "name": "Earth",
+          "image": "sphere-earth.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-earth.png",
+          "animation": "sphere-earth.gif"
+        },
+        {
+          "id": "sphere-meteors",
+          "name": "Meteor Trails",
+          "image": "sphere-meteors.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-meteors.png",
+          "animation": "sphere-meteors.gif"
+        },
+        {
+          "id": "sphere-aurora",
+          "name": "Aurora",
+          "image": "sphere-aurora.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-aurora.png",
+          "animation": "sphere-aurora.gif"
+        },
+        {
+          "id": "sphere-rings",
+          "name": "Neon Rings",
+          "image": "sphere-rings.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-rings.png",
+          "animation": "sphere-rings.gif"
+        },
+        {
+          "id": "sphere-eye",
+          "name": "Blinking Eye",
+          "image": "sphere-eye.gif",
+          "x": 982.0,
+          "z": 1045.0,
+          "source": "https://www.thesphere.com/",
+          "representation": "Runtime model",
+          "poster": "sphere-eye.png",
+          "animation": "sphere-eye.gif"
+        }
+      ]
+    },
+    {
+      "key": "animated-landmarks",
+      "title": "Animated landmarks",
+      "entries": [
+        {
+          "id": "high-roller",
+          "name": "High Roller",
+          "image": "high-roller.gif",
+          "x": 441.6,
+          "z": 625.3,
+          "source": "https://www.poma.net/en/work/the-high-roller-observation-wheel/",
+          "representation": "Runtime model",
+          "venue": "High Roller",
+          "poster": "high-roller.png",
+          "animation": "high-roller.gif"
+        },
+        {
+          "id": "paris-balloon",
+          "name": "Paris Balloon",
+          "image": "paris-balloon.gif",
+          "x": 60.85,
+          "z": -64.83,
+          "source": "https://federalheath.com/portfolio/paris-balloon",
+          "representation": "Runtime model",
+          "venue": "Paris Balloon",
+          "poster": "paris-balloon.png",
+          "animation": "paris-balloon.gif"
+        },
+        {
+          "id": "viva-vision",
+          "name": "Viva Vision",
+          "image": "viva-vision.gif",
+          "x": 2497.84,
+          "z": 6562.65,
+          "source": "https://fremontstreetexperience.com/the-canopy/",
+          "representation": "Runtime model",
+          "venue": "Fremont Street Experience",
+          "poster": "viva-vision.png",
+          "animation": "viva-vision.gif"
+        }
+      ]
+    },
+    {
+      "key": "landmark-models",
+      "title": "Landmark models",
+      "entries": [
+        {
+          "id": "paris-eiffel-tower",
+          "name": "Eiffel Tower",
+          "image": "paris-eiffel-tower.png",
+          "x": 94.4,
+          "z": 53.8,
+          "source": "https://newsroom.caesars.com/files/doc_downloads/2025/04/Paris-Las-Vegas-Fact-Sheet_April-2025-FINAL.pdf",
+          "representation": "Runtime model",
+          "venue": "Eiffel Tower"
+        },
+        {
+          "id": "paris-arc-de-triomphe",
+          "name": "Arc de Triomphe",
+          "image": "paris-arc-de-triomphe.png",
+          "x": 145.85,
+          "z": -42.43,
+          "source": "https://newsroom.caesars.com/files/doc_downloads/2025/04/Paris-Las-Vegas-Fact-Sheet_April-2025-FINAL.pdf",
+          "representation": "Runtime model",
+          "venue": "Arc de Triomphe"
+        },
+        {
+          "id": "strat",
+          "name": "The STRAT",
+          "image": "strat.png",
+          "x": 1516.0,
+          "z": 3958.0,
+          "source": "https://thestrat.com/attractions/tower",
+          "representation": "Runtime model",
+          "venue": "The STRAT"
+        },
+        {
+          "id": "allegiant-stadium",
+          "name": "Allegiant Stadium",
+          "image": "allegiant-stadium.png",
+          "x": -868.3,
+          "z": -2376.15,
+          "source": "https://www.hntb.com/projects/allegiant-stadium/",
+          "representation": "Runtime model",
+          "venue": "Allegiant Stadium"
+        },
+        {
+          "id": "allegiant-field-tray",
+          "name": "Allegiant Stadium field tray",
+          "image": "allegiant-field-tray.png",
+          "x": -868.3,
+          "z": -2376.15,
+          "source": "https://www.hntb.com/projects/allegiant-stadium/",
+          "representation": "Runtime model"
+        },
+        {
+          "id": "luxor-pyramid",
+          "name": "Luxor Pyramid",
+          "image": "luxor-pyramid.png",
+          "x": -200.42,
+          "z": -1837.95,
+          "source": "https://luxor.mgmresorts.com/",
+          "representation": "Packed terrain",
+          "venue": "Luxor Las Vegas"
+        }
+      ]
+    }
+  ]
+}

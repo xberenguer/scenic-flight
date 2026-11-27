@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the README gallery using the published gameplay media manifest."""
+"""Refresh the README gallery using the published gameplay and artwork manifests."""
 
 import argparse
 import concurrent.futures
@@ -15,9 +15,14 @@ PAGES = "https://xberenguer.github.io/scenic-flight/"
 
 def make_preview(entry):
     path = DOCS / f"assets/readme/{entry['id']}.gif"
+    source = DOCS / entry["src"]
+    if source.resolve() == path.resolve():
+        if not source.is_file():
+            raise FileNotFoundError(source)
+        return
     path.parent.mkdir(exist_ok=True)
     subprocess.run([
-        "ffmpeg", "-v", "error", "-y", "-i", str(DOCS / entry["src"]),
+        "ffmpeg", "-v", "error", "-y", "-i", str(source),
         "-filter_complex_threads", "1", "-filter_complex",
         "fps=10,scale=216:216:flags=neighbor,split[a][b];"
         "[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3",
@@ -57,9 +62,37 @@ def gameplay_card(entry):
     return label, card
 
 
+def vegas_artwork():
+    sections = ["## Las Vegas artwork"]
+    for directory in ("landmarks", "venues"):
+        manifest = DOCS / f"assets/vegas/{directory}/index.json"
+        groups = json.loads(manifest.read_text())["groups"]
+
+        def asset(file):
+            path = (manifest.parent / file).resolve()
+            if not path.is_file():
+                raise FileNotFoundError(path)
+            return path.relative_to(ROOT).as_posix()
+
+        for group in groups:
+            cards = []
+            for entry in group["entries"]:
+                name = entry["name"]
+                image = asset(entry["image"])
+                poster = asset(entry["poster"]) if entry.get("poster") else image
+                animation = asset(entry["animation"]) if entry.get("animation") else None
+                thumbnail = (animation or poster) if directory == "landmarks" else poster
+                width = 158 if directory == "landmarks" else 105
+                card = preview(name, thumbnail, animation or image, width=width)
+                kind = html.escape(entry["representation"])
+                cards.append((name, f'{card}<br><sub>{kind}</sub>'))
+            sections.extend((f'### {group["title"]}', grid(cards, columns=4 if directory == "landmarks" else 6)))
+    return sections
+
+
 def render(entries, order):
     videos = {entry["id"]: entry for entry in entries}
-    featured = order["featured"]
+    featured = order["featured"][:6]
     sections = [
         "## Gameplay showcase",
         "Select a preview to open the full-size clip or screenshot.",
@@ -69,7 +102,7 @@ def render(entries, order):
         "[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · "
         "[Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · "
         "[Aircraft and picker screens](#aircraft-and-picker-screens) · [Rare flight moments](#rare-flight-moments) · [Artwork gallery](#artwork-gallery) · "
-        "[World generation](#world-generation)",
+        "[Las Vegas artwork](#las-vegas-artwork) · [World generation](#world-generation)",
     ))
     categories = dict.fromkeys(["Sky & Weather", "Encounters", "Biomes", "Built World",
                                 "Aircraft", "Interface", *(entry["category"] for entry in entries)])
@@ -127,9 +160,24 @@ def render(entries, order):
                 if (DOCS / animation).is_file():
                     sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
     sections.extend((
+        "## Los Angeles",
+        "[Fly Los Angeles to Las Vegas](https://xberenguer.github.io/scenic-flight/play.html?destination=southwest&departure=to-las-vegas). "
+        "Both cities sit at their real locations in the same metre-scale world. The route passes Barstow, Baker, and Primm over USGS terrain, "
+        "with mapped streets and buildings, rail around Barstow, and a runway at Baker. "
+        "Scenery outside the mapped areas is generated from the flight seed. [Southwest map details](docs/LOS-ANGELES.md)",
+        "Fly twelve mapped approaches, from Downtown and Griffith Observatory to LAX, Santa Monica Pier, Venice Beach, and Getty Center. "
+        "The 48 × 48 km detail area is at metre scale. Downtown landmarks include U.S. Bank Tower, "
+        "Wilshire Grand Center, Los Angeles City Hall, and Walt Disney Concert Hall.",
+        grid([
+            ("Los Angeles City Hall", preview("City Hall game model", "docs/assets/los-angeles/los-angeles-city-hall.png")),
+            ("Walt Disney Concert Hall", preview("Concert Hall game model", "docs/assets/los-angeles/walt-disney-concert-hall.png")),
+        ], columns=2),
+        "[Los Angeles coverage, checkpoint audit, and source data](docs/LOS-ANGELES.md)",
         "## Las Vegas",
         "Select **Las Vegas** under **Destination**, then choose the **Strip**, **Harry Reid Airport**, "
-        "or **Downtown** departure. One world unit is one metre. The first area uses mapped road "
+        "**Downtown**, **Sphere**, **Paris Las Vegas**, **High Roller**, **Venetian and Palazzo**, "
+        "**Allegiant Stadium**, or **Fremont Street**. "
+        "One world unit is one metre. The first area uses mapped road "
         "and building footprints with USGS terrain and FAA runway geometry.",
         grid([
             ("The Strip", preview("Mapped Las Vegas Strip, including the Sphere", "docs/assets/planning/las-vegas-strip.png", width=250)),
@@ -139,6 +187,9 @@ def render(entries, order):
         preview("Las Vegas Valley elevation, the mapped urban area, and Lake Mead",
                 "docs/assets/planning/las-vegas-wide.png", width=820),
         "[Las Vegas coverage and source data](docs/LAS-VEGAS.md)",
+    ))
+    sections.extend(vegas_artwork())
+    sections.extend((
         "## World generation",
         "Metropolises cover a broad basin with connected residential, commercial, and industrial "
         "districts. Seed 15 spans approximately **23,936 × 24,704 world units**. "

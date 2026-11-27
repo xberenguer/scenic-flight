@@ -193,7 +193,7 @@ function drawFrame() {
   if (current !== screen) updateControls(current);
   if (runtime.places && (runtime.placeCheck ?? 0) <= now) {
     runtime.placeCheck = now + 400;
-    updateVegasLandmark(current, engine, runtime.places);
+    updateMappedLandmark(current, engine, runtime.places);
   }
   if (!notice.hidden) notice.hidden = true;
 }
@@ -235,22 +235,50 @@ function flightSession(search) {
 
 const destination = document.querySelector("#flight-destination");
 const destinationUrl = new URL(location.href);
-destination.value = destinationUrl.searchParams.get("destination") === "las-vegas" ? "las-vegas" : "";
+const cities = new Map([
+  ["las-vegas", { name: "Las Vegas", mapId: 0 }],
+  ["los-angeles", { name: "Los Angeles", mapId: 1 }],
+  ["southwest", { name: "Los Angeles + Las Vegas", atlas: true }],
+]);
+const requestedCity = destinationUrl.searchParams.get("destination");
+const city = cities.get(requestedCity);
+destination.value = city ? requestedCity : "";
 destination.addEventListener("change", () => {
   if (destination.value) destinationUrl.searchParams.set("destination", destination.value);
-  else {
-    destinationUrl.searchParams.delete("destination");
-    destinationUrl.searchParams.delete("departure");
-  }
+  else destinationUrl.searchParams.delete("destination");
+  destinationUrl.searchParams.delete("departure");
   location.assign(destinationUrl);
 });
 
 const departure = document.querySelector("#vegas-departure");
 const departureLabel = document.querySelector("#vegas-departure-label");
-departureLabel.hidden = destination.value !== "las-vegas";
-const departures = ["", "airport", "downtown", "sphere"];
-if (destination.value === "las-vegas") {
-  document.querySelector("h1").textContent = "Fly Las Vegas";
+departureLabel.hidden = !city;
+if (requestedCity === "los-angeles") {
+  departure.replaceChildren(
+    new Option("Downtown", ""),
+    new Option("Dodger Stadium", "dodger-stadium"),
+    new Option("Exposition Park", "exposition-park"),
+    new Option("Union Station", "union-station"),
+    new Option("Griffith Observatory", "griffith-observatory"),
+    new Option("Hollywood", "hollywood"),
+    new Option("Pasadena", "pasadena"),
+    new Option("Inglewood", "inglewood"),
+    new Option("Los Angeles International Airport", "lax"),
+    new Option("Santa Monica Pier", "santa-monica"),
+    new Option("Venice Beach", "venice-beach"),
+    new Option("Getty Center", "getty-center"),
+  );
+} else if (city?.atlas) {
+  departure.replaceChildren(
+    new Option("Los Angeles", ""),
+    new Option("Las Vegas Strip", "vegas-strip"),
+    new Option("Los Angeles to Las Vegas", "to-las-vegas"),
+    new Option("Las Vegas to Los Angeles", "to-los-angeles"),
+  );
+}
+const departures = Array.from(departure.options, option => option.value);
+if (city) {
+  document.querySelector("h1").textContent = `Fly ${city.name}`;
   document.querySelector("#flight-help").textContent =
     "Choose an aircraft and select Fly. In flight, tap the right button for flight info or hold it to return to the picker.";
 }
@@ -262,7 +290,7 @@ departure.addEventListener("change", () => {
   location.assign(destinationUrl);
 });
 
-function updateVegasLandmark(current, engine, places) {
+function updateMappedLandmark(current, engine, places) {
   const label = document.querySelector("#vegas-landmark");
   if (current !== FLIGHT) { label.hidden = true; return; }
   const x = engine.scenic_vegas_view(0);
@@ -285,19 +313,60 @@ function updateVegasLandmark(current, engine, places) {
   if (closest && label.textContent !== closest.name) label.textContent = closest.name;
 }
 
-async function loadVegas(engine, seed) {
-  const [pack, catalog] = await Promise.all([
-    fetch("./assets/geography/las-vegas.bin.gz"),
-    fetch("./assets/geography/las-vegas.json"),
+async function fetchPackedMap(path) {
+  const pack = await fetch(path);
+  if (!pack.ok || !pack.body) throw new Error("Map unavailable");
+  return new Response(pack.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+}
+
+async function fetchCity(name, mapId) {
+  const source = `./assets/geography/${name}`;
+  const [data, catalog] = await Promise.all([
+    fetchPackedMap(`${source}.bin.gz`),
+    fetch(`${source}.json`),
   ]);
-  if (!pack.ok || !catalog.ok || !pack.body) throw new Error("Las Vegas map unavailable");
-  const data = await new Response(pack.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+  if (!catalog.ok) throw new Error("Map catalog unavailable");
+  if (data.byteLength < 64 || new DataView(data).getUint32(60, true) !== mapId) {
+    throw new Error("Unexpected city in map pack");
+  }
+  const { places, origin_utm_m: origin } = await catalog.json();
+  if (!Array.isArray(places)) throw new Error("Invalid landmark catalog");
+  return { data, places, origin };
+}
+
+function uploadMap(engine, data) {
   const pointer = engine.scenic_vegas_buffer(data.byteLength) >>> 0;
-  if (!pointer) throw new Error("Las Vegas map exceeds the upload limit");
+  if (!pointer) throw new Error("Map exceeds the upload limit");
   new Uint8Array(engine.memory.buffer, pointer, data.byteLength).set(new Uint8Array(data));
-  if (!engine.scenic_reset_las_vegas(seed[0], seed[1], departures.indexOf(departure.value))) throw new Error("Invalid Las Vegas map");
+}
+
+async function loadMappedCity(engine, seed) {
   document.querySelector("#vegas-credit").hidden = false;
-  return (await catalog.json()).places;
+  if (city.atlas) {
+    const [la, vegas, ground, roads, towns] = await Promise.all([
+      fetchCity("los-angeles", 1), fetchCity("las-vegas", 0),
+      fetchPackedMap("./assets/geography/southwest-elevation.bin.gz"),
+      fetchPackedMap("./assets/geography/southwest-roads.bin.gz"),
+      fetchPackedMap("./assets/geography/southwest-towns.bin.gz"),
+    ]);
+    for (const [id, map] of [[1, la], [0, vegas]]) {
+      uploadMap(engine, map.data);
+      if (!engine.scenic_commit_atlas_map(id)) throw new Error("Invalid atlas map");
+    }
+    uploadMap(engine, ground);
+    if (!engine.scenic_commit_atlas_ground()) throw new Error("Invalid Southwest elevation map");
+    uploadMap(engine, roads);
+    if (!engine.scenic_commit_atlas_roads()) throw new Error("Invalid Southwest road map");
+    uploadMap(engine, towns);
+    if (!engine.scenic_commit_atlas_towns()) throw new Error("Invalid Southwest towns map");
+    if (!engine.scenic_reset_atlas(seed[0], seed[1], departure.selectedIndex)) throw new Error("Invalid flight route");
+    const [east, north] = vegas.origin.map((coordinate, axis) => coordinate - la.origin[axis]);
+    return la.places.concat(vegas.places.map(place => ({ ...place, x: place.x + east, z: place.z + north })));
+  }
+  const { data, places } = await fetchCity(destination.value, city.mapId);
+  uploadMap(engine, data);
+  if (!engine.scenic_reset_las_vegas(seed[0], seed[1], departure.selectedIndex)) throw new Error("Invalid city map");
+  return places;
 }
 
 async function start() {
@@ -324,9 +393,9 @@ async function start() {
     const target = new Uint32Array(image.data.buffer, image.data.byteOffset, side * side);
     const seed = flightSession(location.search);
     let places;
-    if (destination.value === "las-vegas") {
-      message.textContent = "Loading Las Vegas map…";
-      places = await loadVegas(engine, seed);
+    if (city) {
+      message.textContent = `Loading ${city.name} map…`;
+      places = await loadMappedCity(engine, seed);
     } else {
       engine.scenic_reset(seed[0], seed[1]);
     }

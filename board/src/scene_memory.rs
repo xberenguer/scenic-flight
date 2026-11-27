@@ -40,6 +40,36 @@ impl SceneMemory {
         }
     }
 
+    #[cfg(feature = "native-vegas")]
+    pub fn place_bytes(&mut self, count: usize) -> &'static mut [u8] {
+        unsafe {
+            let target = self.reserve(4, count);
+            target.write_bytes(0, count);
+            core::slice::from_raw_parts_mut(target, count)
+        }
+    }
+
+    #[cfg(feature = "native-southwest-file")]
+    pub fn place_heights(&mut self, count: usize) -> &'static mut [i16] {
+        let bytes = count.checked_mul(size_of::<i16>()).expect("elevation buffer size");
+        unsafe {
+            let target = self.reserve(align_of::<i16>(), bytes).cast::<i16>();
+            target.write_bytes(0, count);
+            core::slice::from_raw_parts_mut(target, count)
+        }
+    }
+
+    #[cfg(feature = "native-southwest-file")]
+    pub fn remaining(&self) -> usize {
+        self.remaining
+    }
+
+    #[cfg(feature = "native-vegas-embedded")]
+    pub fn try_place_bytes(&mut self, count: usize) -> Option<&'static mut [u8]> {
+        let needed = self.next.align_offset(4).checked_add(count)?;
+        (needed <= self.remaining).then(|| self.place_bytes(count))
+    }
+
     #[cfg(feature = "cooperative-sky")]
     pub fn place_atomic_words(&mut self, count: usize) -> &'static [core::sync::atomic::AtomicU32] {
         use core::sync::atomic::AtomicU32;

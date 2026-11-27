@@ -25,7 +25,7 @@ const events = [
 ];
 
 const categories = ['All', 'Sky & Weather', 'Encounters', 'Aircraft', 'Biomes', 'Built World', 'Interface'];
-const featuredIds = arrangement.featured;
+const featuredIds = arrangement.featured.slice(0, 5);
 const qs = selector => document.querySelector(selector);
 const cards = qs('#cards');
 const dialog = qs('#viewer');
@@ -159,6 +159,83 @@ async function get(file) {
   if (!response.ok) throw new Error(`Could not load ${file}`);
   return response;
 }
+
+async function renderVegasArtwork() {
+  const directories = ['landmarks', 'venues'];
+  const manifests = await Promise.all(directories.map(async directory => {
+    const url = new URL(`assets/vegas/${directory}/index.json`, document.baseURI);
+    const manifest = await (await get(url)).json();
+    return { directory, url, groups: manifest.groups };
+  }));
+  const search = qs('#vegas-artwork-search');
+  const select = qs('#vegas-artwork-group');
+  const count = qs('#vegas-artwork-count');
+  const container = qs('#vegas-artwork-groups');
+  const groups = manifests.flatMap(({ directory, url, groups }) => groups.map(group => {
+    const id = `${directory}-${group.key}`;
+    const label = option(group.title);
+    label.value = id;
+    select.append(label);
+    const section = element('section', '', 'vegas-artwork-group');
+    const heading = element('h3', group.title);
+    heading.id = `vegas-${id}`;
+    section.setAttribute('aria-labelledby', heading.id);
+    const tiles = element('ul', '', 'artwork-grid vegas-artwork-grid');
+    const entries = group.entries.map(entry => {
+      const imageUrl = new URL(entry.poster || entry.image, url).href;
+      const animation = entry.animation && new URL(entry.animation, url).href;
+      const item = element('li');
+      const card = element('a', '', 'card');
+      card.href = animation || imageUrl;
+      const image = element('img');
+      image.src = imageUrl;
+      image.alt = '';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      const caption = element('span', '', 'card-text');
+      const description = [entry.representation, animation && 'Animated'].filter(Boolean).join(' · ');
+      caption.append(element('b', entry.name), element('small', description));
+      card.append(image, caption);
+      card.addEventListener('click', event => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        show({ title: entry.name, src: card.href, note: entry.representation });
+      });
+      item.append(card);
+      tiles.append(item);
+      const keywords = [entry.name, entry.venue, group.title, entry.representation].join(' ');
+      return { item, keywords: keywords.toLowerCase() };
+    });
+    section.append(heading, tiles);
+    container.append(section);
+    return { id, directory, section, entries };
+  }));
+
+  function filterVegasArtwork() {
+    const term = search.value.trim().toLowerCase();
+    const counts = { venues: 0, landmarks: 0 };
+    for (const { id, directory, section, entries } of groups) {
+      let visible = 0;
+      for (const { item, keywords } of entries) {
+        item.hidden = Boolean((select.value && select.value !== id) || !keywords.includes(term));
+        if (!item.hidden) visible += 1;
+      }
+      section.hidden = visible === 0;
+      counts[directory] += visible;
+    }
+    const labels = [counts.landmarks && `${counts.landmarks} landmark ${counts.landmarks === 1 ? 'view' : 'views'}`,
+      counts.venues && `${counts.venues} venue ${counts.venues === 1 ? 'entry' : 'entries'}`].filter(Boolean);
+    count.textContent = labels.join(' · ') || 'No artwork matches these filters.';
+  }
+
+  search.addEventListener('input', filterVegasArtwork);
+  select.addEventListener('change', filterVegasArtwork);
+  filterVegasArtwork();
+}
+
+renderVegasArtwork().catch(error => {
+  qs('#vegas-artwork-count').textContent = error.message;
+});
 
 for (const name of categories) {
   const button = element('button', name);

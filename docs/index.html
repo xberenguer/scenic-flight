@@ -12,15 +12,45 @@
 <body>
   <header class="masthead">
     <a class="brand" href="#" aria-label="Scenic Flight home"><span class="brand-mark" aria-hidden="true"></span>Scenic Flight</a>
-    <nav aria-label="Page sections"><a href="./play.html">Play in browser</a><a href="./play.html?destination=las-vegas&amp;session=215">Fly Las Vegas</a><a href="#gameplay">Gameplay</a><a href="#gallery">Gallery</a><a href="#aircraft-artwork">Aircraft</a><a href="#flight-moments">Rare moments</a><a href="#artwork">Artwork</a><a href="#world-generation">World generation</a><a href="#project">Controls</a><a href="https://xn--sg8hhb.ws/flasher/?project=scenic-flight">Install</a></nav>
+    <nav aria-label="Page sections"><a href="./play.html">Play in browser</a><a href="./play.html?destination=los-angeles&amp;session=215">Fly Los Angeles</a><a href="./play.html?destination=las-vegas&amp;session=215">Fly Las Vegas</a><a href="#gameplay">Gameplay</a><a href="#vegas-artwork">Vegas artwork</a><a href="#gallery">Gameplay gallery</a><a href="#aircraft-artwork">Aircraft</a><a href="#flight-moments">Rare moments</a><a href="#artwork">Artwork</a><a href="#world-generation">World generation</a><a href="#project">Controls</a><a href="https://xn--sg8hhb.ws/flasher/?project=scenic-flight">Install</a></nav>
   </header>
   <main class="shell">
     <section class="hero" id="gameplay" aria-labelledby="title">
       <div class="intro">
         <h1 id="title">Scenic Flight<span>.</span></h1>
-        <p>Scenic Flight is a hands-off flight simulator for a round Waveshare display. Choose from eight aircraft and watch them fly through procedurally generated landscapes.</p>
+        <p>Scenic Flight is a hands-off flight simulator for a round Waveshare display. Choose from eight aircraft and fly over Los Angeles, Las Vegas, or a procedural world.</p>
       </div>
       <div id="featured" class="featured" aria-label="Featured gameplay"></div>
+    </section>
+
+    <section id="los-angeles-artwork" aria-labelledby="los-angeles-artwork-title">
+      <div class="section-heading">
+        <h2 id="los-angeles-artwork-title">Los Angeles landmarks</h2>
+        <a href="./play.html?destination=southwest&amp;departure=to-las-vegas">Fly Los Angeles to Las Vegas</a>
+      </div>
+      <div class="cards">
+        <figure class="urban-plan">
+          <a href="assets/los-angeles/los-angeles-city-hall.png"><img loading="lazy" decoding="async" src="assets/los-angeles/los-angeles-city-hall.png" width="320" height="320" alt="In-game City Hall model with red wing roofs and a stepped tower"></a>
+          <figcaption>Los Angeles City Hall</figcaption>
+        </figure>
+        <figure class="urban-plan">
+          <a href="assets/los-angeles/walt-disney-concert-hall.png"><img loading="lazy" decoding="async" src="assets/los-angeles/walt-disney-concert-hall.png" width="240" height="240" alt="In-game Walt Disney Concert Hall model with silver roof forms"></a>
+          <figcaption>Walt Disney Concert Hall</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="vegas-artwork" aria-labelledby="vegas-artwork-title">
+      <div class="section-heading">
+        <h2 id="vegas-artwork-title">Las Vegas artwork</h2>
+        <p id="vegas-artwork-count" aria-live="polite"></p>
+      </div>
+      <div class="toolbar search-options">
+        <label>Find artwork <input id="vegas-artwork-search" type="search" aria-controls="vegas-artwork-groups" placeholder="Landmark, casino, hotel…"></label>
+        <label>Group <select id="vegas-artwork-group" aria-controls="vegas-artwork-groups"><option value="">All groups</option></select></label>
+      </div>
+      <div id="vegas-artwork-groups"></div>
+      <noscript><a href="assets/vegas/landmarks/index.json">Landmark index</a> · <a href="assets/vegas/venues/index.json">Venue index</a></noscript>
     </section>
 
     <section id="gallery">

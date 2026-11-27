@@ -1,6 +1,15 @@
 //! Seeded terrain and surface materials in world coordinates.
 
 pub const SEA_LEVEL: f32 = 0.0;
+// The published UTM 11N origins, in metres relative to Downtown Los Angeles.
+pub const LAS_VEGAS_ATLAS_ORIGIN: [f32; 2] = [279_792.0, 229_511.0];
+mod atlas_ground;
+mod atlas_roads;
+mod atlas_towns;
+pub mod atlas_ground_tiles;
+pub use atlas_ground::AtlasGround;
+pub use atlas_roads::AtlasRoads;
+pub use atlas_towns::AtlasTowns;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -122,6 +131,16 @@ pub enum Surface {
     Mojave,
     SphereShell,
     PyramidGlass,
+    VegasLimestone,
+    VegasIvory,
+    VegasRose,
+    VegasSlateGlass,
+    VegasBronzeGlass,
+    VegasTerracotta,
+    VegasCreamSlate,
+    VegasGoldGlass,
+    VegasStucco,
+    VegasConcrete,
 }
 
 impl Surface {
@@ -180,9 +199,18 @@ impl Surface {
 
     pub(crate) fn building_palette(self) -> Option<&'static crate::settlement::building_palettes::BuildingPalette> {
         let id = (self as usize).wrapping_sub(Self::LandmarkRoof01 as usize);
-        (id < Self::LANDMARK_ROOFS.len()).then(|| crate::settlement::building_palettes::from_id(id))
+        if id < Self::LANDMARK_ROOFS.len() {
+            Some(crate::settlement::building_palettes::from_id(id))
+        } else {
+            self.vegas_facade().map(|facade| &facade.palette)
+        }
     }
 
+    pub(crate) fn vegas_facade(self) -> Option<&'static crate::settlement::building_palettes::VegasFacade> {
+        use crate::settlement::building_palettes::VEGAS;
+        let id = (self as usize).wrapping_sub(Self::VegasLimestone as usize);
+        VEGAS.get(id)
+    }
 
     /// Sandstone pigments shared by the scenery renderer and terrain artwork.
     pub fn sandstone_color(self) -> Option<[u8; 3]> {
@@ -228,8 +256,89 @@ pub struct Sample {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct World {
     key: [u32; 2],
-    metropolitan: bool,
-    las_vegas: Option<&'static crate::LasVegasData>,
+    terrain: Terrain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Terrain {
+    Procedural(bool),
+    Surveyed(&'static crate::LasVegasData),
+    Atlas { maps: &'static AtlasMaps, metropolitan: bool },
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct AtlasMaps {
+    la: &'static crate::LasVegasData,
+    vegas: &'static crate::LasVegasData,
+    ground: Option<AtlasTopography>,
+    roads: Option<AtlasRoads>,
+    towns: Option<AtlasTowns>,
+}
+
+/// Surveyed elevation for targets that keep only nearby tiles in memory.
+pub trait AtlasElevation: Sync {
+    /// Signed height in metres and a weight for blending at the survey boundary.
+    fn sample(&self, x: f32, z: f32) -> Option<(f32, f32)>;
+
+    /// Conservative height for planning a route before its tiles are loaded.
+    fn safety_height(&self, x: f32, z: f32) -> Option<f32> {
+        self.sample(x, z).map(|(height, _)| height)
+    }
+}
+
+enum AtlasTopography {
+    Grid(AtlasGround),
+    Streamed(&'static dyn AtlasElevation),
+}
+
+impl AtlasTopography {
+    fn sample(&self, x: f32, z: f32) -> Option<(f32, f32)> {
+        match self {
+            Self::Grid(ground) => ground.sample(x, z),
+            Self::Streamed(ground) => ground.sample(x, z),
+        }
+    }
+}
+
+impl core::fmt::Debug for AtlasTopography {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self { Self::Grid(_) => "Grid", Self::Streamed(_) => "Streamed" })
+    }
+}
+
+impl PartialEq for AtlasTopography {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Grid(a), Self::Grid(b)) => a == b,
+            (Self::Streamed(a), Self::Streamed(b)) => core::ptr::eq(*a, *b),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for AtlasTopography {}
+
+impl AtlasMaps {
+    pub fn new(la: &'static crate::LasVegasData, vegas: &'static crate::LasVegasData, ground: Option<AtlasGround>) -> Self {
+        debug_assert_eq!(la.city(), crate::MappedCity::LosAngeles);
+        debug_assert_eq!(vegas.city(), crate::MappedCity::LasVegas);
+        Self { la, vegas, ground: ground.map(AtlasTopography::Grid), roads: None, towns: None }
+    }
+
+    pub fn with_streamed_ground(mut self, ground: &'static dyn AtlasElevation) -> Self {
+        self.ground = Some(AtlasTopography::Streamed(ground));
+        self
+    }
+
+    pub fn with_roads(mut self, roads: Option<AtlasRoads>) -> Self {
+        self.roads = roads;
+        self
+    }
+
+    pub fn with_towns(mut self, towns: AtlasTowns) -> Self {
+        self.towns = Some(towns);
+        self
+    }
 }
 
 impl World {
@@ -240,8 +349,7 @@ impl World {
         key ^= key >> 31;
         Self {
             key: [key as u32, (key >> 32) as u32],
-            metropolitan: false,
-            las_vegas: None,
+            terrain: Terrain::Procedural(false),
         }
     }
 
@@ -249,37 +357,164 @@ impl World {
     /// continuous city, with ordinary wilderness beyond the basin.
     pub fn for_flight_seed(seed: u64) -> Self {
         let mut world = Self::new(seed);
-        world.metropolitan = crate::math::mix(seed ^ 0x6279_97e3) % 8 == 0;
+        world.terrain = Terrain::Procedural(crate::math::mix(seed ^ 0x6279_97e3) % 8 == 0);
         world
     }
 
-    /// Fixed Las Vegas geography. Flight seeds still vary the sky and encounters.
-    pub fn las_vegas(data: &'static crate::LasVegasData) -> Self {
+    /// Fixed map geography. Flight seeds still vary the sky and encounters.
+    pub fn mapped(data: &'static crate::LasVegasData) -> Self {
         let mut world = Self::new(0x4c61_7356_6567_6173);
-        world.las_vegas = Some(data);
+        world.terrain = Terrain::Surveyed(data);
         world
+    }
+
+    pub fn las_vegas(data: &'static crate::LasVegasData) -> Self {
+        Self::mapped(data)
+    }
+
+    pub fn atlas(seed: u64, maps: &'static AtlasMaps) -> Self {
+        let mut world = Self::for_flight_seed(seed);
+        world.terrain = Terrain::Atlas { maps, metropolitan: world.metropolitan() };
+        world
+    }
+
+    pub fn is_atlas(&self) -> bool { matches!(self.terrain, Terrain::Atlas { .. }) }
+
+    fn mapped_data(&self) -> Option<&'static crate::LasVegasData> {
+        match self.terrain {
+            Terrain::Surveyed(map) => Some(map),
+            Terrain::Atlas { maps, .. } => Some(maps.la),
+            Terrain::Procedural(_) => None,
+        }
+    }
+
+    fn metropolitan(&self) -> bool {
+        match self.terrain {
+            Terrain::Procedural(value) | Terrain::Atlas { metropolitan: value, .. } => value,
+            Terrain::Surveyed(_) => false,
+        }
+    }
+
+    pub fn city_origin(&self, city: crate::MappedCity) -> [f32; 2] {
+        if self.is_atlas() && city == crate::MappedCity::LasVegas { LAS_VEGAS_ATLAS_ORIGIN }
+        else { [0.0, 0.0] }
+    }
+
+    pub(crate) fn local_city(&self, city: crate::MappedCity) -> Option<(Self, [f32; 3])> {
+        let map = match self.terrain {
+            Terrain::Atlas { maps, .. } if city == crate::MappedCity::LasVegas => maps.vegas,
+            _ => self.mapped_data().filter(|map| map.city() == city)?,
+        };
+        let [east, north] = self.city_origin(city);
+        let up = if self.is_atlas() { map.datum() } else { 0.0 };
+        Some((Self::mapped(map), [east, up, north]))
+    }
+
+    fn atlas_patch(&self, x: f32, z: f32) -> Option<(&'static crate::LasVegasData, f32, f32, f32)> {
+        let Terrain::Atlas { maps, .. } = self.terrain else { return None; };
+        let vegas = maps.vegas;
+        let [east, north] = LAS_VEGAS_ATLAS_ORIGIN;
+        let lx = x - east;
+        let lz = z - north;
+        let weight = vegas.terrain_weight(lx, lz);
+        if weight > 0.0 { return Some((vegas, lx, lz, weight)); }
+        let la = maps.la;
+        let weight = la.terrain_weight(x, z);
+        (weight > 0.0).then_some((la, x, z, weight))
+    }
+
+    fn atlas_ground(&self, x: f32, z: f32) -> (Sample, f32) {
+        let patch = self.atlas_patch(x, z);
+        if let Some((map, east, north, 1.0)) = patch {
+            let (mut ground, shore) = map.terrain(self, east, north);
+            ground.elevation += map.datum();
+            return (ground, shore);
+        }
+        let pattern = Self { terrain: Terrain::Procedural(self.metropolitan()), ..*self };
+        let ground = match self.terrain { Terrain::Atlas { maps, .. } => maps.ground.as_ref(), _ => None };
+        let (generated, coast) = ground.and_then(|ground| ground.sample(x, z))
+            .map_or_else(|| pattern.sample_and_shore(x, z), |(height, weight)| {
+                let (generated, coast) = if weight < 1.0 {
+                    pattern.sample_and_shore(x, z)
+                } else {
+                    (Sample { elevation: 0.0, surface: Surface::Mojave }, 0.52)
+                };
+                let raw = if coast <= 0.0 { coast * 19.0 } else { generated.elevation };
+                let elevation = mix(raw, height, weight);
+                let surface = if elevation <= 0.0 { Surface::DeepWater }
+                    else if elevation < 3.5 { Surface::Sand }
+                    else if elevation > 2_800.0 { Surface::Snow }
+                    else if elevation > 1_700.0 { Surface::Rock }
+                    else if self.noise(x, z, 0.0007, 0xf331_86af) > 0.35 { Surface::Grass }
+                    else { Surface::Mojave };
+                (Sample { elevation: elevation.max(0.0), surface },
+                    if elevation <= 0.0 { (elevation / 19.0).min(-0.01) } else { 0.52 })
+            });
+        let Some((map, east, north, weight)) = patch else { return (generated, coast); };
+        let (ground, shore) = map.terrain(self, east, north);
+        let generated_height = if coast <= 0.0 { coast * 19.0 } else { generated.elevation };
+        let surveyed_height = if shore <= 0.0 && ground.elevation < 2.0 && map.datum() == 0.0 {
+            shore * 19.0
+        } else {
+            ground.elevation + map.datum()
+        };
+        let elevation = mix(generated_height, surveyed_height, weight);
+        let shore = if elevation <= 0.0 { elevation / 19.0 }
+            else { mix(coast, shore, weight).max(0.001) };
+        let material = if weight >= 0.5 { ground.surface } else { generated.surface };
+        let surface = if elevation <= 0.0 {
+            Surface::DeepWater
+        } else if matches!(material, Surface::DeepWater | Surface::Shallows | Surface::TarnWater) {
+            Surface::Sand
+        } else {
+            material
+        };
+        (Sample { elevation: elevation.max(0.0), surface }, shore)
+    }
+
+    pub fn mapped_city(&self) -> Option<crate::MappedCity> {
+        self.mapped_data().map(|data| data.city())
     }
 
     pub fn is_las_vegas(&self) -> bool {
-        self.las_vegas.is_some()
+        self.mapped_city() == Some(crate::MappedCity::LasVegas)
+    }
+
+    pub fn is_mapped_city(&self) -> bool {
+        self.mapped_data().is_some()
     }
 
     pub fn has_metropolis(&self) -> bool {
-        self.metropolitan || self.is_las_vegas()
+        self.metropolitan() || self.is_mapped_city()
     }
 
     pub(crate) fn metropolis(&self) -> Option<crate::metropolis::Metropolis> {
-        self.metropolitan.then(|| {
+        self.metropolitan().then(|| {
             let seed = u64::from(self.key[0]) | (u64::from(self.key[1]) << 32);
             crate::metropolis::Metropolis::new(seed)
         })
     }
 
     pub fn city_occupies(&self, x: f32, z: f32) -> bool {
-        if let Some(vegas) = self.las_vegas {
-            return vegas.in_mapped_area(x, z);
+        if self.is_atlas() {
+            return self.atlas_town_at(x, z)
+                || self.atlas_patch(x, z).is_some_and(|(map, east, north, _)| map.in_mapped_area(east, north));
+        }
+        if let Some(map) = self.mapped_data() {
+            return map.in_mapped_area(x, z);
         }
         self.metropolis().is_some_and(|city| city.owns(x, z))
+    }
+
+    pub fn mapped_sample(&self, x: f32, z: f32) -> Option<Sample> {
+        if self.is_atlas() {
+            let (map, east, north, _) = self.atlas_patch(x, z)?;
+            if !map.in_mapped_area(east, north) { return None; }
+            let mut sample = map.scene_sample(self, east, north);
+            sample.elevation += map.datum();
+            return Some(sample);
+        }
+        self.mapped_data().map(|map| map.scene_sample(self, x, z))
     }
 
     pub(crate) fn city_airport_departure(&self) -> Option<(f32, f32, f32)> {
@@ -298,12 +533,36 @@ impl World {
         self.metropolis().map(crate::metropolis::Metropolis::transit)
     }
 
+    fn atlas_town_at(&self, x: f32, z: f32) -> bool {
+        let Terrain::Atlas { maps, .. } = self.terrain else { return false; };
+        maps.towns.is_some_and(|towns| towns.covers(x, z))
+    }
+
+    /// Surveyed roads, buildings and rail between the detailed city maps.
+    pub fn corridor_surface(&self, x: f32, z: f32, base: Sample) -> Option<Sample> {
+        let Terrain::Atlas { maps, .. } = self.terrain else { return None; };
+        if base.elevation <= SEA_LEVEL { return None; }
+        if let Some(detail) = maps.towns.and_then(|towns| towns.overlay(x, z, base)) {
+            return Some(detail);
+        }
+        let surface = maps.roads?.surface(x, z)?;
+        Some(Sample { surface, ..base })
+    }
+
     pub fn city_surface(&self) -> impl Fn(f32, f32, Sample) -> Option<Sample> + Copy {
         let city = self.metropolis().map(|city| (city, city.transit()));
-        let las_vegas = self.las_vegas;
+        let mapped = *self;
         move |x, z, base| {
-            if let Some(vegas) = las_vegas {
-                return Some(vegas.detail(x, z, base));
+            if mapped.is_atlas() {
+                if let Some((map, east, north, _)) = mapped.atlas_patch(x, z) {
+                    if map.in_mapped_area(east, north) { return Some(map.detail(east, north, base)); }
+                }
+                if let Some(detail) = mapped.corridor_surface(x, z, base) {
+                    return Some(detail);
+                }
+                if mapped.atlas_town_at(x, z) { return None; }
+            } else if let Some(map) = mapped.mapped_data() {
+                return Some(map.detail(x, z, base));
             }
             let (city, rail) = city?;
             city.overlay_with_transit(rail, x, z, base)
@@ -311,22 +570,38 @@ impl World {
     }
 
     pub(crate) fn built_height(&self, x: f32, z: f32, ground: f32) -> f32 {
-        if let Some(vegas) = self.las_vegas {
-            return vegas.detail(x, z, Sample { elevation: ground, surface: Surface::Mojave }).elevation
-                .max(ground + crate::las_vegas::strat_clearance(x, z));
+        let geographic = if self.is_atlas() { self.atlas_patch(x, z).map(|(map, east, north, _)| (map, east, north)) }
+            else { self.mapped_data().map(|map| (map, x, z)) };
+        let base = Sample { elevation: ground, surface: Surface::Grass };
+        if let Some((map, east, north)) = geographic.filter(|(map, east, north)| map.in_mapped_area(*east, *north)) {
+            let landmark = match map.city() {
+                crate::MappedCity::LasVegas => crate::las_vegas::strip_landmark_clearance(east, north),
+                crate::MappedCity::LosAngeles => crate::los_angeles::landmark_clearance(east, north),
+            };
+            return map.detail(east, north, base).elevation
+                .max(ground + landmark);
+        }
+        if self.atlas_town_at(x, z) {
+            return self.corridor_surface(x, z, base).map_or(ground, |sample| sample.elevation);
         }
         let Some(city) = self.metropolis() else { return ground; };
-        let base = Sample { elevation: ground, surface: Surface::Grass };
         let rail = city.transit();
         city.overlay_with_transit(rail, x, z, base).map_or(ground, |sample| sample.elevation)
             .max(city.rail_clearance(rail, x, z, ground))
     }
 
     pub(crate) fn city_approach_height(&self, x: f32, z: f32, ground: f32) -> f32 {
-        if self.is_las_vegas() {
-            return ground + crate::las_vegas::safety_height(x, z);
+        if self.is_atlas() {
+            return ground + self.atlas_patch(x, z).map_or(0.0, |(map, east, north, _)| match map.city() {
+                crate::MappedCity::LasVegas => crate::las_vegas::safety_height(east, north),
+                crate::MappedCity::LosAngeles => crate::los_angeles::safety_height(east, north),
+            });
         }
-        self.metropolis().map_or(ground, |city| ground + city.overflight_height(x, z))
+        match self.mapped_city() {
+            Some(crate::MappedCity::LasVegas) => ground + crate::las_vegas::safety_height(x, z),
+            Some(crate::MappedCity::LosAngeles) => ground + crate::los_angeles::safety_height(x, z),
+            None => self.metropolis().map_or(ground, |city| ground + city.overflight_height(x, z)),
+        }
     }
 
     fn basin(&self, x: f32, z: f32) -> Option<(f32, f32)> {
@@ -336,8 +611,12 @@ impl World {
     // The dry shoreline and the height derive from the same basin. Reuse the
     // ordinary field outside the blend so unaffected areas stay seed-stable.
     fn shaped_ground<const SHAPED: bool>(&self, x: f32, z: f32) -> (f32, f32) {
-        if let Some(vegas) = self.las_vegas {
-            let (sample, shore) = vegas.terrain(self, x, z);
+        if self.is_atlas() {
+            let (sample, shore) = self.atlas_ground(x, z);
+            return (sample.elevation, shore);
+        }
+        if let Some(map) = self.mapped_data() {
+            let (sample, shore) = map.terrain(self, x, z);
             return (sample.elevation, shore);
         }
         let basin = self.basin(x, z);
@@ -364,6 +643,18 @@ impl World {
         self.elevation_variant::<true>(x, z)
     }
 
+    pub(crate) fn route_elevation(&self, x: f32, z: f32) -> f32 {
+        let elevation = self.elevation(x, z);
+        if let Terrain::Atlas { maps, .. } = self.terrain {
+            if let Some(AtlasTopography::Streamed(ground)) = &maps.ground {
+                if let Some(conservative) = ground.safety_height(x, z) {
+                    return elevation.max(conservative);
+                }
+            }
+        }
+        elevation
+    }
+
     pub(crate) fn signed_horizon_height(&self, x: f32, z: f32) -> f32 {
         self.shaped_ground::<true>(x, z).0
     }
@@ -383,8 +674,9 @@ impl World {
     }
 
     pub(crate) fn sample_and_shore(&self, x: f32, z: f32) -> (Sample, f32) {
-        if let Some(vegas) = self.las_vegas {
-            return vegas.terrain(self, x, z);
+        if self.is_atlas() { return self.atlas_ground(x, z); }
+        if let Some(map) = self.mapped_data() {
+            return map.terrain(self, x, z);
         }
         let (height, coast) = self.shaped_ground::<true>(x, z);
         if coast <= 0.0 {

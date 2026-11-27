@@ -1,0 +1,1124 @@
+{
+  "schema": 1,
+  "map": "Los Angeles",
+  "packed_cell_m": 6,
+  "source": "MiniWorld's 46 public checkpoints, independently projected from WGS84",
+  "comparison": "Packed representations and names. Height-based meshes may use estimates identified in the geography manifest.",
+  "count": 46,
+  "coverage": {
+    "mapped-building": 12,
+    "mapped-context": 27,
+    "mapped-park": 2,
+    "mapped-street": 1,
+    "mapped-water": 1,
+    "terrain-only": 3
+  },
+  "detail_bounds_m": [
+    -24000,
+    -24000,
+    24000,
+    24000
+  ],
+  "dem_bounds_m": [
+    -43200,
+    -43200,
+    43200,
+    43200
+  ],
+  "entries": [
+    {
+      "name": "Walt Disney Concert Hall",
+      "reference_lon_lat": [
+        -118.249021,
+        34.05554
+      ],
+      "x": 98,
+      "z": 613,
+      "sample_within_30m": {
+        "center_material": 1,
+        "center_height_m": 0,
+        "building_cells": 17,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 89,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Walt Disney Concert Hall",
+        "x": 15,
+        "z": 601,
+        "kind": "theatre",
+        "osm_type": "relation",
+        "osm_id": 6333150,
+        "height_m": 37,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 84
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Los Angeles City Hall",
+      "reference_lon_lat": [
+        -118.242921,
+        34.053696
+      ],
+      "x": 659,
+      "z": 402,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 110,
+        "building_cells": 80,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Los Angeles City Hall",
+        "x": 659,
+        "z": 401,
+        "kind": "townhall",
+        "osm_type": "relation",
+        "osm_id": 6333145,
+        "height_m": 20,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Union Station",
+      "reference_lon_lat": [
+        -118.235896,
+        34.056058
+      ],
+      "x": 1310,
+      "z": 656,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 39,
+        "building_cells": 75,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 8,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Union Station",
+        "x": 1311,
+        "z": 656,
+        "kind": "building",
+        "osm_type": "relation",
+        "osm_id": 1483140,
+        "height_m": 39,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Olvera Street",
+      "reference_lon_lat": [
+        -118.237918,
+        34.057463
+      ],
+      "x": 1126,
+      "z": 814,
+      "sample_within_30m": {
+        "center_material": 1,
+        "center_height_m": 0,
+        "building_cells": 78,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 19,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Olvera Street",
+        "x": 1131,
+        "z": 821,
+        "kind": "pedestrian",
+        "osm_id": 80690221,
+        "distance_from_reference_m": 9
+      },
+      "status": "mapped-street"
+    },
+    {
+      "name": "Grand Central Market",
+      "reference_lon_lat": [
+        -118.248799,
+        34.050734
+      ],
+      "x": 112,
+      "z": 80,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 28,
+        "building_cells": 109,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 6,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Homer Laughlin Building",
+        "x": 112,
+        "z": 80,
+        "kind": "building",
+        "osm_type": "way",
+        "osm_id": 904226185,
+        "height_m": 28,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "The Broad",
+      "reference_lon_lat": [
+        -118.250594,
+        34.054458
+      ],
+      "x": -48,
+      "z": 495,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 27,
+        "building_cells": 94,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 15,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "The Broad Museum",
+        "x": -48,
+        "z": 495,
+        "kind": "museum",
+        "osm_type": "way",
+        "osm_id": 427532197,
+        "height_m": 27,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Little Tokyo",
+      "reference_lon_lat": [
+        -118.239878,
+        34.049046
+      ],
+      "x": 933,
+      "z": -118,
+      "sample_within_30m": {
+        "center_material": 1,
+        "center_height_m": 0,
+        "building_cells": 94,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 17,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Arts District",
+      "reference_lon_lat": [
+        -118.23445,
+        34.041239
+      ],
+      "x": 1424,
+      "z": -989,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 90,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 6,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Crypto.com Arena",
+      "reference_lon_lat": [
+        -118.267135,
+        34.042998
+      ],
+      "x": -1591,
+      "z": -757,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 46,
+        "building_cells": 121,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Crypto.com Arena",
+        "x": -1590,
+        "z": -756,
+        "kind": "stadium",
+        "osm_type": "way",
+        "osm_id": 428021739,
+        "height_m": 39,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Dodger Stadium",
+      "reference_lon_lat": [
+        -118.239845,
+        34.073625
+      ],
+      "x": 970,
+      "z": 2608,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 18,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Dodger Stadium",
+        "x": 970,
+        "z": 2607,
+        "kind": "stadium",
+        "osm_type": "way",
+        "osm_id": 1353249584,
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Echo Park Lake",
+      "reference_lon_lat": [
+        -118.270437,
+        34.081152
+      ],
+      "location_correction": {
+        "lon_lat": [
+          -118.261,
+          34.0735
+        ],
+        "reference": "https://www.laparks.org/sites/default/files/pdf/commissioner/2025/aug07/25-139.pdf",
+        "note": "Lake sample west of the city boathouse. The reference label points to the Comfort Inn on Sunset Boulevard."
+      },
+      "x": -983,
+      "z": 2618,
+      "sample_within_30m": {
+        "center_material": 2,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 121,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "status": "mapped-water"
+    },
+    {
+      "name": "MacArthur Park",
+      "reference_lon_lat": [
+        -118.277696,
+        34.058842
+      ],
+      "x": -2544,
+      "z": 1012,
+      "sample_within_30m": {
+        "center_material": 2,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 97,
+        "park_cells": 11,
+        "road_cells": 13,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "MacArthur Park",
+        "x": -2544,
+        "z": 1012,
+        "kind": "park",
+        "osm_type": "way",
+        "osm_id": 160998254,
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-park"
+    },
+    {
+      "name": "LA Memorial Coliseum",
+      "reference_lon_lat": [
+        -118.2878,
+        34.013916
+      ],
+      "x": -3539,
+      "z": -3958,
+      "sample_within_30m": {
+        "center_material": 7,
+        "center_height_m": 0,
+        "building_cells": 11,
+        "water_cells": 0,
+        "park_cells": 110,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Los Angeles Memorial Coliseum",
+        "x": -3539,
+        "z": -3961,
+        "kind": "stadium",
+        "osm_type": "way",
+        "osm_id": 443675312,
+        "distance_from_reference_m": 3
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "USC",
+      "reference_lon_lat": [
+        -118.285858,
+        34.021869
+      ],
+      "x": -3349,
+      "z": -3079,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 19,
+        "building_cells": 53,
+        "water_cells": 0,
+        "park_cells": 12,
+        "road_cells": 8,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "University of Southern California",
+        "x": -3353,
+        "z": -3081,
+        "kind": "university",
+        "osm_type": "relation",
+        "osm_id": 18383936,
+        "distance_from_reference_m": 4
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Natural History Museum",
+      "reference_lon_lat": [
+        -118.288691,
+        34.01708
+      ],
+      "x": -3617,
+      "z": -3607,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 28,
+        "building_cells": 96,
+        "water_cells": 0,
+        "park_cells": 25,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Natural History Museum of Los Angeles County",
+        "x": -3617,
+        "z": -3607,
+        "kind": "museum",
+        "osm_type": "way",
+        "osm_id": 407373025,
+        "height_m": 28,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Griffith Observatory",
+      "reference_lon_lat": [
+        -118.300293,
+        34.118219
+      ],
+      "x": -4545,
+      "z": 7622,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 36,
+        "building_cells": 56,
+        "water_cells": 0,
+        "park_cells": 7,
+        "road_cells": 16,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Griffith Observatory",
+        "x": -4546,
+        "z": 7622,
+        "kind": "museum",
+        "osm_type": "way",
+        "osm_id": 422130705,
+        "height_m": 36,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Hollywood Sign",
+      "reference_lon_lat": [
+        -118.321652,
+        34.134099
+      ],
+      "x": -6493,
+      "z": 9409,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 2,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Hollywood Sign",
+        "x": -6493,
+        "z": 9409,
+        "kind": "attraction",
+        "osm_type": "node",
+        "osm_id": 3204926589,
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Hollywood Bowl",
+      "reference_lon_lat": [
+        -118.339277,
+        34.112184
+      ],
+      "x": -8150,
+      "z": 7000,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 15,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Hollywood Bowl",
+        "x": -8150,
+        "z": 6999,
+        "kind": "theatre",
+        "osm_type": "way",
+        "osm_id": 133701914,
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "TCL Chinese Theatre",
+      "reference_lon_lat": [
+        -118.34095,
+        34.102073
+      ],
+      "x": -8319,
+      "z": 5880,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 18,
+        "building_cells": 107,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "TCL Chinese Theatre",
+        "x": -8319,
+        "z": 5881,
+        "kind": "building",
+        "osm_type": "way",
+        "osm_id": 424105908,
+        "height_m": 18,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Hollywood Forever",
+      "reference_lon_lat": [
+        -118.319048,
+        34.088464
+      ],
+      "x": -6318,
+      "z": 4345,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 5,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Universal Studios Hollywood",
+      "reference_lon_lat": [
+        -118.354383,
+        34.139232
+      ],
+      "x": -9503,
+      "z": 10017,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 8,
+        "building_cells": 66,
+        "water_cells": 0,
+        "park_cells": 6,
+        "road_cells": 12,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Warner Bros. Studios",
+      "reference_lon_lat": [
+        -118.33763,
+        34.148872
+      ],
+      "x": -7944,
+      "z": 11066,
+      "sample_within_30m": {
+        "center_material": 1,
+        "center_height_m": 0,
+        "building_cells": 38,
+        "water_cells": 0,
+        "park_cells": 14,
+        "road_cells": 24,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "LACMA",
+      "reference_lon_lat": [
+        -118.358938,
+        34.063736
+      ],
+      "x": -10035,
+      "z": 1651,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 38,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 8,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "La Brea Tar Pits",
+      "reference_lon_lat": [
+        -118.356387,
+        34.063223
+      ],
+      "x": -9800,
+      "z": 1591,
+      "sample_within_30m": {
+        "center_material": 7,
+        "center_height_m": 0,
+        "building_cells": 7,
+        "water_cells": 30,
+        "park_cells": 53,
+        "road_cells": 17,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "La Brea Tar Pits",
+        "x": -9800,
+        "z": 1591,
+        "kind": "attraction",
+        "osm_type": "node",
+        "osm_id": 369164732,
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Rodeo Drive",
+      "reference_lon_lat": [
+        -118.401355,
+        34.06763
+      ],
+      "x": -13943,
+      "z": 2136,
+      "sample_within_30m": {
+        "center_material": 1,
+        "center_height_m": 0,
+        "building_cells": 49,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 62,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Rodeo Drive",
+        "x": -14090,
+        "z": 2305,
+        "kind": "attraction",
+        "osm_type": "node",
+        "osm_id": 4400822289,
+        "distance_from_reference_m": 224
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "UCLA",
+      "reference_lon_lat": [
+        -118.44685,
+        34.070878
+      ],
+      "x": -18137,
+      "z": 2554,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 20,
+        "building_cells": 60,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 11,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Getty Center",
+      "reference_lon_lat": [
+        -118.47401,
+        34.077017
+      ],
+      "x": -20633,
+      "z": 3271,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 14,
+        "building_cells": 119,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Santa Monica Pier",
+      "reference_lon_lat": [
+        -118.4974,
+        34.008896
+      ],
+      "x": -22902,
+      "z": -4252,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 7,
+        "building_cells": 38,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 16,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Santa Monica Pier",
+        "x": -22903,
+        "z": -4253,
+        "kind": "attraction",
+        "osm_type": "way",
+        "osm_id": 22728853,
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Venice Beach",
+      "reference_lon_lat": [
+        -118.474105,
+        33.986713
+      ],
+      "x": -20786,
+      "z": -6743,
+      "sample_within_30m": {
+        "center_material": 7,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 0,
+        "park_cells": 97,
+        "road_cells": 22,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Venice Canals",
+      "reference_lon_lat": [
+        -118.473587,
+        33.986909
+      ],
+      "x": -20738,
+      "z": -6722,
+      "sample_within_30m": {
+        "center_material": 1,
+        "center_height_m": 0,
+        "building_cells": 22,
+        "water_cells": 0,
+        "park_cells": 33,
+        "road_cells": 21,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Marina del Rey",
+      "reference_lon_lat": [
+        -118.448647,
+        33.977685
+      ],
+      "x": -18449,
+      "z": -7778,
+      "sample_within_30m": {
+        "center_material": 2,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 121,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "LAX",
+      "reference_lon_lat": [
+        -118.421359,
+        33.942167
+      ],
+      "x": -15982,
+      "z": -11752,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 6,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 13,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "SoFi Stadium",
+      "reference_lon_lat": [
+        -118.33901,
+        33.953407
+      ],
+      "x": -8355,
+      "z": -10608,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 26,
+        "building_cells": 121,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "SoFi Stadium",
+        "x": -8355,
+        "z": -10612,
+        "kind": "stadium",
+        "osm_type": "way",
+        "osm_id": 860635712,
+        "height_m": 26,
+        "height_source": "Estimated from OpenStreetMap floors",
+        "distance_from_reference_m": 4
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Kia Forum",
+      "reference_lon_lat": [
+        -118.341972,
+        33.958216
+      ],
+      "x": -8622,
+      "z": -10071,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 19,
+        "building_cells": 121,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Kia Forum",
+        "x": -8622,
+        "z": -10071,
+        "kind": "building",
+        "osm_type": "way",
+        "osm_id": 26320999,
+        "height_m": 19,
+        "height_source": "OpenStreetMap height tag",
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Baldwin Hills Overlook",
+      "reference_lon_lat": [
+        -118.382259,
+        34.016592
+      ],
+      "x": -12257,
+      "z": -3548,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 14,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 12,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Watts Towers",
+      "reference_lon_lat": [
+        -118.241124,
+        33.938741
+      ],
+      "x": 670,
+      "z": -12348,
+      "sample_within_30m": {
+        "center_material": 7,
+        "center_height_m": 0,
+        "building_cells": 4,
+        "water_cells": 0,
+        "park_cells": 60,
+        "road_cells": 37,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Manhattan Beach Pier",
+      "reference_lon_lat": [
+        -118.414644,
+        33.883373
+      ],
+      "x": -15452,
+      "z": -18280,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 5,
+        "building_cells": 6,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 18,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Port of Los Angeles",
+      "reference_lon_lat": [
+        -118.278697,
+        33.738808
+      ],
+      "x": -3078,
+      "z": -34475,
+      "status": "terrain-only"
+    },
+    {
+      "name": "Queen Mary",
+      "reference_lon_lat": [
+        -118.192189,
+        33.753713
+      ],
+      "x": 4955,
+      "z": -32918,
+      "status": "terrain-only"
+    },
+    {
+      "name": "Aquarium of the Pacific",
+      "reference_lon_lat": [
+        -118.197017,
+        33.762013
+      ],
+      "x": 4519,
+      "z": -31992,
+      "status": "terrain-only"
+    },
+    {
+      "name": "Rose Bowl",
+      "reference_lon_lat": [
+        -118.167667,
+        34.161349
+      ],
+      "x": 7741,
+      "z": 12257,
+      "sample_within_30m": {
+        "center_material": 0,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 0,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Rose Bowl Stadium",
+        "x": 7741,
+        "z": 12258,
+        "kind": "stadium",
+        "osm_type": "way",
+        "osm_id": 5208863,
+        "distance_from_reference_m": 1
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Pasadena City Hall",
+      "reference_lon_lat": [
+        -118.143869,
+        34.147672
+      ],
+      "x": 9918,
+      "z": 10716,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 19,
+        "building_cells": 38,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 13,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Pasadena City Hall",
+        "x": 9918,
+        "z": 10714,
+        "kind": "townhall",
+        "osm_type": "way",
+        "osm_id": 37741479,
+        "height_m": 19,
+        "height_source": "Estimated from OpenStreetMap floors",
+        "distance_from_reference_m": 2
+      },
+      "status": "mapped-building"
+    },
+    {
+      "name": "Caltech",
+      "reference_lon_lat": [
+        -118.125288,
+        34.137014
+      ],
+      "x": 11618,
+      "z": 9515,
+      "sample_within_30m": {
+        "center_material": 7,
+        "center_height_m": 0,
+        "building_cells": 15,
+        "water_cells": 10,
+        "park_cells": 34,
+        "road_cells": 45,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "The Huntington",
+      "reference_lon_lat": [
+        -118.114643,
+        34.128195
+      ],
+      "x": 12589,
+      "z": 8526,
+      "sample_within_30m": {
+        "center_material": 7,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 0,
+        "park_cells": 87,
+        "road_cells": 34,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Griffith Park",
+      "reference_lon_lat": [
+        -118.283802,
+        34.132708
+      ],
+      "x": -3004,
+      "z": 9210,
+      "sample_within_30m": {
+        "center_material": 30,
+        "center_height_m": 7,
+        "building_cells": 16,
+        "water_cells": 0,
+        "park_cells": 0,
+        "road_cells": 12,
+        "rail_cells": 0
+      },
+      "status": "mapped-context"
+    },
+    {
+      "name": "Exposition Park Rose Garden",
+      "reference_lon_lat": [
+        -118.286114,
+        34.017142
+      ],
+      "x": -3379,
+      "z": -3603,
+      "sample_within_30m": {
+        "center_material": 2,
+        "center_height_m": 0,
+        "building_cells": 0,
+        "water_cells": 16,
+        "park_cells": 96,
+        "road_cells": 9,
+        "rail_cells": 0
+      },
+      "named_feature": {
+        "name": "Exposition Park Rose Garden",
+        "x": -3379,
+        "z": -3603,
+        "kind": "garden",
+        "osm_type": "way",
+        "osm_id": 172470301,
+        "distance_from_reference_m": 0
+      },
+      "status": "mapped-park"
+    }
+  ]
+}

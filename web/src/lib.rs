@@ -8,7 +8,7 @@ use scenic_flight::ui::{draw_flight_info, draw_new_world, draw_picker};
 mod scene;
 use scene::Scene;
 
-const SIDE: usize = 144;
+const SIDE: usize = 216;
 const DIMENSIONS: (usize, usize) = (SIDE, SIDE);
 const PIXELS: usize = SIDE * SIDE;
 const MAX_FRAME_DELTA_MS: u32 = 250;
@@ -17,6 +17,10 @@ thread_local! {
     static ENGINE: RefCell<Option<Engine>> = const { RefCell::new(None) };
     static VEGAS_UPLOAD: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static VEGAS_DATA: std::cell::Cell<Option<&'static scenic_flight::LasVegasData>> = const { std::cell::Cell::new(None) };
+    static ATLAS_DATA: RefCell<[Option<&'static scenic_flight::LasVegasData>; 2]> = const { RefCell::new([None; 2]) };
+    static ATLAS_GROUND: std::cell::Cell<Option<scenic_flight::world::AtlasGround>> = const { std::cell::Cell::new(None) };
+    static ATLAS_ROADS: std::cell::Cell<Option<scenic_flight::world::AtlasRoads>> = const { std::cell::Cell::new(None) };
+    static ATLAS_TOWNS: std::cell::Cell<Option<scenic_flight::world::AtlasTowns>> = const { std::cell::Cell::new(None) };
 }
 
 struct Engine {
@@ -154,7 +158,66 @@ pub extern "C" fn scenic_reset_las_vegas(seed_low: u32, seed_high: u32, departur
     });
     let Some(data) = data else { return 0; };
     let seed = u64::from(seed_low) | (u64::from(seed_high) << 32);
-    ENGINE.with_borrow_mut(|engine| *engine = Some(Engine::with_game(Game::new_las_vegas(seed, data, departure))));
+    ENGINE.with_borrow_mut(|engine| *engine = Some(Engine::with_game(Game::new_mapped_city(seed, data, departure))));
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn scenic_commit_atlas_map(city_id: u32) -> u32 {
+    let city = match city_id {
+        0 => scenic_flight::MappedCity::LasVegas,
+        1 => scenic_flight::MappedCity::LosAngeles,
+        _ => return 0,
+    };
+    let data = VEGAS_UPLOAD.with_borrow_mut(std::mem::take).into_boxed_slice();
+    let Some(map) = scenic_flight::LasVegasData::parse(Box::leak(data)) else { return 0; };
+    if map.city() != city { return 0; }
+    ATLAS_DATA.with_borrow_mut(|maps| maps[city_id as usize] = Some(Box::leak(Box::new(map))));
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn scenic_commit_atlas_ground() -> u32 {
+    let data = VEGAS_UPLOAD.with_borrow_mut(std::mem::take).into_boxed_slice();
+    let Some(ground) = scenic_flight::world::AtlasGround::parse(Box::leak(data)) else { return 0; };
+    ATLAS_GROUND.with(|slot| slot.set(Some(ground)));
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn scenic_commit_atlas_roads() -> u32 {
+    let bytes = VEGAS_UPLOAD.with_borrow_mut(std::mem::take).into_boxed_slice();
+    let Some(roads) = scenic_flight::world::AtlasRoads::parse(Box::leak(bytes)) else { return 0; };
+    ATLAS_ROADS.with(|slot| slot.set(Some(roads)));
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn scenic_commit_atlas_towns() -> u32 {
+    let bytes = VEGAS_UPLOAD.with_borrow_mut(std::mem::take).into_boxed_slice();
+    let Some(towns) = scenic_flight::world::AtlasTowns::parse(Box::leak(bytes)) else { return 0; };
+    ATLAS_TOWNS.with(|slot| slot.set(Some(towns)));
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn scenic_reset_atlas(seed_low: u32, seed_high: u32, route: u32) -> u32 {
+    let [Some(vegas), Some(la)] = ATLAS_DATA.with_borrow(|maps| *maps) else { return 0; };
+    let (city, departure, crossing) = match route {
+        0 => (scenic_flight::MappedCity::LosAngeles, 0, false),
+        1 => (scenic_flight::MappedCity::LasVegas, 0, false),
+        2 => (scenic_flight::MappedCity::LosAngeles, 0, true),
+        3 => (scenic_flight::MappedCity::LasVegas, 0, true),
+        _ => return 0,
+    };
+    let seed = u64::from(seed_low) | (u64::from(seed_high) << 32);
+    let ground = ATLAS_GROUND.with(|slot| slot.get());
+    let roads = ATLAS_ROADS.with(|slot| slot.get());
+    let Some(towns) = ATLAS_TOWNS.with(|slot| slot.get()) else { return 0; };
+    let maps = scenic_flight::world::AtlasMaps::new(la, vegas, ground).with_roads(roads).with_towns(towns);
+    let maps = Box::leak(Box::new(maps));
+    let game = Game::new_atlas(seed, maps, city, departure, crossing);
+    ENGINE.with_borrow_mut(|engine| *engine = Some(Engine::with_game(game)));
     1
 }
 
@@ -209,7 +272,7 @@ mod tests {
         assert!(engine.pixels.iter().any(|&pixel| pixel != 0));
         engine.frame(100, 1);
         engine.frame(130, 1);
-        assert_eq!(engine.game.selected(), Aircraft::Racer);
+        assert_eq!(engine.game.selected(), Aircraft::Trike);
         engine.frame(160, 0);
         engine.frame(200, 2);
         assert_eq!(engine.frame(230, 2), initial);
@@ -224,7 +287,7 @@ mod tests {
         assert!(engine.game.new_world_progress(820).unwrap() > 0.0);
         engine.frame(1_700, 1);
         assert_eq!(engine.game.screen(), Screen::AircraftPicker);
-        assert_eq!(engine.game.selected(), Aircraft::Racer);
+        assert_eq!(engine.game.selected(), Aircraft::Trike);
         engine.frame(1_800, 0);
         engine.frame(1_850, 2);
         engine.frame(1_880, 2);

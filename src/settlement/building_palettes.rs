@@ -10,6 +10,32 @@ const fn material(wall: [u8; 3], roof: [u8; 3]) -> BuildingPalette {
     BuildingPalette { wall, roof }
 }
 
+pub(crate) struct VegasFacade {
+    pub palette: BuildingPalette,
+    pub glass: [u8; 3],
+    pub floor_height: f32,
+}
+
+const fn resort(
+    wall: [u8; 3], roof: [u8; 3], glass: [u8; 3], floor_height: f32,
+) -> VegasFacade {
+    VegasFacade { palette: material(wall, roof), glass, floor_height }
+}
+
+// The importer selects finishes for individually reviewed footprints in the Strip.
+pub(crate) const VEGAS: [VegasFacade; 10] = [
+    resort([195, 176, 151], [162, 154, 142], [93, 97, 101], 3.65), // limestone
+    resort([222, 206, 185], [201, 195, 182], [82, 88, 101], 3.65), // ivory
+    resort([197, 158, 165], [172, 152, 157], [124, 83, 106], 3.00), // rose
+    resort([115, 133, 146], [119, 131, 138], [79, 108, 127], 3.40), // slate glass
+    resort([124, 92, 76], [123, 112, 104], [83, 64, 60], 3.45), // bronze glass
+    resort([176, 117, 81], [127, 92, 75], [100, 82, 80], 3.30), // terracotta
+    resort([205, 192, 177], [110, 132, 148], [82, 107, 130], 3.35), // cream and slate
+    resort([171, 138, 89], [152, 139, 118], [129, 104, 74], 3.70), // gold glass
+    resort([192, 164, 134], [151, 123, 107], [91, 92, 93], 3.20), // desert stucco
+    resort([183, 180, 173], [154, 157, 157], [105, 118, 125], 3.40), // concrete
+];
+
 pub const TOWN: [BuildingPalette; 25] = [
     material([199, 184, 156], [123, 73, 55]),
     material([222, 216, 197], [88, 115, 127]),
