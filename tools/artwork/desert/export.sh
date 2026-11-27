@@ -3,6 +3,7 @@ set -eu
 
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 game=$(CDPATH='' cd -- "$here/../../.." && pwd)
+target=${CARGO_TARGET_DIR:-"$game/target"}
 out=${SCENIC_ARTWORK_OUTPUT:-"$here"}
 mkdir -p "$out"
 out=$(CDPATH='' cd -- "$out" && pwd)
@@ -24,6 +25,8 @@ pub(super) mod freshwater;/' \
 pub(super) mod woodland;/' \
     -e 's/^mod dryland;$/#[path = "dryland.rs"]\
 pub(super) mod dryland;/' \
+    -e 's/^pub(super) mod foothills;$/#[path = "foothills.rs"]\
+pub(super) mod foothills;/' \
     -e 's/^mod grassland;$/#[path = "grassland.rs"]\
 pub(super) mod grassland;/' \
     -e 's/^mod headland;$/#[path = "headland.rs"]\
@@ -40,18 +43,21 @@ cp "$game/src/desert_props/habitats/farm.rs" "$game/src/desert_props/habitats/mo
     "$game/src/desert_props/habitats/freshwater.rs" \
     "$game/src/desert_props/habitats/woodland.rs" \
     "$game/src/desert_props/habitats/dryland.rs" \
+    "$game/src/desert_props/habitats/foothills.rs" \
     "$game/src/desert_props/habitats/grassland.rs" "$game/src/desert_props/habitats/alpine_ground.rs" \
     "$game/src/desert_props/habitats/wetland.rs" "$scratch/"
 sed -n '/^pub(crate) fn floor_i32(/,/^}/p' "$game/src/render.rs" > "$scratch/floor.rs"
+sed -n '/^pub(crate) fn bearing(/,/^}/p' "$game/src/flight.rs" > "$scratch/bearing.rs"
 
 cargo build --manifest-path "$game/Cargo.toml" --locked --release --lib \
     --features terrain-fork,small-raster-ray-budget,ground-cover
 SCENIC_MATH_SOURCE="$game/src/math.rs" \
 SCENIC_FLOOR_SOURCE="$scratch/floor.rs" \
+SCENIC_BEARING_SOURCE="$scratch/bearing.rs" \
 SCENIC_DESERT_SOURCE="$scratch/desert_props.rs" \
 rustc --edition=2021 -O "$here/export.rs" \
-    --extern "scenic_flight=$game/target/release/libscenic_flight.rlib" \
-    -L "dependency=$game/target/release/deps" \
+    --extern "scenic_flight=$target/release/libscenic_flight.rlib" \
+    -L "dependency=$target/release/deps" \
     -o "$scratch/export"
 
 render_atlas() {
@@ -93,6 +99,11 @@ case "${1:-}" in
         render_atlas dryland dryland-details
         exit
         ;;
+    --foothills-only)
+        "$scratch/export" "$scratch" --foothills-only
+        render_atlas foothills dry-foothill-models
+        exit
+        ;;
     --grassland-only)
         "$scratch/export" "$scratch" --grassland-only
         render_atlas grassland grassland-details
@@ -121,6 +132,7 @@ render_atlas mountain mountain-details
 render_atlas freshwater freshwater-details
 render_atlas woodland woodland-details
 render_atlas dryland dryland-details
+render_atlas foothills dry-foothill-models
 render_atlas grassland grassland-details
 render_atlas headland headland-details
 render_atlas alpine-ground alpine-ground-details

@@ -44,6 +44,8 @@ pub mod lighthouses;
 pub mod local_routes;
 pub mod lookout_art;
 pub mod maritime;
+mod metropolis;
+pub use metropolis::transit::{MetroLine, MetroTransit};
 pub mod natural_stream;
 pub mod outwash_fans;
 pub mod ports;

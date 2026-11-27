@@ -217,6 +217,17 @@ function showError(text) {
   retry.hidden = false;
 }
 
+function flightSession(search) {
+  const session = new URLSearchParams(search).get("session");
+  if (session && /^\d{1,20}$/.test(session)) {
+    const value = BigInt(session);
+    if (value <= 0xffffffffffffffffn) {
+      return [Number(value & 0xffffffffn), Number(value >> 32n)];
+    }
+  }
+  return crypto.getRandomValues(new Uint32Array(2));
+}
+
 async function start() {
   retry.hidden = true;
   notice.hidden = false;
@@ -239,7 +250,7 @@ async function start() {
     canvas.height = side;
     const image = context.createImageData(side, side);
     const target = new Uint32Array(image.data.buffer, image.data.byteOffset, side * side);
-    const seed = crypto.getRandomValues(new Uint32Array(2));
+    const seed = flightSession(location.search);
     engine.scenic_reset(seed[0], seed[1]);
     runtime = { engine, context, image, target, palette: createPalette() };
     elapsed = 0;

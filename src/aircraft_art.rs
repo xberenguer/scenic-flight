@@ -2,6 +2,7 @@
 
 use crate::air::Lift;
 use crate::encounters::{Refuel, blackbird_refuel, blackbird_reheat, fighter_reheat, formation};
+use crate::encounters::{Effect, FlightMoment, Pass, Visitor, flight_moment};
 use crate::flight::{Aircraft, Flight};
 use crate::math::{sin_cos, smoothstep};
 use crate::sky::Sky;
@@ -23,6 +24,27 @@ const FIGHTER_WINGTIP: [Point; 2] = [[3.58, 0.07, -0.45], [3.49, 0.05, -1.57]];
 const BLACKBIRD_WINGTIP: [Point; 2] = [[4.14, 0.06, -1.47], [4.39, 0.01, -2.43]];
 const WINGMATE_WINGTIP: [Point; 2] = [[3.52, 0.10, -0.51], [3.39, 0.08, -1.61]];
 const TANKER_WINGTIP: [Point; 2] = [[8.6, 0.38, -2.35], [8.7, 0.35, -4.58]];
+
+#[derive(Clone, Copy)]
+struct Propeller {
+    hub: Point,
+    radius: f32,
+    blades: u8,
+    phase_rate: u32,
+}
+
+const CUB_PROPELLER: Propeller = Propeller { hub: [0.0, 0.16, 2.29], radius: 0.90, blades: 2, phase_rate: 13 };
+const RACER_PROPELLER: Propeller = Propeller { hub: [0.0, 0.17, 2.42], radius: 0.87, blades: 3, phase_rate: 19 };
+const TRIKE_PROPELLER: Propeller = Propeller { hub: [0.0, 0.12, -1.04], radius: 0.74, blades: 3, phase_rate: 16 };
+
+fn propeller(aircraft: Aircraft) -> Option<Propeller> {
+    match aircraft {
+        Aircraft::BushPlane => Some(CUB_PROPELLER),
+        Aircraft::Racer => Some(RACER_PROPELLER),
+        Aircraft::Trike => Some(TRIKE_PROPELLER),
+        _ => None,
+    }
+}
 
 /// A writable surface with the composed scenery already behind the aircraft.
 pub trait AircraftCanvas {
@@ -130,7 +152,7 @@ pub fn draw_flight_scene_on(
 
 fn paint_chase_aircraft(
     flight: &Flight,
-    projection: Projection,
+    mut projection: Projection,
     daylight: f32,
     canvas: &mut impl AircraftCanvas,
     w: usize,
@@ -140,6 +162,17 @@ fn paint_chase_aircraft(
     if let Some(reflection) = sky.and_then(|sky| glider_sun_reflection(flight, sky)) {
         paint_model(projection, canvas, w, h, |p| glider(p, Some(reflection)));
         return;
+    }
+    let moment = sky.and_then(|_| {
+        if flight.train_pass_phase().is_some() || flight.thermal_turn_elapsed().is_some() {
+            None
+        } else {
+            flight_moment(flight.aircraft, flight.seed(), flight.ticks)
+        }
+    });
+    if let Some(action) = moment {
+        projection = moment_pose(flight, projection, action);
+        paint_moment_background(flight, projection, action, canvas, (w, h));
     }
     let plume = match flight.aircraft {
         Aircraft::Blackbird => Some((BLACKBIRD_EXHAUST, blackbird_reheat(flight.seed(), flight.ticks))),
@@ -151,7 +184,16 @@ fn paint_chase_aircraft(
             draw_exhaust(exhaust, projection, daylight, reheat, canvas, w, h);
         }
     }
-    paint_aircraft(flight.aircraft, flight.ticks as u32, projection, canvas, w, h);
+    paint_aircraft_with_moment(flight.aircraft, flight.ticks as u32, projection, canvas, w, h, moment);
+    if let Some(action @ FlightMoment { effect: Effect::Lights { span, ahead }, .. }) = moment {
+        let pulse = action.ease();
+        for x in [-span, span] {
+            if let Some((center, depth)) = projection.screen_point([x, -0.08, ahead]) {
+                let radius = (projection.focal * 0.21 / depth).clamp(1.0, 2.8);
+                paint_lamp(canvas, (w, h), center, radius, rgb565(251, 230, 181), 0.83 * pulse);
+            }
+        }
+    }
     let (tip, tail) = match flight.aircraft {
         Aircraft::BushPlane => (BUSH_WINGTIP, Some([0.0, 0.14, -2.71])),
         Aircraft::Racer => (RACER_WINGTIP, Some([0.0, 0.18, -2.47])),
@@ -161,6 +203,166 @@ fn paint_chase_aircraft(
         Aircraft::Trike | Aircraft::Glider | Aircraft::BaldEagle => return,
     };
     paint_position_lights(projection, tip, tail, daylight, canvas, (w, h));
+}
+
+fn moment_pose(flight: &Flight, mut projection: Projection, action: FlightMoment) -> Projection {
+    let strength = action.ease();
+    let (bank, pitch) = match action.effect {
+        Effect::Motion { bank, pitch, cycles } => {
+            let wave = sin_cos(action.progress * TAU * cycles).0;
+            (bank * wave * action.side, pitch * (0.6 + 0.4 * wave))
+        }
+        Effect::Airbrakes => (0.0, -0.12),
+        Effect::Eagle { tuck, flare, .. } => (0.22 * tuck * action.side, 0.19 * flare - 0.13 * tuck),
+        Effect::Trail { paired: false, bend, .. } => (0.0, 0.22 * bend),
+        _ => (0.0, 0.0),
+    };
+    if bank != 0.0 {
+        projection.bank = sin_cos(flight.bank + bank * strength);
+    }
+    if pitch != 0.0 {
+        projection.model_pitch = Some(sin_cos(flight.attitude_pitch() + pitch * strength));
+    }
+    projection
+}
+
+fn relative_projection(player: Projection, right: f32, above: f32, forward: f32, turn: f32, bank: f32) -> Projection {
+    let (sin, cos) = player.yaw;
+    let (turn_sin, turn_cos) = sin_cos(turn);
+    Projection {
+        origin: [
+            player.origin[0] + cos * right + sin * forward,
+            player.origin[1] + above,
+            player.origin[2] + cos * forward - sin * right,
+        ],
+        yaw: (sin * turn_cos + cos * turn_sin, cos * turn_cos - sin * turn_sin),
+        bank: sin_cos(bank),
+        model_pitch: None,
+        ..player
+    }
+}
+
+fn paint_moment_background(
+    flight: &Flight, projection: Projection, action: FlightMoment,
+    canvas: &mut impl AircraftCanvas, size: (usize, usize),
+) {
+    let p = action.progress;
+    let strength = action.ease();
+    let side = action.side;
+    match action.effect {
+        Effect::Visitor(visitor, path, count) => {
+            let arrive = smoothstep(p / 0.26);
+            let leave = smoothstep((p - 0.66) / 0.34);
+            for slot in (0..count).rev() {
+                let rank = f32::from(slot);
+                let (right, above, forward, turn, bank) = match path {
+                    Pass::Cross => (
+                        side * (27.0 - p * 54.0 - rank * 8.0), 3.1 + rank * 1.4, 28.0 + p * 9.0,
+                        -side * 1.05, -side * 0.09,
+                    ),
+                    Pass::Escort => (
+                        side * (7.8 + rank * 4.0 + (1.0 - arrive + leave) * 23.0),
+                        0.5 + rank * 1.6, 11.8 + (1.0 - arrive) * 16.0 + leave * 20.0,
+                        side * leave * 0.52, side * leave * 0.28,
+                    ),
+                    Pass::Overhead => (
+                        side * (5.7 + (1.0 - arrive + leave) * 12.0), 4.7 + leave * 5.0,
+                        8.0 + 47.0 * p, -side * 0.24 + side * leave * 0.37, -side * strength * 0.13,
+                    ),
+                    Pass::Breakaway => {
+                        let hand = if slot == 0 { side } else { -side };
+                        (
+                            hand * (7.5 + (1.0 - arrive) * 38.0 + leave * 47.0),
+                            1.6 + leave * 6.0, 12.0 + rank * 3.0 + leave * 25.0,
+                            hand * (leave * 0.76 - (1.0 - arrive) * 0.46), hand * leave * 0.45,
+                        )
+                    }
+                };
+                let above = if flight.aircraft == Aircraft::Blackbird && path == Pass::Overhead {
+                    above - 23.0
+                } else { above };
+                let other = relative_projection(projection, right, above, forward, turn, bank);
+                if !visible_wingmate(&other, size.0, size.1) { continue; }
+                match visitor {
+                    Visitor::Aircraft(aircraft) => {
+                        paint_aircraft(aircraft, flight.ticks as u32, other, canvas, size.0, size.1);
+                    }
+                    Visitor::Biplane => paint_model(other, canvas, size.0, size.1, visiting_biplane),
+                    Visitor::Balloon => paint_model(other, canvas, size.0, size.1, visiting_balloon),
+                    Visitor::TowPair => {
+                        let trailing = relative_projection(projection,
+                            right + side * 9.4, above - 0.43, forward - 5.1, turn, bank);
+                        paint_aircraft(Aircraft::Glider, 0, trailing, canvas, size.0, size.1);
+                        let r = rgb565(194, 198, 187);
+                        for step in 0..16 {
+                            let t = step as f32 / 15.0;
+                            let thread = relative_projection(projection,
+                                right + side * (2.4 + 4.9 * t), above - 0.28 * t,
+                                forward - (1.5 + 3.1 * t), turn, 0.0);
+                            if let Some((point, _)) = thread.screen_point([0.0; 3]) {
+                                paint_lamp(canvas, size, point, 0.65, r, strength * 0.34);
+                            }
+                        }
+                        paint_aircraft(Aircraft::BushPlane, flight.ticks as u32, other, canvas, size.0, size.1);
+                    }
+                }
+            }
+        }
+        Effect::Trail { paired, bend, ink } => {
+            let (half, rear) = match flight.aircraft {
+                Aircraft::Blackbird => (2.10, -3.52),
+                Aircraft::Fighter => (3.47, -1.56),
+                Aircraft::SportJet => (3.57, -1.40),
+                _ => (0.0, -2.45),
+            };
+            let color = rgb565(u16::from(ink[0]), u16::from(ink[1]), u16::from(ink[2]));
+            let extent = 5.0 + 8.6 * smoothstep(p / 0.34);
+            for step in (0..=32).rev() {
+                let t = step as f32 / 32.0;
+                let drift = side * sin_cos(p * TAU - t * 4.6).0 * t * (0.32 + bend);
+                let rise = if paired { t * bend } else { -t * t * (0.4 + bend * 3.7) };
+                let arms: &[f32] = if paired { &[-1.0, 1.0] } else { &[0.0] };
+                for arm in arms {
+                    let point = [arm * (half + t * 0.42) + drift, -0.06 + rise, rear - extent * t];
+                    if let Some((center, depth)) = projection.screen_point(point) {
+                        let radius = (projection.focal * (0.095 + 0.25 * t) / depth).clamp(0.62, 2.45);
+                        paint_lamp(canvas, size, center, radius, color, strength * (0.65 - t * 0.58));
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn visiting_biplane(p: &mut Painter) {
+    bush_plane(p);
+    let wood = [217, 174, 96];
+    wing(p, [[0.13, -0.51, 0.85], [0.13, -0.51, -0.58]],
+        [[2.78, -0.40, 0.33], [2.78, -0.40, -0.62]], wood, [157, 71, 48]);
+    for side in [-1.0, 1.0] {
+        strut(p, [side * 1.95, -0.42, 0.23], [side * 2.19, 0.81, 0.24], 0.045, wood);
+        strut(p, [side * 1.95, -0.42, -0.45], [side * 2.19, 0.81, -0.39], 0.045, wood);
+    }
+}
+
+fn visiting_balloon(p: &mut Painter) {
+    const SPANS: [[f32; 2]; 8] = [[1.0, 0.0], [0.707, 0.707], [0.0, 1.0], [-0.707, 0.707],
+        [-1.0, 0.0], [-0.707, -0.707], [0.0, -1.0], [0.707, -0.707]];
+    let layers = [[0.63, 0.61], [1.31, 1.66], [2.42, 2.07], [3.56, 1.63], [4.21, 0.14]];
+    for pair in layers.windows(2) {
+        let ring = |[y, width]: [f32; 2], [x, z]: [f32; 2]| [x * width, y, z * width];
+        for strip in 0..8 {
+            let next = (strip + 1) % 8;
+            let color = if strip % 2 == 0 { [221, 123, 62] } else { [163, 70, 73] };
+            p.quad(ring(pair[0], SPANS[strip]), ring(pair[0], SPANS[next]),
+                ring(pair[1], SPANS[next]), ring(pair[1], SPANS[strip]), color);
+        }
+    }
+    shell(p, &[[0.37, 0.45, 0.03, -0.47], [-0.37, 0.45, 0.03, -0.47]], 0.0, 0.0, [156, 110, 68]);
+    for side in [-1.0, 1.0] {
+        strut(p, [side * 0.44, -0.06, -0.28], [side * 0.39, 0.73, -0.22], 0.037, PALE);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -267,13 +469,8 @@ fn chase_projection(flight: &Flight, w: usize, h: usize) -> Projection {
     let dz = flight.z - view.z;
     let (pitch_sine, pitch_cosine) = sin_cos(view.pitch);
     let (roll_sine, roll_cosine) = sin_cos(-view.bank);
-    let model_pitch = (flight.aircraft == Aircraft::BushPlane && flight.climb_rate() != 0.0)
-        .then(|| {
-            // Follow the Cub's vertical flight path, holding a modest visible
-            // attitude when terrain avoidance calls for a steep maneuver.
-            let inclination = flight.climb_rate() / flight.speed().max(8.0);
-            sin_cos((inclination * 0.82).clamp(-0.18, 0.22))
-        });
+    let attitude = flight.attitude_pitch();
+    let model_pitch = (attitude != 0.0).then(|| sin_cos(attitude));
     let mut projection = Projection {
         origin: [
             cosine * dx - sine * dz,
@@ -534,6 +731,89 @@ fn glow_over(pixel: &mut u16, color: u16, alpha: u16) {
     *pixel = (mix(11, 31) << 11) | (mix(5, 63) << 5) | mix(0, 31);
 }
 
+/// Project the propeller plane with the same pose as the wings. The disc is
+/// drawn at its own depth so a nose prop can disappear behind the fuselage.
+fn paint_propeller(
+    prop: Propeller, ticks: u32, projection: Projection,
+    canvas: &mut impl AircraftCanvas, (w, h): (usize, usize),
+) {
+    let [x, y, z] = prop.hub;
+    let Some(([cx, cy], _)) = projection.screen_point(prop.hub) else { return; };
+    let offset = |axis: Point| {
+        let [dx, dy, dz] = axis;
+        let (positive, _) = projection.screen_point([x + dx, y + dy, z + dz])?;
+        let (negative, _) = projection.screen_point([x - dx, y - dy, z - dz])?;
+        Some(core::array::from_fn::<_, 2, _>(|i| (positive[i] - negative[i]) * 0.5))
+    };
+    let Some(mut right) = offset([prop.radius, 0.0, 0.0]) else { return; };
+    let Some(mut up) = offset([0.0, prop.radius, 0.0]) else { return; };
+    let cross = |a: [f32; 2], b: [f32; 2]| a[0] * b[1] - a[1] * b[0];
+    let length_squared = |v: [f32; 2]| v[0] * v[0] + v[1] * v[1];
+    let axis = if length_squared(right) >= length_squared(up) { right } else { up };
+    let [a, b] = axis.map(f32::abs);
+    let major = a.max(b) + 0.40 * a.min(b);
+    if major < 0.74 {
+        return;
+    }
+    // A side view is a slim arc, with a soft edge at subpixel widths.
+    let minimum_minor = (0.40 + major * 0.015).min(0.70);
+    let mut determinant = cross(right, up);
+    let thickness = determinant.abs() / major;
+    if thickness < minimum_minor {
+        let add = (minimum_minor - thickness) * if determinant < 0.0 { -1.0 } else { 1.0 };
+        let perpendicular = [-axis[1] / major, axis[0] / major];
+        if length_squared(right) >= length_squared(up) {
+            up[0] += perpendicular[0] * add;
+            up[1] += perpendicular[1] * add;
+        } else {
+            right[0] -= perpendicular[0] * add;
+            right[1] -= perpendicular[1] * add;
+        }
+        determinant = cross(right, up);
+    }
+    let reach_x = right[0].abs() + up[0].abs();
+    let reach_y = right[1].abs() + up[1].abs();
+    let x0 = ((cx - reach_x - 1.0) as i32).max(0);
+    let y0 = ((cy - reach_y - 1.0) as i32).max(0);
+    let x1 = ((cx + reach_x + 1.0) as i32).min(w as i32 - 1);
+    let y1 = ((cy + reach_y + 1.0) as i32).min(h as i32 - 1);
+    let inverse = 1.0 / determinant;
+    let phase = sin_cos(((ticks % 73) * prop.phase_rate % 73) as f32 * (TAU / 73.0));
+    let edge = (1.75 / major).clamp(0.05, 0.65);
+    let strength = smoothstep((major - 0.74) / 1.4);
+    let thin = (thickness / 1.4).clamp(0.50, 1.0);
+    let aperture = (w.min(h) * w.min(h)) as i32;
+    let ink = rgb565(104, 113, 117);
+    let flash = rgb565(151, 157, 157);
+    for py in y0..=y1 {
+        let dy = 2 * py + 1 - h as i32;
+        for px in x0..=x1 {
+            let dx = 2 * px + 1 - w as i32;
+            if dx * dx + dy * dy > aperture { continue; }
+            let pixel = [px as f32 - cx, py as f32 - cy];
+            let u = cross(pixel, up) * inverse;
+            let v = cross(right, pixel) * inverse;
+            let radius = u * u + v * v;
+            if radius > 1.0 + edge { continue; }
+            let radial = 1.0 - smoothstep((radius - (1.0 - edge)) / (2.0 * edge));
+            let rim = 1.0 - smoothstep((radius - 0.79).abs() * 5.5);
+            let blades = if prop.blades == 2 {
+                [u * u - v * v, 2.0 * u * v]
+            } else {
+                [u * (u * u - 3.0 * v * v), v * (3.0 * u * u - v * v)]
+            };
+            let sweep = (blades[0] * phase.1 + blades[1] * phase.0).abs().min(1.0);
+            let alpha = ((3.5 + 3.4 * rim) * radial * strength * thin + 0.5) as u16;
+            let tip = ((sweep - 0.33).max(0.0) * 5.5 * radial * strength * thin + 0.5) as u16;
+            if alpha + tip != 0 {
+                let pixel = canvas.pixel(px as usize, py as usize);
+                glow_over(pixel, ink, alpha);
+                glow_over(pixel, flash, tip);
+            }
+        }
+    }
+}
+
 fn rounded_pixel(value: f32) -> i16 {
     let scaled = value.clamp(-1024.0, 1024.0) * 4.0 + 0.5;
     scaled as i16 - i16::from(scaled < 0.0 && (scaled as i16) as f32 != scaled)
@@ -542,6 +822,64 @@ fn rounded_pixel(value: f32) -> i16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spinning_propeller_sweeps_preserve_the_background_through_each_disc() {
+        const SIDE: usize = 128;
+        let projection = Projection {
+            origin: [0.0, -1.0, 11.0], pitch: sin_cos(0.2), scene_roll: (0.0, 1.0),
+            yaw: sin_cos(1.02), bank: sin_cos(0.12), model_pitch: None,
+            center: [63.5, 63.5], focal: 104.0,
+        };
+        for aircraft in [Aircraft::BushPlane, Aircraft::Racer, Aircraft::Trike] {
+            let blade = propeller(aircraft).unwrap();
+            let paint = |ticks| {
+                let mut pixels = [rgb565(35, 80, 129); SIDE * SIDE];
+                paint_propeller(blade, ticks, projection,
+                    &mut SliceCanvas { pixels: &mut pixels, width: SIDE }, (SIDE, SIDE));
+                pixels
+            };
+            let first = paint(13);
+            let next = paint(16);
+            assert!(first != next, "{aircraft:?} disc should animate");
+            assert!(first.iter().any(|&color| color != rgb565(35, 80, 129)));
+            assert!(first.iter().all(|&color| color != rgb565(104, 113, 117) && color != 0));
+        }
+        for aircraft in [Aircraft::Glider, Aircraft::Fighter, Aircraft::SportJet,
+            Aircraft::Blackbird, Aircraft::BaldEagle] {
+            assert!(propeller(aircraft).is_none());
+        }
+    }
+
+    #[test]
+    fn every_scheduled_moment_changes_the_visible_flight_frame() {
+        use crate::world::World;
+
+        const SIDE: usize = 112;
+        for aircraft in Aircraft::ALL {
+            let mut visible = [false; 4];
+            'seeds: for seed in 0..12 {
+                let world = World::new(seed);
+                let mut flight = Flight::start(&world, seed, aircraft);
+                let projection = chase_projection(&flight, SIDE, SIDE);
+                let sky = Sky::from_time(seed, 0, 0.49);
+                for tick in (2_790..78_000).step_by(25) {
+                    let Some(action) = flight_moment(aircraft, seed, tick) else { continue; };
+                    if visible[action.slot()] || action.ease() < 0.55 { continue; }
+                    flight.ticks = tick;
+                    let mut normal = [rgb565(84, 123, 156); SIDE * SIDE];
+                    let mut animated = normal;
+                    paint_chase_aircraft(&flight, projection, sky.daylight,
+                        &mut SliceCanvas { pixels: &mut normal, width: SIDE }, SIDE, SIDE, None);
+                    paint_chase_aircraft(&flight, projection, sky.daylight,
+                        &mut SliceCanvas { pixels: &mut animated, width: SIDE }, SIDE, SIDE, Some(&sky));
+                    visible[action.slot()] |= animated != normal;
+                    if visible.into_iter().all(|found| found) { break 'seeds; }
+                }
+            }
+            assert!(visible.into_iter().all(|found| found), "{aircraft:?} {visible:?}");
+        }
+    }
     use crate::world::World;
 
     #[test]
@@ -655,7 +993,6 @@ mod tests {
                 }
                 flight.ticks = 13;
                 draw_flight_scene(&flight, 439, &sky, &mut next, SIDE, SIDE);
-                assert_eq!(night, next, "{aircraft:?}, bank {bank}: the lamps must not pulse");
                 let pose = chase_projection(&flight, SIDE, SIDE);
                 let [x, y, z] = wingtip_lamp(tip);
                 for (hand, red) in [(-1.0, true), (1.0, false)] {
@@ -665,6 +1002,8 @@ mod tests {
                     for iy in (sy as usize - 1)..=(sy as usize + 2) {
                         for ix in (sx as usize - 1)..=(sx as usize + 2) {
                             let i = iy * SIDE + ix;
+                            assert_eq!(night[i], next[i],
+                                "{aircraft:?}, bank {bank}, hand {hand}: the lamp must not pulse");
                             if night[i] == day[i] {
                                 continue;
                             }
@@ -831,42 +1170,138 @@ mod tests {
     }
 
     #[test]
-    fn cub_nose_tracks_the_interpolated_climb_without_moving_its_center() {
-        let world = World::new(439);
-        let mut flight = Flight::start(&world, 439, Aircraft::BushPlane);
-        assert!(chase_projection(&flight, 112, 112).model_pitch.is_none());
-        let mut ascending = None;
-        let mut descending = None;
-        for _ in 0..4_000 {
-            let before = flight.climb_rate();
-            flight.update(&world);
-            let after = flight.climb_rate();
-            assert_eq!(flight.display_pose(0.0).climb_rate(), before);
-            let middle = flight.display_pose(0.5);
-            assert!((middle.climb_rate() - (before + after) * 0.5).abs() < 0.00001);
-            if middle.climb_rate() > 4.0 && ascending.is_none() {
-                ascending = Some(middle);
-            } else if middle.climb_rate() < -4.0 && descending.is_none() {
-                descending = Some(middle);
-            }
-            if ascending.is_some() && descending.is_some() { break; }
+    fn edge_on_faces_keep_a_connected_span() {
+        const SIDE: usize = 156;
+        let mut pixels = [0; SIDE * SIDE];
+        let mut canvas = SliceCanvas { pixels: &mut pixels, width: SIDE };
+        let color = 0xe73c;
+        rasterize(Face {
+            corners: [[39 * 4, 75 * 4 + 2], [113 * 4, 75 * 4 + 2], [85 * 4, 75 * 4 + 2]],
+            depth: 1.0,
+            color,
+        }, &mut canvas, SIDE, SIDE);
+        for column in 40..113 {
+            assert!(pixels.chunks_exact(SIDE).any(|row| row[column] == color), "{column}");
         }
-        for (flight, direction) in [(ascending.unwrap(), -1.0), (descending.unwrap(), 1.0)] {
-            for side in [112, 144, 192, 466] {
-                let pose = chase_projection(&flight, side, side);
-                let level = Projection { model_pitch: None, ..pose };
-                let nose = [0.0, 0.16, 2.24];
-                let (nose, _) = pose.screen_point(nose).unwrap();
-                let (old_nose, _) = level.screen_point([0.0, 0.16, 2.24]).unwrap();
-                assert!((nose[1] - old_nose[1]) * direction > side as f32 * 0.012);
-                assert_eq!(pose.screen_point([0.0; 3]), level.screen_point([0.0; 3]));
-                let mut pixels = std::vec![0; side * side];
-                draw_aircraft(&flight, &mut pixels, side, side);
-                for (index, _) in pixels.iter().enumerate().filter(|&(_, &pixel)| pixel != 0) {
-                    let dx = 2 * (index % side) as i32 + 1 - side as i32;
-                    let dy = 2 * (index / side) as i32 + 1 - side as i32;
-                    assert!(dx * dx + dy * dy < (side * side) as i32);
+    }
+
+    #[test]
+    fn all_chase_models_keep_a_connected_silhouette_through_edge_on_angles() {
+        const SIDE: usize = 156;
+        let world = World::new(439);
+        let mut pixels = std::vec![0; SIDE * SIDE];
+        let mut visited = std::vec![false; SIDE * SIDE];
+        let mut stack = std::vec::Vec::new();
+        for aircraft in Aircraft::ALL {
+            let flight = Flight::start(&world, 439, aircraft);
+            let base = chase_projection(&flight, SIDE, SIDE);
+            for eye in [0.13, 0.28, 0.44] {
+                for yaw in [-0.26, 0.0, 0.26] {
+                    for bank in [-0.46, 0.0, 0.46] {
+                        for attitude in [-0.50, -0.42, -0.35, -0.28, -0.22, -0.16, -0.08, 0.0, 0.17, 0.31] {
+                            pixels.fill(0);
+                            visited.fill(false);
+                            let mut projection = Projection {
+                                origin: [0.0, -base.origin[2] * eye, base.origin[2]],
+                                yaw: sin_cos(yaw),
+                                bank: sin_cos(bank),
+                                model_pitch: Some(sin_cos(attitude)),
+                                center: [(SIDE - 1) as f32 * 0.5; 2],
+                                ..base
+                            };
+                            let (offset, _) = projection.screen_offset(projection.origin).unwrap();
+                            projection.center[0] -= offset[0];
+                            projection.center[1] -= offset[1];
+                            paint_aircraft(aircraft, 170, projection,
+                                &mut SliceCanvas { pixels: &mut pixels, width: SIDE }, SIDE, SIDE);
+
+                            let mut largest = 0;
+                            let mut span = 0;
+                            for (i, &pixel) in pixels.iter().enumerate() {
+                                if pixel == 0 || visited[i] { continue; }
+                                let mut count = 0;
+                                let mut min_x = SIDE;
+                                let mut max_x = 0;
+                                stack.push(i);
+                                visited[i] = true;
+                                while let Some(j) = stack.pop() {
+                                    count += 1;
+                                    let x = j % SIDE;
+                                    let y = j / SIDE;
+                                    min_x = min_x.min(x);
+                                    max_x = max_x.max(x);
+                                    for row in y.saturating_sub(1)..=(y + 1).min(SIDE - 1) {
+                                        for col in x.saturating_sub(1)..=(x + 1).min(SIDE - 1) {
+                                            let k = row * SIDE + col;
+                                            if pixels[k] != 0 && !visited[k] {
+                                                visited[k] = true;
+                                                stack.push(k);
+                                            }
+                                        }
+                                    }
+                                }
+                                if count > largest {
+                                    largest = count;
+                                    span = max_x - min_x;
+                                }
+                            }
+                            assert!(span >= 26 && largest >= 42,
+                                "{aircraft:?} span={span} pixels={largest} eye={eye} yaw={yaw} bank={bank} pitch={attitude}");
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn each_aircraft_pitches_with_its_path_and_keeps_a_centered_chase_view() {
+        for aircraft in Aircraft::ALL {
+            let seed = if aircraft == Aircraft::Blackbird { 1 } else { 439 };
+            let world = World::new(seed);
+            let mut flight = Flight::start(&world, seed, aircraft);
+            assert!(chase_projection(&flight, 112, 112).model_pitch.is_none());
+            let mut climbing = false;
+            let mut descending = false;
+            let mut eagle_underside = false;
+            for _ in 0..15_500 {
+                let before = flight.attitude_pitch();
+                let altitude = flight.altitude;
+                flight.update(&world);
+                let after = flight.attitude_pitch();
+                assert_eq!(flight.display_pose(0.0).attitude_pitch(), before);
+                let middle = flight.display_pose(0.5);
+                assert!((middle.attitude_pitch() - (before + after) * 0.5).abs() < 0.00001);
+
+                let direction = middle.attitude_pitch().signum();
+                if middle.attitude_pitch().abs() < 0.025
+                    || (flight.altitude - altitude) * direction <= 0.0
+                {
+                    continue;
+                }
+
+                let pose = chase_projection(&middle, 466, 466);
+                let level = Projection { model_pitch: None, ..pose };
+                let nose = [0.0, 0.0, 2.0];
+                let tail = [0.0, 0.0, -2.0];
+                let y = |projection: Projection, point| projection.screen_point(point).unwrap().0[1];
+                assert!((y(level, nose) - y(pose, nose)) * direction > 0.5, "{aircraft:?}");
+                assert!((y(pose, tail) - y(level, tail)) * direction > 0.5, "{aircraft:?}");
+                assert_eq!(pose.screen_point([0.0; 3]), level.screen_point([0.0; 3]));
+                climbing |= direction > 0.0;
+                descending |= direction < 0.0;
+
+                // A nose-down silhouette alone can still show the top of the
+                // bird. Check that a sustained descent brings the eye below
+                // the eagle's body plane, from which belly and tail are visible.
+                let under = pose.camera_point([0.0, -1.0, 0.0]);
+                let dot = (0..3).map(|axis| (under[axis] - pose.origin[axis]) * -pose.origin[axis]).sum::<f32>();
+                eagle_underside |= direction < 0.0 && dot > 0.3;
+                if climbing && descending && (aircraft != Aircraft::BaldEagle || eagle_underside) { break; }
+            }
+            assert!(climbing && descending, "{aircraft:?}: ascent {climbing}, descent {descending}");
+            if aircraft == Aircraft::BaldEagle {
+                assert!(eagle_underside, "an eagle descent should expose its underside");
             }
         }
     }
@@ -936,16 +1371,56 @@ fn paint_aircraft(
     w: usize,
     h: usize,
 ) {
-    paint_model(projection, canvas, w, h, |painter| match aircraft {
-        Aircraft::BushPlane => bush_plane(painter),
-        Aircraft::Racer => racer(painter),
-        Aircraft::SportJet => sport_jet(painter),
-        Aircraft::Trike => ultralight(painter),
-        Aircraft::Glider => glider(painter, None),
-        Aircraft::Fighter => fighter(painter),
-        Aircraft::Blackbird => blackbird(painter),
-        Aircraft::BaldEagle => bald_eagle(painter, ticks),
-    });
+    paint_aircraft_with_moment(aircraft, ticks, projection, canvas, w, h, None);
+}
+
+fn paint_aircraft_with_moment(
+    aircraft: Aircraft, ticks: u32, projection: Projection, canvas: &mut impl AircraftCanvas,
+    w: usize, h: usize, action: Option<FlightMoment>,
+) {
+    let mut painter = Painter { projection, triangles: [Face::EMPTY; FACE_CAPACITY], len: 0 };
+    match aircraft {
+        Aircraft::BushPlane => bush_plane(&mut painter),
+        Aircraft::Racer => racer(&mut painter),
+        Aircraft::SportJet => sport_jet(&mut painter),
+        Aircraft::Trike => ultralight(&mut painter),
+        Aircraft::Glider => {
+            glider(&mut painter, None);
+            if let Some(action @ FlightMoment { effect: Effect::Airbrakes, .. }) = action {
+                let open = action.ease();
+                for side in [-1.0, 1.0] {
+                    let x = side * 1.73;
+                    let outer = side * 2.78;
+                    painter.quad([x, 0.27, -0.01], [outer, 0.37, -0.11],
+                        [outer, 0.37 + open * 0.72, -0.11 - open * 0.18],
+                        [x, 0.27 + open * 0.72, -0.01 - open * 0.18], [173, 65, 63]);
+                }
+            }
+        }
+        Aircraft::Fighter => fighter(&mut painter),
+        Aircraft::Blackbird => blackbird(&mut painter),
+        Aircraft::BaldEagle => {
+            let gesture = action.map_or([0.0; 3], |action| match action.effect {
+                Effect::Eagle { tuck, flare, talons } => {
+                    let amount = action.ease();
+                    [tuck * amount, flare * amount, talons * amount]
+                }
+                _ => [0.0; 3],
+            });
+            bald_eagle(&mut painter, ticks, gesture);
+        }
+    }
+    let faces = &painter.triangles[..painter.len];
+    if let Some((prop, depth)) = propeller(aircraft).and_then(|prop| {
+        projection.screen_point(prop.hub).map(|(_, depth)| (prop, depth))
+    }) {
+        let split = faces.partition_point(|face| face.depth > depth * 3.0);
+        for &face in &faces[..split] { rasterize(face, canvas, w, h); }
+        paint_propeller(prop, ticks, projection, canvas, (w, h));
+        for &face in &faces[split..] { rasterize(face, canvas, w, h); }
+    } else {
+        for &face in faces { rasterize(face, canvas, w, h); }
+    }
 }
 
 fn paint_model(
@@ -988,9 +1463,57 @@ const fn rgb565(red: u16, green: u16, blue: u16) -> u16 {
     ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3)
 }
 
+fn thin_face(
+    points: [[i32; 2]; 3], area: i32, color: u16,
+    canvas: &mut impl AircraftCanvas, w: usize, h: usize,
+) {
+    // Quarter-pixel vertices can collapse to a line when the eye is level
+    // with a wing, feather, or tailplane. Keep a narrow projected edge so
+    // its span remains connected while the ordinary fill shrinks to zero.
+    let span = |a: [i32; 2], b: [i32; 2]| (a[0] - b[0]).abs().max((a[1] - b[1]).abs());
+    let [a, b, c] = points;
+    let (from, to) = [(a, b), (b, c), (c, a)].into_iter()
+        .max_by_key(|&(start, end)| span(start, end)).unwrap();
+    let length = span(from, to);
+    if length < 7 || area.unsigned_abs() > (length * 5) as u32
+        || points.iter().flatten().any(|&v| !(-8192..=8192).contains(&v))
+    {
+        return;
+    }
+
+    let [mut x, mut y] = from.map(|value| (value + 2).div_euclid(4));
+    let [end_x, end_y] = to.map(|value| (value + 2).div_euclid(4));
+    let dx = (end_x - x).abs();
+    let dy = (end_y - y).abs();
+    let sx = if x < end_x { 1 } else { -1 };
+    let sy = if y < end_y { 1 } else { -1 };
+    let mut error = dx - dy;
+    let aperture = (w.min(h) * w.min(h)) as i32;
+    let extra = if w.min(h) > 280 { 1 } else { 0 };
+    let thickness = if area.unsigned_abs() < (3 * length) as u32 { -1 } else { 0 };
+    loop {
+        for side in thickness - extra..=extra {
+            let px = if dx >= dy { x } else { x + side };
+            let py = if dx >= dy { y + side } else { y };
+            let cx = 2 * px + 1 - w as i32;
+            let cy = 2 * py + 1 - h as i32;
+            if (0..w as i32).contains(&px) && (0..h as i32).contains(&py)
+                && cx * cx + cy * cy <= aperture
+            {
+                canvas.opaque_span(px as usize, px as usize + 1, py as usize, color);
+            }
+        }
+        if x == end_x && y == end_y { break; }
+        let twice = 2 * error;
+        if twice > -dy { error -= dy; x += sx; }
+        if twice < dx { error += dx; y += sy; }
+    }
+}
+
 fn rasterize(face: Face, canvas: &mut impl AircraftCanvas, w: usize, h: usize) {
     let [a, b, c] = face.corners.map(|v| v.map(i32::from));
     let area = edge(a, b, c);
+    thin_face([a, b, c], area, face.color, canvas, w, h);
     if area == 0 {
         return;
     }
@@ -1241,7 +1764,7 @@ fn bush_plane(p: &mut Painter) {
         );
         wheel(p, 0.69 * side, -0.72, 0.49, 0.23);
     }
-    strut(p, [-0.76, 0.16, 2.24], [0.76, 0.16, 2.24], 0.044, RUBBER);
+    shell(p, &[[2.44, 0.04, 0.20, 0.12], [2.19, 0.12, 0.27, 0.03]], 0.0, 0.0, PALE);
 }
 
 fn racer(p: &mut Painter) {
@@ -1274,7 +1797,7 @@ fn racer(p: &mut Painter) {
     );
     fin(p, 0.0, 0.0, 0.17, 1.09, -1.36, -2.47, crimson);
     window(p, 0.64, 0.60, -0.23, 0.37);
-    strut(p, [-0.71, 0.12, 2.35], [0.71, 0.24, 2.35], 0.042, RUBBER);
+    shell(p, &[[2.56, 0.04, 0.21, 0.13], [2.29, 0.12, 0.28, 0.05]], 0.0, 0.0, PALE);
 }
 
 fn sport_jet(p: &mut Painter) {
@@ -1374,7 +1897,7 @@ fn ultralight(p: &mut Painter) {
         wheel(p, side * 0.62, -0.83, -0.52, 0.17);
     }
     wheel(p, 0.0, -0.80, 0.90, 0.16);
-    strut(p, [-0.42, 0.04, -0.73], [0.42, 0.10, -0.73], 0.052, RUBBER);
+    shell(p, &[[-0.65, 0.15, 0.22, 0.01], [-1.12, 0.09, 0.18, 0.06]], 0.0, 0.0, tubing);
 }
 
 fn glider(p: &mut Painter, reflection: Option<GliderReflection>) {
@@ -1633,7 +2156,7 @@ fn blackbird(p: &mut Painter) {
     window(p, 0.49, 2.28, 1.60, 0.28);
 }
 
-fn bald_eagle(p: &mut Painter, ticks: u32) {
+fn bald_eagle(p: &mut Painter, ticks: u32, [tuck, flare, talons]: [f32; 3]) {
     let brown = [81, 58, 45];
     let covert = [105, 76, 56];
     let primary = [54, 41, 36];
@@ -1682,14 +2205,18 @@ fn bald_eagle(p: &mut Painter, ticks: u32) {
 
     let turn = (ticks % 360) as f32;
     let wave = (ticks % 30) as f32 * (TAU / 30.0);
-    let effort = smoothstep(turn / 11.0) * (1.0 - smoothstep((turn - 32.0) / 32.0));
+    let effort = smoothstep(turn / 11.0) * (1.0 - smoothstep((turn - 32.0) / 32.0))
+        * (1.0 - 0.85 * tuck);
     let shoulder = 0.36 * effort * sin_cos(wave).0;
     let wrist = 0.17 * effort * sin_cos(wave - 0.85).0;
     let breeze = 0.10 * (1.0 - effort) * sin_cos((ticks % 160) as f32 * (TAU / 160.0)).0;
     for side in [-1.0, 1.0] {
         let feather_flex = breeze + side * (1.0 - effort) * 0.055
             * sin_cos((ticks % 203) as f32 * (TAU / 203.0)).0;
-        let r = |x: f32, y: f32, z: f32| [side * x, y, z];
+        let r = |x: f32, y: f32, z: f32| {
+            let fold = smoothstep((x - 0.75) * 0.32) * tuck;
+            [side * x * (1.0 - 0.24 * fold), y - 0.55 * fold, z - 1.12 * fold]
+        };
         let root_front = r(0.33, 0.19, 0.71);
         let root_back = r(0.34, 0.12, -0.89);
         let elbow_front = r(1.44, 0.41 + shoulder, 0.69);
@@ -1724,24 +2251,43 @@ fn bald_eagle(p: &mut Painter, ticks: u32) {
         );
         p.triangle(
             r(0.16, -0.36, -0.37),
-            r(0.28, -0.51, -0.57),
-            r(0.23, -0.52, -0.34),
+            r(0.28 + 0.08 * talons, -0.51 - 0.38 * talons, -0.57),
+            r(0.23 + 0.04 * talons, -0.52 - 0.45 * talons, -0.34 + 0.14 * talons),
             amber,
         );
+        if talons > 0.02 {
+            strut(p, r(0.23, -0.45, -0.38),
+                r(0.33, -0.47 - 0.43 * talons, -0.48), 0.052, amber);
+        }
     }
     let tail_sway = 0.045 * sin_cos((ticks % 142) as f32 * (TAU / 142.0)).0;
-    let tail_spread = 0.72 + p.projection.bank.0.abs() * 0.23;
+    let tail_spread = 0.72 + p.projection.bank.0.abs() * 0.23 + 0.68 * flare;
+    let tail_front = [0.0, 0.14, -0.91];
+    let tail_back = [tail_sway, 0.05, -2.21];
+    let tail_under = p.projection.camera_point([tail_sway, -0.95, -2.21]);
+    let tail_eye = p.projection.camera_point(tail_back);
+    let tail_root = p.projection.camera_point(tail_front);
+    let belly = (0..3).map(|axis| {
+        (tail_under[axis] - tail_eye[axis]) * -tail_root[axis]
+    }).sum::<f32>();
+    let tail_shadow = smoothstep(belly * 0.7);
     for feather in 0..5 {
         let side = (feather as f32 - 2.5) * 0.4;
         let point = |s: f32| {
             [s * tail_spread + tail_sway, 0.05 + 0.09 * s * s, -2.21 + 0.24 * s * s]
         };
+        let top = if feather % 2 == 0 { cream } else { [226, 224, 212] };
+        let below = [211, 209, 197];
+        let paint = core::array::from_fn(|channel| {
+            let lit = top[channel] as f32;
+            (lit + (below[channel] as f32 - lit) * tail_shadow) as u8
+        });
         p.quad(
             [side * 0.23, 0.14, -0.91],
             point(side),
             point(side + 0.4),
             [(side + 0.4) * 0.23, 0.14, -0.91],
-            if feather % 2 == 0 { cream } else { [226, 224, 212] },
+            paint,
         );
     }
 }

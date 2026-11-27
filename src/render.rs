@@ -180,6 +180,8 @@ const MAX_SIDE: usize = 512;
 const MAX_BANDS: usize = MAX_SIDE;
 pub const LOW_VIEW_DISTANCE: f32 = 512.0;
 pub const HIGH_VIEW_DISTANCE: f32 = 896.0;
+const LOW_TERRAIN_DETAIL: f32 = 800.0;
+const HIGH_TERRAIN_DETAIL: f32 = 1440.0;
 /// Shared outer distance for terrain silhouettes and distant scenery.
 pub const SCENERY_HORIZON: f32 = 1920.0;
 /// Maximum reach of compact, streamed city silhouettes.
@@ -203,8 +205,11 @@ pub fn view_distance(altitude: f32) -> f32 {
 
 /// The heightfield can show roofs and roads farther away than the near meshes.
 pub(crate) fn terrain_detail_distance(altitude: f32) -> f32 {
-    const LOW_TERRAIN_DISTANCE: f32 = 640.0;
-    LOW_TERRAIN_DISTANCE + (HIGH_VIEW_DISTANCE - LOW_TERRAIN_DISTANCE) * high_cruise(altitude)
+    LOW_TERRAIN_DETAIL + (HIGH_TERRAIN_DETAIL - LOW_TERRAIN_DETAIL) * aerial_view(altitude)
+}
+
+fn aerial_view(altitude: f32) -> f32 {
+    smoothstep((altitude - 135.0) / 178.0)
 }
 
 fn high_cruise(altitude: f32) -> f32 {
@@ -744,7 +749,7 @@ fn render_inner_with_horizon(
         }
     }
     checkpoint(RenderCheckpoint::Rotation);
-    if atmosphere.clouds > 0.48 {
+    if ground_cloud_presence(atmosphere, camera) > 0.0 {
         paint_ground_clouds(&mut sample, camera, atmosphere, &view, &aperture, pixels, width, height);
     }
     let stars = visible_stars(pixels, width, height, &aperture, &view, atmosphere);
@@ -916,7 +921,7 @@ pub fn render_with_terrain_fork(
         }
     }
     checkpoint(RenderCheckpoint::Rotation);
-    if atmosphere.clouds > 0.48 {
+    if ground_cloud_presence(atmosphere, camera) > 0.0 {
         paint_ground_clouds(&mut sample, camera, atmosphere, &view, &aperture, pixels, width, height);
     }
     let stars = visible_stars(pixels, width, height, &aperture, &view, atmosphere);
@@ -1038,14 +1043,23 @@ fn distant_stride_growth(diameter: usize) -> f32 {
 
 #[inline]
 fn next_terrain_distance(distance: f32, far: f32, high_cruise: f32, stride_growth: f32) -> f32 {
-    if stride_growth > 0.0 && distance > 60.0 {
-        // Preserve near detail and the same horizon at smaller raster sizes.
-        let stride = (1.8 + distance * (0.064 + high_cruise * 0.043))
-            * (1.0 + stride_growth * smoothstep((distance - 60.0) / 60.0));
-        (distance + stride).min(far)
-    } else {
-        (distance + 1.8 + distance * (0.064 + high_cruise * 0.043)).min(far)
-    }
+    let wide = ((far - LOW_TERRAIN_DETAIL) / (HIGH_TERRAIN_DETAIL - LOW_TERRAIN_DETAIL))
+        .clamp(0.0, 1.0);
+    // At altitude spend the recovered foreground samples on streets and
+    // roof geometry just below the aircraft. Widen the steps past that band.
+    let outer = smoothstep((distance - 455.0) / 220.0);
+    let low_outer = smoothstep((distance - 390.0) / 195.0);
+    let stride = (1.8 + distance * (0.064 + high_cruise * 0.018))
+        * (1.0 + wide * outer * 1.40 + (1.0 - wide) * low_outer * 0.90)
+        * (1.0 + stride_growth * smoothstep((distance - 60.0) / 60.0)
+            * (1.0 - high_cruise * 0.35 * (1.0 - outer)));
+    (distance + stride).min(far)
+}
+
+fn first_terrain_distance(altitude: f32) -> f32 {
+    // Even the tallest modeled roofs are well below the high-cruise camera
+    // at this distance. Lower aircraft still sample the foreground.
+    5.0 + 28.0 * high_cruise(altitude)
 }
 
 #[cfg(feature = "terrain-fork")]
@@ -1100,7 +1114,7 @@ fn draw_near_bands<const CLIPPED: bool>(
     let mut slope_center = [0_u16; MAX_BANDS];
     let mut open = work.end - work.first;
     let stride_growth = distant_stride_growth(aperture.diameter);
-    let mut distance: f32 = 5.0;
+    let mut distance = first_terrain_distance(camera.altitude);
     let mut previous = 0.0;
     let sun_forward = atmosphere.sun[0] * view.heading_sin + atmosphere.sun[2] * view.heading_cos;
     let sun_right = atmosphere.sun[0] * view.heading_cos - atmosphere.sun[2] * view.heading_sin;
@@ -1333,7 +1347,7 @@ fn draw_terrain<const CLIPPED: bool>(
     let mut slope_center = [0_u16; MAX_BANDS];
     let mut open = bands;
     let stride_growth = distant_stride_growth(aperture.diameter);
-    let mut distance: f32 = 5.0;
+    let mut distance = first_terrain_distance(camera.altitude);
     let mut previous = 0.0;
     let sun_forward = atmosphere.sun[0] * view.heading_sin + atmosphere.sun[2] * view.heading_cos;
     let sun_right = atmosphere.sun[0] * view.heading_cos - atmosphere.sun[2] * view.heading_sin;
@@ -1959,6 +1973,10 @@ fn ground_color(
         Surface::Pavement => ([80.0, 87.0, 92.0], false),
         Surface::Gravel => ([163.0, 149.0, 118.0], false),
         Surface::Park => ([87.0, 135.0, 70.0], false),
+        Surface::UrbanLot => (
+            mix([87.0, 135.0, 70.0], [136.0, 134.0, 124.0], aerial_view(eye.altitude)),
+            false,
+        ),
         Surface::TreeCanopy | Surface::SpruceCanopy | Surface::AspenCanopy
         | Surface::MapleCanopy | Surface::JuniperCanopy => {
             let [dx, dy, dz] = [position[0] - eye.x, position[1] - eye.altitude, position[2] - eye.z];
@@ -2052,13 +2070,20 @@ fn ground_color(
     } else {
         color
     };
+    let city_surface = matches!(surface, Surface::Pavement | Surface::UrbanLot | Surface::PitchedRoof
+        | Surface::FlatRoof | Surface::TowerRoof | Surface::IndustryBrick | Surface::IndustryConcrete
+        | Surface::IndustryMetal) || surface.building_palette().is_some();
+    let city_visibility = if city_surface { aerial_view(eye.altitude) * daylight } else { 0.0 };
     let material = if surface == Surface::RunwayLight {
         let evening = 1.0 - smoothstep((daylight - 0.08) / 0.41);
         mix(color, [192.0, 209.0, 236.0], evening * (1.0 - fog))
+    } else if city_visibility > 0.0 {
+        let gain = if surface == Surface::Pavement { -0.17 } else { 0.14 };
+        color.map(|channel| channel * (1.0 + gain * city_visibility))
     } else {
         color
     };
-    (rgb565(mix(material, horizon, fog)).max(1), rock_phase)
+    (rgb565(mix(material, horizon, fog * (1.0 - 0.29 * city_visibility))).max(1), rock_phase)
 }
 
 const FOOTHILL: Color = [139.0, 148.0, 96.0];
@@ -2108,6 +2133,11 @@ impl CloudLight {
     const CLEAR: Self = Self { exposure: 1.0, opacity: 0.0 };
 }
 
+fn ground_cloud_presence(sky: Atmosphere, camera: Camera) -> f32 {
+    let overhead = smoothstep((camera.altitude - 225.0) / 72.0);
+    smoothstep((sky.clouds - (0.48 - 0.20 * overhead)) / (0.24 + 0.07 * overhead))
+}
+
 #[derive(Clone, Copy)]
 struct GroundClouds {
     camera: [f32; 3],
@@ -2115,7 +2145,8 @@ struct GroundClouds {
     threshold: f32,
     shade_offset: [f32; 2],
     wind: [f32; 2],
-    coverage: f32,
+    presence: f32,
+    overhead: f32,
 }
 
 impl GroundClouds {
@@ -2127,27 +2158,33 @@ impl GroundClouds {
         };
         let sun_height = sky.sun[1].max(0.25);
         let shade_distance = (altitude / sun_height).min(270.0);
+        let overhead = smoothstep((camera.altitude - 225.0) / 72.0);
         Self {
             camera: [camera.x, camera.altitude, camera.z],
-            altitude, threshold: 0.67 - sky.clouds * 0.40,
+            altitude, threshold: 0.67 - sky.clouds * 0.40 + overhead * (0.06 + (1.0 - sky.clouds) * 0.05),
             shade_offset: [sky.sun[0] * shade_distance, sky.sun[2] * shade_distance],
-            wind: sky.cloud_offset, coverage: sky.clouds,
+            wind: sky.cloud_offset, presence: ground_cloud_presence(sky, camera), overhead,
         }
     }
 
-    fn over(self, [x, y, z]: [f32; 3], distance: f32) -> CloudLight {
-        let presence = smoothstep((self.coverage - 0.48) / 0.24);
-        if presence == 0.0 {
+    fn over(self, [x, y, z]: [f32; 3], distance: f32, cells: &mut [CloudCell; 2]) -> CloudLight {
+        if self.presence == 0.0 {
             return CloudLight::CLEAR;
         }
         let cx = self.camera[0];
         let cy = self.camera[1];
         let cz = self.camera[2];
-        let density = |x: f32, z: f32| {
+        let mut density = |x: f32, z: f32| {
             let x = x * 0.0105 + self.wind[0] * 0.056;
             let z = z * 0.0105 + self.wind[1] * 0.056;
-            let field = surface_noise(x, z);
-            smoothstep((field - self.threshold) / 0.34)
+            let mut field = surface_noise(x, z);
+            if self.overhead > 0.0 {
+                let body = cells[0].sample((x + z * 0.32) * 0.57 + 19.6, z * 0.78 - 10.7);
+                let billows = cells[1].sample(x * 1.84 - 15.3, z * 1.92 + 6.8);
+                let shape = body * 0.76 + billows * 0.24;
+                field += (shape - field) * self.overhead;
+            }
+            smoothstep((field - self.threshold) / (0.34 - 0.16 * self.overhead))
         };
         let below = self.altitude - y;
         let plane_clearance = cy - self.altitude;
@@ -2162,10 +2199,17 @@ impl GroundClouds {
             let fraction = plane_clearance / (cy - y);
             let thickness = density(cx + (x - cx) * fraction, cz + (z - cz) * fraction);
             let cloud_tops = thickness * smoothstep(plane_clearance / 49.0)
-                * smoothstep(below / 20.0) * 0.67;
+                * smoothstep(below / 20.0) * (0.67 + self.overhead * 0.19);
+            let sunlit_ground = if self.overhead > 0.0 {
+                let factor = (below / self.altitude).clamp(0.0, 1.0);
+                1.0 - density(x + self.shade_offset[0] * factor, z + self.shade_offset[1] * factor)
+                    * self.overhead * self.presence * 0.10
+            } else {
+                1.0
+            };
             return CloudLight {
-                exposure: 1.0,
-                opacity: cloud_tops.max(veil) * presence,
+                exposure: sunlit_ground,
+                opacity: cloud_tops.max(veil) * self.presence,
             };
         }
         let ground_shade = if below > 0.0 && distance < 270.0 {
@@ -2178,7 +2222,7 @@ impl GroundClouds {
         } else {
             0.0
         };
-        CloudLight { exposure: 1.0 - ground_shade * presence, opacity: veil * presence }
+        CloudLight { exposure: 1.0 - ground_shade * self.presence, opacity: veil * self.presence }
     }
 }
 
@@ -2200,9 +2244,11 @@ fn paint_ground_clouds(
     let mut opacity = [[0_u8; EDGE]; EDGE];
     let mut shade = [[0_u8; EDGE]; EDGE];
     let clouds = GroundClouds::new(sky, camera);
+    let mut cells = [CloudCell::START; 2];
     let valley = sample(camera.x, camera.z).elevation.min(camera.altitude - 8.0);
     let inverse_focal = 1.0 / view.focal;
-    let far = view_distance(camera.altitude);
+    let far = view_distance(camera.altitude)
+        + (terrain_detail_distance(camera.altitude) - view_distance(camera.altitude)) * clouds.overhead;
     for (row, (opacity_row, shade_row)) in opacity.iter_mut().zip(shade.iter_mut())
         .enumerate().take(y_steps + 1)
     {
@@ -2223,8 +2269,9 @@ fn paint_ground_clouds(
             let march = ((camera.altitude - valley) / down).clamp(2.0, far);
             let terrain = sample(camera.x + rx * march, camera.z + rz * march).elevation;
             let march = ((camera.altitude - terrain) / down).clamp(2.0, far);
-            let point = [camera.x + rx * march, terrain, camera.z + rz * march];
-            let air = clouds.over(point, march);
+            let ray_height = terrain + (camera.altitude - down * march - terrain).max(0.0) * clouds.overhead;
+            let point = [camera.x + rx * march, ray_height, camera.z + rz * march];
+            let air = clouds.over(point, march, &mut cells);
             *opacity = (air.opacity * 64.0 + 0.5) as u8;
             *shade = ((1.0 - air.exposure) * 64.0 + 0.5) as u8;
         }
@@ -3180,6 +3227,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn high_cruise_covers_more_ground_without_spending_more_rings() {
+        let measure = |altitude: f32, far: f32, stride_growth: f32, legacy: bool| {
+            let boost = high_cruise(altitude);
+            let mut distance = if legacy { 5.0 } else { first_terrain_distance(altitude) };
+            let mut rings = 0;
+            let mut city_rings = 0;
+            while distance < far {
+                rings += 1;
+                city_rings += usize::from((150.0..=550.0).contains(&distance));
+                distance = if legacy {
+                    let step = (1.8 + distance * (0.064 + boost * 0.043))
+                        * (1.0 + stride_growth * smoothstep((distance - 60.0) / 60.0));
+                    (distance + step).min(far)
+                } else {
+                    next_terrain_distance(distance, far, boost, stride_growth)
+                };
+            }
+            (rings, city_rings)
+        };
+        assert_eq!(terrain_detail_distance(45.0), 800.0);
+        assert!(terrain_detail_distance(225.0) > 800.0);
+        assert_eq!(terrain_detail_distance(325.0), 1440.0);
+        for stride in [0.0, 0.70, 1.05, 2.20] {
+            let low_before = measure(45.0, 640.0, stride, true);
+            let low = measure(45.0, terrain_detail_distance(45.0), stride, false);
+            assert!(low.0 <= low_before.0 + 1, "{low_before:?} vs {low:?}");
+            let old = measure(325.0, 896.0, stride, true);
+            let new = measure(325.0, terrain_detail_distance(325.0), stride, false);
+            assert!(new.0 <= old.0 + 1, "{old:?} vs {new:?}");
+            assert!(new.1 >= old.1 + 2, "{old:?} vs {new:?}");
+        }
+    }
+
+    #[test]
     fn nearby_crowns_keep_subtle_species_color_within_one_woodland_palette() {
         let position = [12.0, 32.0, -9.0];
         let eye = Camera { x: 12.0, z: -9.0, altitude: 45.0, heading: 0.0, pitch: 0.2, bank: 0.0 };
@@ -3264,7 +3345,7 @@ mod tests {
         render_from_with_sky_buffered(|_, _| flat, camera, &sky, &mut plain, &mut work, SIDE, SIDE).unwrap();
         render_from_with_sky_buffered(
             |x, z| {
-                if x.abs() < 48.0 && (575.0..=632.0).contains(&z) {
+                if x.abs() < 48.0 && (690.0..=789.0).contains(&z) {
                     Sample { elevation: 42.0, surface: Surface::FlatRoof }
                 } else {
                     flat
@@ -3273,7 +3354,7 @@ mod tests {
             camera, &sky, &mut city, &mut work, SIDE, SIDE,
         ).unwrap();
         assert_eq!(view_distance(camera.altitude), 512.0);
-        assert_eq!(terrain_detail_distance(camera.altitude), 640.0);
+        assert_eq!(terrain_detail_distance(camera.altitude), 800.0);
         assert!(city.iter().zip(plain).filter(|(roof, ground)| **roof != *ground).count() >= 12);
     }
 
@@ -3496,11 +3577,12 @@ mod tests {
         sky.clouds = 0.78;
         let location = [139.0, 23.0, 300.0];
         let mut camera = Camera { x: 80.0, z: 32.0, altitude: 82.0, heading: 0.0, pitch: 0.25, bank: 0.0 };
-        let mut prior = GroundClouds::new(sky, camera).over(location, 218.0);
+        let mut cells = [CloudCell::START; 2];
+        let mut prior = GroundClouds::new(sky, camera).over(location, 218.0, &mut cells);
         let mut max_opacity = 0.0_f32;
         for step in 1..=450 {
             camera.altitude = 82.0 + step as f32 * 0.30;
-            let next = GroundClouds::new(sky, camera).over(location, 218.0);
+            let next = GroundClouds::new(sky, camera).over(location, 218.0, &mut cells);
             assert!((next.opacity - prior.opacity).abs() < 0.012,
                 "altitude {} opacity {} -> {}", camera.altitude, prior.opacity, next.opacity);
             assert!((next.exposure - prior.exposure).abs() < 0.012,
@@ -3510,7 +3592,38 @@ mod tests {
         }
         assert!(max_opacity > 0.02);
         sky.clouds = 0.48;
-        assert_eq!(GroundClouds::new(sky, camera).over(location, 218.0).opacity, 0.0);
+        assert_eq!(GroundClouds::new(sky, camera).over(location, 218.0, &mut cells).opacity, 0.0);
+    }
+
+    #[test]
+    fn broken_cruise_clouds_have_clear_gaps_and_drift_across_the_land() {
+        let camera = Camera {
+            x: 0.0, z: 0.0, altitude: 320.0, heading: 0.0, pitch: 0.55, bank: 0.0,
+        };
+        let mut sky = Atmosphere { clouds: 0.55, ..Atmosphere::DAY };
+        let mut cells = [CloudCell::START; 2];
+        let clouds = GroundClouds::new(sky, camera);
+        let mut samples = 0;
+        let mut clear = 0;
+        let mut visible = 0;
+        let mut movement = 0.0;
+        sky.cloud_offset = [15.0, 9.0];
+        let shifted = GroundClouds::new(sky, camera);
+        for x in (-400..=400).step_by(20) {
+            for z in (110..=850).step_by(20) {
+                let point = [x as f32, 20.0, z as f32];
+                let base = clouds.over(point, z as f32, &mut cells).opacity;
+                let moved = shifted.over(point, z as f32, &mut cells).opacity;
+                clear += usize::from(base < 0.015);
+                visible += usize::from(base > 0.18);
+                movement += (base - moved).abs();
+                samples += 1;
+            }
+        }
+        assert!(clear > samples / 3 && visible > samples / 20);
+        assert!(movement > samples as f32 * 0.025);
+        sky.clouds = 0.25;
+        assert_eq!(ground_cloud_presence(sky, camera), 0.0);
     }
 
     #[test]

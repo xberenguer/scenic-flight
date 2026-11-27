@@ -29,6 +29,7 @@ impl RegionSlot {
 }
 
 /// An eleven-tile window leaves a preparation margin around the highest aircraft's view.
+#[derive(Clone, Copy)]
 pub struct CoastalLandmarks {
     slots: [RegionSlot; CACHE_SIDE * CACHE_SIDE],
     landmarks: [Option<CoastalLandform>; LANDMARK_LIMIT],

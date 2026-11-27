@@ -4,6 +4,8 @@ use crate::math::smoothstep;
 use crate::render::floor_i32;
 use crate::world::Surface;
 
+mod dryland;
+
 #[derive(Clone, Copy)]
 struct Family {
     color: [u8; 3],
@@ -21,13 +23,8 @@ const fn family(color: [u8; 3], radius: f32, spread: f32, strength: f32) -> Fami
     }
 }
 
-// Desert, meadow, woodland, alpine, and coast. Each group has five families.
-const FAMILIES: [Family; 25] = [
-    family([90, 113, 94], 0.39, 1.0, 0.79),    // Sagebrush
-    family([108, 104, 56], 0.41, 1.2, 0.77),   // Creosote
-    family([62, 102, 67], 0.33, 1.5, 0.85),    // Prickly pear
-    family([133, 88, 68], 0.43, 0.8, 0.84),    // Sandstone
-    family([192, 160, 93], 0.42, 1.3, 0.73),   // Bunchgrass
+// Meadow, woodland, alpine, and coast. Each group has five families.
+const FAMILIES: [Family; 20] = [
     family([196, 146, 55], 0.30, 1.2, 0.76),   // Poppies
     family([124, 105, 153], 0.32, 0.9, 0.78),  // Lupine
     family([108, 154, 83], 0.40, 1.1, 0.68),   // Clover
@@ -135,21 +132,19 @@ pub(crate) fn paint(
     detail_fade: f32,
     grade: [f32; 2],
 ) -> Option<([f32; 3], f32)> {
-    if surface == Surface::DryWash {
-        return Some((dry_gravel(x, z, seed, base, detail_fade), 0.0));
+    if let Some(material) = dryland::Material::from_surface(surface) {
+        return Some((material.shade([x, height, z], seed, base, detail_fade, grade), 0.0));
     }
     let (group, inverse_cell, opacity) = match surface {
-        Surface::Desert => (0, 1.0 / 13.0, 0.94),
-        Surface::DuneSand => (0, 1.0 / 23.0, 0.53),
-        Surface::Grass | Surface::Park | Surface::WetMeadow => (1, 1.0 / 18.0, 1.0),
-        Surface::Forest => (2, 1.0 / 22.0, 0.87),
-        Surface::Rock => (3, 1.0 / 15.0, 0.67),
-        Surface::ScreeEdge => (3, 1.0 / 18.0, 0.68),
-        Surface::ScreeFine => (3, 1.0 / 14.0, 0.47),
-        Surface::ScreeCoarse | Surface::GlacierMoraine => (3, 1.0 / 16.0, 0.74),
-        Surface::AlpineMeadow => (3, 1.0 / 16.0, 0.94),
-        Surface::Sand | Surface::RiverSilt if height >= 0.3 => (4, 1.0 / 19.0, 0.87),
-        Surface::SaltCrust => (4, 1.0 / 26.0, 0.37),
+        Surface::Grass | Surface::Park | Surface::WetMeadow => (0, 1.0 / 18.0, 1.0),
+        Surface::UrbanLot => (0, 1.0 / 18.0, 0.55),
+        Surface::Forest => (1, 1.0 / 22.0, 0.87),
+        Surface::Rock => (2, 1.0 / 15.0, 0.67),
+        Surface::ScreeEdge => (2, 1.0 / 18.0, 0.68),
+        Surface::ScreeFine => (2, 1.0 / 14.0, 0.47),
+        Surface::ScreeCoarse | Surface::GlacierMoraine => (2, 1.0 / 16.0, 0.74),
+        Surface::AlpineMeadow => (2, 1.0 / 16.0, 0.94),
+        Surface::Sand | Surface::RiverSilt if height >= 0.3 => (3, 1.0 / 19.0, 0.87),
         _ => return None,
     };
     let [u, v] = [x * inverse_cell, z * inverse_cell];
@@ -157,7 +152,8 @@ pub(crate) fn paint(
     let key = hash(tx, tz, seed);
     let district = hash(tx >> 3, tz >> 3, seed ^ 0x310a_689f);
     let (kind, profile, palette) = selection(key, district);
-    let kind = if group == 3 { alpine_family(surface, kind, key) } else { kind };
+    let alpine = group == 2;
+    let kind = if alpine { alpine_family(surface, kind, key) } else { kind };
     let style = FAMILIES[group * 5 + kind];
     let [u, v] = [u - tx as f32, v - tz as f32];
     let [a, b] = [
@@ -168,14 +164,9 @@ pub(crate) fn paint(
     let inverse_size = style.inverse_radius * (1.15 - ((key >> 29) & 7) as f32 * 0.047);
     let distance = shape(profile, a * inverse_size * style.spread, b * inverse_size);
     let grain = hash(floor_i32(x * 0.39), floor_i32(z * 0.39), seed ^ 0x692d_7fab);
-    let fine = if surface == Surface::Desert {
-        0.016
-    } else {
-        0.006
-    };
     let grain = (grain & 15) as f32 - 7.5;
-    let phase = if group == 3 { strata_phase([x, height, z], seed) } else { 0.0 };
-    let ground = if group == 3 {
+    let phase = if alpine { strata_phase([x, height, z], seed) } else { 0.0 };
+    let ground = if alpine {
         alpine_floor(
             surface,
             [x, z],
@@ -186,12 +177,12 @@ pub(crate) fn paint(
             detail_fade,
         )
     } else {
-        base.map(|channel| channel * (1.0 + grain * fine * detail_fade))
+        base.map(|channel| channel * (1.0 + grain * 0.006 * detail_fade))
     };
     // Broad, muted fringes remain visible where a small core would alias.
     let mask = 1.0 - smoothstep((distance - 0.35) * 1.12);
     let edge = u.min(1.0 - u).min(v.min(1.0 - v));
-    let local_cover = if group == 3 && matches!(kind, 0 | 3) {
+    let local_cover = if alpine && matches!(kind, 0 | 3) {
         alpine_vegetation(height, grade)
     } else {
         1.0
@@ -287,18 +278,6 @@ pub(crate) fn strata_phase_tone(phase: f32) -> f32 {
 fn strata_fold(value: f32) -> f32 {
     let phase = value - floor_i32(value) as f32;
     (2.0 * phase - 1.0).abs()
-}
-
-fn dry_gravel(x: f32, z: f32, seed: u32, base: [f32; 3], detail_fade: f32) -> [f32; 3] {
-    let bar = hash(
-        floor_i32(x * 0.17 + z * 0.07),
-        floor_i32(z * 0.24 - x * 0.08),
-        seed,
-    );
-    let chip = hash(floor_i32(x * 0.72), floor_i32(z * 0.81), seed ^ 0x71cf_45a3);
-    let relief =
-        ((bar & 7) as f32 - 3.5) * 0.018 + ((chip & 15) as f32 - 7.5) * 0.012 * detail_fade;
-    base.map(|channel| channel * (1.0 + relief))
 }
 
 #[cfg(test)]

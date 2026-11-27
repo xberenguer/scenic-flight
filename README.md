@@ -12,26 +12,38 @@ Select a preview to open the full-size clip or screenshot.
 
 <table>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metropolis-flight.mp4"><img src="docs/assets/readme/metropolis-flight.gif" width="220" alt="Bald Eagle over a metropolis"></a><br><a href="docs/assets/current/metropolis-flight.png">Still</a><br>Bald Eagle over a metropolis</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/blackbird-city-cruise.mp4"><img src="docs/assets/readme/blackbird-city-cruise.gif" width="220" alt="SR-71 above the city and clouds"></a><br><a href="docs/assets/current/blackbird-city-cruise.png">Still</a><br>SR-71 above the city and clouds</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metropolitan-airport.mp4"><img src="docs/assets/readme/metropolitan-airport.gif" width="220" alt="Glider over a metropolitan airport"></a><br><a href="docs/assets/current/metropolitan-airport.png">Still</a><br>Glider over a metropolitan airport</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/metro-train.mp4"><img src="docs/assets/readme/metro-train.gif" width="220" alt="Ultralight passing a metropolitan train"></a><br><a href="docs/assets/current/metro-train.png">Still</a><br>Ultralight passing a metropolitan train</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/outskirts-flyover.mp4"><img src="docs/assets/readme/outskirts-flyover.gif" width="220" alt="Glider over the city outskirts"></a><br><a href="docs/assets/current/outskirts-flyover.png">Still</a><br>Glider over the city outskirts</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/dry-foothills-flight.mp4"><img src="docs/assets/readme/dry-foothills-flight.gif" width="220" alt="Bald Eagle over desert foothills"></a><br><a href="docs/assets/current/dry-foothills-flight.png">Still</a><br>Bald Eagle over desert foothills</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sandstone-ridge-flight.mp4"><img src="docs/assets/readme/sandstone-ridge-flight.gif" width="220" alt="Bald Eagle alongside sandstone ridges"></a><br><a href="docs/assets/current/sandstone-ridge-flight.png">Still</a><br>Bald Eagle alongside sandstone ridges</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/bowed-blue-icefall.mp4"><img src="docs/assets/readme/bowed-blue-icefall.gif" width="220" alt="Glider over a bowed blue icefall"></a><br><a href="docs/assets/current/bowed-blue-icefall.png">Still</a><br>Glider over a bowed blue icefall</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sport-jet-climb.mp4"><img src="docs/assets/readme/sport-jet-climb.gif" width="220" alt="Sport Jet climbing through a mountain valley"></a><br><a href="docs/assets/current/sport-jet-climb.png">Still</a><br>Sport Jet climbing through a mountain valley</td>
+  </tr>
+  <tr>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sedge-strand-tarn.mp4"><img src="docs/assets/readme/sedge-strand-tarn.gif" width="220" alt="Bald Eagle over a sedge-lined tarn"></a><br><a href="docs/assets/current/sedge-strand-tarn.png">Still</a><br>Bald Eagle over a sedge-lined tarn</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/linked-downtown.mp4"><img src="docs/assets/readme/linked-downtown.gif" width="220" alt="Ultralight approaching a linked downtown"></a><br><a href="docs/assets/current/linked-downtown.png">Still</a><br>Ultralight approaching a linked downtown</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/high-cruise.mp4"><img src="docs/assets/readme/high-cruise.gif" width="220" alt="High-altitude cruise"></a><br><a href="docs/assets/current/high-cruise.png">Still</a><br>High-altitude cruise</td>
   </tr>
   <tr>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/high-cruise.mp4"><img src="docs/assets/readme/high-cruise.gif" width="220" alt="High-altitude cruise"></a><br><a href="docs/assets/current/high-cruise.png">Still</a><br>High-altitude cruise</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/paired-mountain-gondolas.mp4"><img src="docs/assets/readme/paired-mountain-gondolas.gif" width="220" alt="Glider alongside mountain gondolas"></a><br><a href="docs/assets/current/paired-mountain-gondolas.png">Still</a><br>Glider alongside mountain gondolas</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/quay-customs-annex.mp4"><img src="docs/assets/readme/quay-customs-annex.gif" width="220" alt="Ultralight past the harbor customs annex"></a><br><a href="docs/assets/current/quay-customs-annex.png">Still</a><br>Ultralight past the harbor customs annex</td>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/airfield-visitor-stands.mp4"><img src="docs/assets/readme/airfield-visitor-stands.gif" width="220" alt="Racer approaching a regional airfield"></a><br><a href="docs/assets/current/airfield-visitor-stands.png">Still</a><br>Racer approaching a regional airfield</td>
   </tr>
   <tr>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/airfield-visitor-stands.mp4"><img src="docs/assets/readme/airfield-visitor-stands.gif" width="220" alt="Racer approaching a regional airfield"></a><br><a href="docs/assets/current/airfield-visitor-stands.png">Still</a><br>Racer approaching a regional airfield</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/formation-four.mp4"><img src="docs/assets/readme/formation-four.gif" width="220" alt="Fighter wedge · 4 wingmates"></a><br><a href="docs/assets/current/formation-four.png">Still</a><br>Fighter wedge · 4 wingmates</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-winter-sunset.mp4"><img src="docs/assets/readme/sky-weather-winter-sunset.gif" width="220" alt="Winter sunset"></a><br><a href="docs/assets/current/sky-weather-winter-sunset.png">Still</a><br>Winter sunset</td>
-  </tr>
-  <tr>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sky-weather-snow-0.mp4"><img src="docs/assets/readme/sky-weather-snow-0.gif" width="220" alt="Snow curtain over high country"></a><br><a href="docs/assets/current/sky-weather-snow-0.png">Still</a><br>Snow curtain over high country</td>
   </tr>
 </table>
 
-[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · [Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · [Aircraft and picker screens](#aircraft-and-picker-screens) · [Artwork gallery](#artwork-gallery) · [World generation](#world-generation)
+[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · [Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · [Aircraft and picker screens](#aircraft-and-picker-screens) · [Rare flight moments](#rare-flight-moments) · [Artwork gallery](#artwork-gallery) · [World generation](#world-generation)
 
 ### Sky & Weather
 
@@ -89,146 +101,147 @@ Select a preview to open the full-size clip or screenshot.
 
 <table>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/dry-coast-flight.mp4"><img src="docs/assets/readme/dry-coast-flight.gif" width="220" alt="Ultralight over coastal scrub"></a><br><a href="docs/assets/current/dry-coast-flight.png">Still</a><br>Ultralight over coastal scrub</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/summit-trail-ridge-canopy.mp4"><img src="docs/assets/readme/summit-trail-ridge-canopy.gif" width="220" alt="Bush Plane over a leaning ridge canopy"></a><br><a href="docs/assets/current/summit-trail-ridge-canopy.png">Still</a><br>Bush Plane over a leaning ridge canopy</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/summit-trail-red-gable.mp4"><img src="docs/assets/readme/summit-trail-red-gable.gif" width="220" alt="Ultralight passing a red gable information hut"></a><br><a href="docs/assets/current/summit-trail-red-gable.png">Still</a><br>Ultralight passing a red gable information hut</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/summit-trail-viewing-decks.mp4"><img src="docs/assets/readme/summit-trail-viewing-decks.gif" width="220" alt="Glider over a trail with two-level viewing decks"></a><br><a href="docs/assets/current/summit-trail-viewing-decks.png">Still</a><br>Glider over a trail with two-level viewing decks</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/summit-trail-viewing-decks.mp4"><img src="docs/assets/readme/summit-trail-viewing-decks.gif" width="220" alt="Glider over a trail with two-level viewing decks"></a><br><a href="docs/assets/current/summit-trail-viewing-decks.png">Still</a><br>Glider over a trail with two-level viewing decks</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/summit-trail-windward-shelter.mp4"><img src="docs/assets/readme/summit-trail-windward-shelter.gif" width="220" alt="Bald Eagle beside a windward stone shelter"></a><br><a href="docs/assets/current/summit-trail-windward-shelter.png">Still</a><br>Bald Eagle beside a windward stone shelter</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/badlands-terraced-cleft.mp4"><img src="docs/assets/readme/badlands-terraced-cleft.gif" width="220" alt="Bald Eagle over a terraced cleft"></a><br><a href="docs/assets/current/badlands-terraced-cleft.png">Still</a><br>Bald Eagle over a terraced cleft</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/badlands-hourglass.mp4"><img src="docs/assets/readme/badlands-hourglass.gif" width="220" alt="Glider over a narrow badlands canyon"></a><br><a href="docs/assets/current/badlands-hourglass.png">Still</a><br>Glider over a narrow badlands canyon</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/badlands-hourglass.mp4"><img src="docs/assets/readme/badlands-hourglass.gif" width="220" alt="Glider over a narrow badlands canyon"></a><br><a href="docs/assets/current/badlands-hourglass.png">Still</a><br>Glider over a narrow badlands canyon</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/badlands-open-wash.mp4"><img src="docs/assets/readme/badlands-open-wash.gif" width="220" alt="Bush Plane above an open wash mouth"></a><br><a href="docs/assets/current/badlands-open-wash.png">Still</a><br>Bush Plane above an open wash mouth</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/badlands-boxhead.mp4"><img src="docs/assets/readme/badlands-boxhead.gif" width="220" alt="Ultralight over a box-headed ravine"></a><br><a href="docs/assets/current/badlands-boxhead.png">Still</a><br>Ultralight over a box-headed ravine</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glacial-outwash-splay.mp4"><img src="docs/assets/readme/glacial-outwash-splay.gif" width="220" alt="Bush Plane over a diverging outwash fan"></a><br><a href="docs/assets/current/glacial-outwash-splay.png">Still</a><br>Bush Plane over a diverging outwash fan</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glacial-outwash-splay.mp4"><img src="docs/assets/readme/glacial-outwash-splay.gif" width="220" alt="Bush Plane over a diverging outwash fan"></a><br><a href="docs/assets/current/glacial-outwash-splay.png">Still</a><br>Bush Plane over a diverging outwash fan</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glacial-outwash-chute.mp4"><img src="docs/assets/readme/glacial-outwash-chute.gif" width="220" alt="Ultralight over an inset meltwater chute"></a><br><a href="docs/assets/current/glacial-outwash-chute.png">Still</a><br>Ultralight over an inset meltwater chute</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glacial-outwash-braidplain.mp4"><img src="docs/assets/readme/glacial-outwash-braidplain.gif" width="220" alt="Glider over a wide glacial braidplain"></a><br><a href="docs/assets/current/glacial-outwash-braidplain.png">Still</a><br>Glider over a wide glacial braidplain</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-bluff-rotated-slump.mp4"><img src="docs/assets/readme/coastal-bluff-rotated-slump.gif" width="220" alt="Low pass along a coastal slump"></a><br><a href="docs/assets/current/coastal-bluff-rotated-slump.png">Still</a><br>Low pass along a coastal slump</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-bluff-rotated-slump.mp4"><img src="docs/assets/readme/coastal-bluff-rotated-slump.gif" width="220" alt="Low pass along a coastal slump"></a><br><a href="docs/assets/current/coastal-bluff-rotated-slump.png">Still</a><br>Low pass along a coastal slump</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-bluff-twin-noses.mp4"><img src="docs/assets/readme/coastal-bluff-twin-noses.gif" width="220" alt="Twin rock spurs"></a><br><a href="docs/assets/current/coastal-bluff-twin-noses.png">Still</a><br>Twin rock spurs</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-bluff-raised-shelves.mp4"><img src="docs/assets/readme/coastal-bluff-raised-shelves.gif" width="220" alt="Raised shelves above the shoreline"></a><br><a href="docs/assets/current/coastal-bluff-raised-shelves.png">Still</a><br>Raised shelves above the shoreline</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/alpine-deep-convex-apron.mp4"><img src="docs/assets/readme/alpine-deep-convex-apron.gif" width="220" alt="Blackbird above a mountain rockfall fan"></a><br><a href="docs/assets/current/alpine-deep-convex-apron.png">Still</a><br>Blackbird above a mountain rockfall fan</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/alpine-deep-convex-apron.mp4"><img src="docs/assets/readme/alpine-deep-convex-apron.gif" width="220" alt="Blackbird above a mountain rockfall fan"></a><br><a href="docs/assets/current/alpine-deep-convex-apron.png">Still</a><br>Blackbird above a mountain rockfall fan</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/alpine-stone-ribs-gullies.mp4"><img src="docs/assets/readme/alpine-stone-ribs-gullies.gif" width="220" alt="Stone ribs and fine gullies"></a><br><a href="docs/assets/current/alpine-stone-ribs-gullies.png">Still</a><br>Stone ribs and fine gullies</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/alpine-forked-rockfall.mp4"><img src="docs/assets/readme/alpine-forked-rockfall.gif" width="220" alt="Forked rockfall apron below the snow line"></a><br><a href="docs/assets/current/alpine-forked-rockfall.png">Still</a><br>Forked rockfall apron below the snow line</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/river-bend-scroll-terrace.mp4"><img src="docs/assets/readme/river-bend-scroll-terrace.gif" width="220" alt="Interrupted scroll terrace"></a><br><a href="docs/assets/current/river-bend-scroll-terrace.png">Still</a><br>Interrupted scroll terrace</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/river-bend-scroll-terrace.mp4"><img src="docs/assets/readme/river-bend-scroll-terrace.gif" width="220" alt="Interrupted scroll terrace"></a><br><a href="docs/assets/current/river-bend-scroll-terrace.png">Still</a><br>Interrupted scroll terrace</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/river-bend-cobble-ridges.mp4"><img src="docs/assets/readme/river-bend-cobble-ridges.gif" width="220" alt="Cobble ridges and silt pockets"></a><br><a href="docs/assets/current/river-bend-cobble-ridges.png">Still</a><br>Cobble ridges and silt pockets</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/river-bend-sand-crescent.mp4"><img src="docs/assets/readme/river-bend-sand-crescent.gif" width="220" alt="Fine sand crescent inside a bend"></a><br><a href="docs/assets/current/river-bend-sand-crescent.png">Still</a><br>Fine sand crescent inside a bend</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tarn-cascade-south.mp4"><img src="docs/assets/readme/tarn-cascade-south.gif" width="220" alt="Deflected rock cascade"></a><br><a href="docs/assets/current/tarn-cascade-south.png">Still</a><br>Deflected rock cascade</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tarn-cascade-south.mp4"><img src="docs/assets/readme/tarn-cascade-south.gif" width="220" alt="Deflected rock cascade"></a><br><a href="docs/assets/current/tarn-cascade-south.png">Still</a><br>Deflected rock cascade</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tarn-cascade-west.mp4"><img src="docs/assets/readme/tarn-cascade-west.gif" width="220" alt="Beaded twin cascade"></a><br><a href="docs/assets/current/tarn-cascade-west.png">Still</a><br>Beaded twin cascade</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/twin-cove-crests.mp4"><img src="docs/assets/readme/twin-cove-crests.gif" width="220" alt="Bald Eagle over twin dune crests"></a><br><a href="docs/assets/current/twin-cove-crests.png">Still</a><br>Bald Eagle over twin dune crests</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/elbow-cove-dune.mp4"><img src="docs/assets/readme/elbow-cove-dune.gif" width="220" alt="Glider following an elbow-shaped dune"></a><br><a href="docs/assets/current/elbow-cove-dune.png">Still</a><br>Glider following an elbow-shaped dune</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/elbow-cove-dune.mp4"><img src="docs/assets/readme/elbow-cove-dune.gif" width="220" alt="Glider following an elbow-shaped dune"></a><br><a href="docs/assets/current/elbow-cove-dune.png">Still</a><br>Glider following an elbow-shaped dune</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/notched-cove-dune.mp4"><img src="docs/assets/readme/notched-cove-dune.gif" width="220" alt="Ultralight along a notched cove dune"></a><br><a href="docs/assets/current/notched-cove-dune.png">Still</a><br>Ultralight along a notched cove dune</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/twin-rock-buttresses.mp4"><img src="docs/assets/readme/twin-rock-buttresses.gif" width="220" alt="Bald Eagle above twin rock buttresses"></a><br><a href="docs/assets/current/twin-rock-buttresses.png">Still</a><br>Bald Eagle above twin rock buttresses</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/descending-columnar-wall.mp4"><img src="docs/assets/readme/descending-columnar-wall.gif" width="220" alt="Glider over a descending rock face"></a><br><a href="docs/assets/current/descending-columnar-wall.png">Still</a><br>Glider over a descending rock face</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/descending-columnar-wall.mp4"><img src="docs/assets/readme/descending-columnar-wall.gif" width="220" alt="Glider over a descending rock face"></a><br><a href="docs/assets/current/descending-columnar-wall.png">Still</a><br>Glider over a descending rock face</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/fallen-columnar-blocks.mp4"><img src="docs/assets/readme/fallen-columnar-blocks.gif" width="220" alt="Bush Plane past a broad columnar outcrop"></a><br><a href="docs/assets/current/fallen-columnar-blocks.png">Still</a><br>Bush Plane past a broad columnar outcrop</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/late-split-alluvial-fan.mp4"><img src="docs/assets/readme/late-split-alluvial-fan.gif" width="220" alt="Bald Eagle over a three-way desert wash"></a><br><a href="docs/assets/current/late-split-alluvial-fan.png">Still</a><br>Bald Eagle over a three-way desert wash</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/narrow-alluvial-fan.mp4"><img src="docs/assets/readme/narrow-alluvial-fan.gif" width="220" alt="Glider above a narrow alluvial fan"></a><br><a href="docs/assets/current/narrow-alluvial-fan.png">Still</a><br>Glider above a narrow alluvial fan</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/narrow-alluvial-fan.mp4"><img src="docs/assets/readme/narrow-alluvial-fan.gif" width="220" alt="Glider above a narrow alluvial fan"></a><br><a href="docs/assets/current/narrow-alluvial-fan.png">Still</a><br>Glider above a narrow alluvial fan</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/wide-gravel-fan.mp4"><img src="docs/assets/readme/wide-gravel-fan.gif" width="220" alt="Ultralight over a wide gravel apron"></a><br><a href="docs/assets/current/wide-gravel-fan.png">Still</a><br>Ultralight over a wide gravel apron</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/broad-glacial-debris-apron.mp4"><img src="docs/assets/readme/broad-glacial-debris-apron.gif" width="220" alt="Ultralight past a broad moraine apron"></a><br><a href="docs/assets/current/broad-glacial-debris-apron.png">Still</a><br>Ultralight past a broad moraine apron</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sinuous-glacial-moraine.mp4"><img src="docs/assets/readme/sinuous-glacial-moraine.gif" width="220" alt="Bald Eagle over a sinuous moraine"></a><br><a href="docs/assets/current/sinuous-glacial-moraine.png">Still</a><br>Bald Eagle over a sinuous moraine</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sinuous-glacial-moraine.mp4"><img src="docs/assets/readme/sinuous-glacial-moraine.gif" width="220" alt="Bald Eagle over a sinuous moraine"></a><br><a href="docs/assets/current/sinuous-glacial-moraine.png">Still</a><br>Bald Eagle over a sinuous moraine</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/twin-recessional-ridges.mp4"><img src="docs/assets/readme/twin-recessional-ridges.gif" width="220" alt="Glider over twin moraine ridges"></a><br><a href="docs/assets/current/twin-recessional-ridges.png">Still</a><br>Glider over twin moraine ridges</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/gravel-shoulder-tarn.mp4"><img src="docs/assets/readme/gravel-shoulder-tarn.gif" width="220" alt="Ultralight over a tarn with gravel shoulders"></a><br><a href="docs/assets/current/gravel-shoulder-tarn.png">Still</a><br>Ultralight over a tarn with gravel shoulders</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sand-fan-tarn.mp4"><img src="docs/assets/readme/sand-fan-tarn.gif" width="220" alt="Glider past a sand-fan tarn"></a><br><a href="docs/assets/current/sand-fan-tarn.png">Still</a><br>Glider past a sand-fan tarn</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/sand-fan-tarn.mp4"><img src="docs/assets/readme/sand-fan-tarn.gif" width="220" alt="Glider past a sand-fan tarn"></a><br><a href="docs/assets/current/sand-fan-tarn.png">Still</a><br>Glider past a sand-fan tarn</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/single-streak-moraine.mp4"><img src="docs/assets/readme/single-streak-moraine.gif" width="220" alt="Ultralight along a glacier moraine"></a><br><a href="docs/assets/current/single-streak-moraine.png">Still</a><br>Ultralight along a glacier moraine</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/tapered-snow-apron.mp4"><img src="docs/assets/readme/tapered-snow-apron.gif" width="220" alt="Bald Eagle above a tapered snow apron"></a><br><a href="docs/assets/current/tapered-snow-apron.png">Still</a><br>Bald Eagle above a tapered snow apron</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/stone-crown-island.mp4"><img src="docs/assets/readme/stone-crown-island.gif" width="220" alt="Ultralight over a two-crown shingle island"></a><br><a href="docs/assets/current/stone-crown-island.png">Still</a><br>Ultralight over a two-crown shingle island</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/stone-crown-island.mp4"><img src="docs/assets/readme/stone-crown-island.gif" width="220" alt="Ultralight over a two-crown shingle island"></a><br><a href="docs/assets/current/stone-crown-island.png">Still</a><br>Ultralight over a two-crown shingle island</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/meadow-knoll-island.mp4"><img src="docs/assets/readme/meadow-knoll-island.gif" width="220" alt="Glider past twin meadow knolls"></a><br><a href="docs/assets/current/meadow-knoll-island.png">Still</a><br>Glider past twin meadow knolls</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/crescent-river-island.mp4"><img src="docs/assets/readme/crescent-river-island.gif" width="220" alt="Bald Eagle over a sandy crescent island"></a><br><a href="docs/assets/current/crescent-river-island.png">Still</a><br>Bald Eagle over a sandy crescent island</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/thin-stone-bridge.mp4"><img src="docs/assets/readme/thin-stone-bridge.gif" width="220" alt="Glider by a thin sea arch"></a><br><a href="docs/assets/current/thin-stone-bridge.png">Still</a><br>Glider by a thin sea arch</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/thin-stone-bridge.mp4"><img src="docs/assets/readme/thin-stone-bridge.gif" width="220" alt="Glider by a thin sea arch"></a><br><a href="docs/assets/current/thin-stone-bridge.png">Still</a><br>Glider by a thin sea arch</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/descending-skerries.mp4"><img src="docs/assets/readme/descending-skerries.gif" width="220" alt="Ultralight over descending skerries"></a><br><a href="docs/assets/current/descending-skerries.png">Still</a><br>Ultralight over descending skerries</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/needle-sea-stack.mp4"><img src="docs/assets/readme/needle-sea-stack.gif" width="220" alt="Bald Eagle past a needle sea stack"></a><br><a href="docs/assets/current/needle-sea-stack.png">Still</a><br>Bald Eagle past a needle sea stack</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/mesa-three-towers.mp4"><img src="docs/assets/readme/mesa-three-towers.gif" width="220" alt="Glider approaching three sandstone towers"></a><br><a href="docs/assets/current/mesa-three-towers.png">Still</a><br>Glider approaching three sandstone towers</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/mesa-three-towers.mp4"><img src="docs/assets/readme/mesa-three-towers.gif" width="220" alt="Glider approaching three sandstone towers"></a><br><a href="docs/assets/current/mesa-three-towers.png">Still</a><br>Glider approaching three sandstone towers</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/mesa-ravine.mp4"><img src="docs/assets/readme/mesa-ravine.gif" width="220" alt="Bald Eagle along a sandstone ravine"></a><br><a href="docs/assets/current/mesa-ravine.png">Still</a><br>Bald Eagle along a sandstone ravine</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/mesa-double-ledge.mp4"><img src="docs/assets/readme/mesa-double-ledge.gif" width="220" alt="Ultralight over terraced sandstone mesas"></a><br><a href="docs/assets/current/mesa-double-ledge.png">Still</a><br>Ultralight over terraced sandstone mesas</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/flowering-reed-marsh.mp4"><img src="docs/assets/readme/flowering-reed-marsh.gif" width="220" alt="Ultralight along a reed marsh"></a><br><a href="docs/assets/current/flowering-reed-marsh.png">Still</a><br>Ultralight along a reed marsh</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/flowering-reed-marsh.mp4"><img src="docs/assets/readme/flowering-reed-marsh.gif" width="220" alt="Ultralight along a reed marsh"></a><br><a href="docs/assets/current/flowering-reed-marsh.png">Still</a><br>Ultralight along a reed marsh</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/floodplain-bend.mp4"><img src="docs/assets/readme/floodplain-bend.gif" width="220" alt="Ultralight along a floodplain bend"></a><br><a href="docs/assets/current/floodplain-bend.png">Still</a><br>Ultralight along a floodplain bend</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/eagle-wet-meadow.mp4"><img src="docs/assets/readme/eagle-wet-meadow.gif" width="220" alt="Bald Eagle over a wet meadow"></a><br><a href="docs/assets/current/eagle-wet-meadow.png">Still</a><br>Bald Eagle over a wet meadow</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glacier-ice-pass.mp4"><img src="docs/assets/readme/glacier-ice-pass.gif" width="220" alt="Glider above fractured ice"></a><br><a href="docs/assets/current/glacier-ice-pass.png">Still</a><br>Glider above fractured ice</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glacier-ice-pass.mp4"><img src="docs/assets/readme/glacier-ice-pass.gif" width="220" alt="Glider above fractured ice"></a><br><a href="docs/assets/current/glacier-ice-pass.png">Still</a><br>Glider above fractured ice</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/alpine-ridgetop.mp4"><img src="docs/assets/readme/alpine-ridgetop.gif" width="220" alt="Bush Plane over a rocky alpine ridge"></a><br><a href="docs/assets/current/alpine-ridgetop.png">Still</a><br>Bush Plane over a rocky alpine ridge</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/alpine-rock-and-meadow.mp4"><img src="docs/assets/readme/alpine-rock-and-meadow.gif" width="220" alt="Ultralight over an alpine meadow"></a><br><a href="docs/assets/current/alpine-rock-and-meadow.png">Still</a><br>Ultralight over an alpine meadow</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glider-upper-shore.mp4"><img src="docs/assets/readme/glider-upper-shore.gif" width="220" alt="Glider over coastal grasses"></a><br><a href="docs/assets/current/glider-upper-shore.png">Still</a><br>Glider over coastal grasses</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glider-upper-shore.mp4"><img src="docs/assets/readme/glider-upper-shore.gif" width="220" alt="Glider over coastal grasses"></a><br><a href="docs/assets/current/glider-upper-shore.png">Still</a><br>Glider over coastal grasses</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/eagle-headland.mp4"><img src="docs/assets/readme/eagle-headland.gif" width="220" alt="Bald Eagle along a sandy headland"></a><br><a href="docs/assets/current/eagle-headland.png">Still</a><br>Bald Eagle along a sandy headland</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/grassland-coastal-slopes.mp4"><img src="docs/assets/readme/grassland-coastal-slopes.gif" width="220" alt="Ultralight along coastal grassland"></a><br><a href="docs/assets/current/grassland-coastal-slopes.png">Still</a><br>Ultralight along coastal grassland</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/grassland-foothills.mp4"><img src="docs/assets/readme/grassland-foothills.gif" width="220" alt="Ultralight over grassy foothills"></a><br><a href="docs/assets/current/grassland-foothills.png">Still</a><br>Ultralight over grassy foothills</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/grassland-foothills.mp4"><img src="docs/assets/readme/grassland-foothills.gif" width="220" alt="Ultralight over grassy foothills"></a><br><a href="docs/assets/current/grassland-foothills.png">Still</a><br>Ultralight over grassy foothills</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-details-flight.mp4"><img src="docs/assets/readme/coastal-details-flight.gif" width="220" alt="Bald eagle along the sandy coast"></a><br><a href="docs/assets/current/coastal-details-flight.png">Still</a><br>Bald eagle along the sandy coast</td>
     <td align="center"><a href="docs/assets/current/riverside-town.png"><img src="docs/assets/current/riverside-town.png" width="220" alt="River through the foothills"></a><br>River through the foothills</td>
-    <td align="center"><a href="docs/assets/current/cove-dune.png"><img src="docs/assets/current/cove-dune.png" width="220" alt="Cove dune"></a><br>Cove dune</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/cove-dune.png"><img src="docs/assets/current/cove-dune.png" width="220" alt="Cove dune"></a><br>Cove dune</td>
     <td align="center"><a href="docs/assets/current/alluvial-fan.png"><img src="docs/assets/current/alluvial-fan.png" width="220" alt="Desert alluvial fan"></a><br>Desert alluvial fan</td>
     <td align="center"><a href="docs/assets/current/badlands-ravine.png"><img src="docs/assets/current/badlands-ravine.png" width="220" alt="Badlands ravine"></a><br>Badlands ravine</td>
-    <td align="center"><a href="docs/assets/current/inland-dunes.png"><img src="docs/assets/current/inland-dunes.png" width="220" alt="Inland dunes"></a><br>Inland dunes</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/inland-dunes.png"><img src="docs/assets/current/inland-dunes.png" width="220" alt="Inland dunes"></a><br>Inland dunes</td>
     <td align="center"><a href="docs/assets/current/salt-pan.png"><img src="docs/assets/current/salt-pan.png" width="220" alt="Salt pan"></a><br>Salt pan</td>
     <td align="center"><a href="docs/assets/current/columnar-rock.png"><img src="docs/assets/current/columnar-rock.png" width="220" alt="Columnar rock above an alpine scree slope"></a><br>Columnar rock above an alpine scree slope</td>
-    <td align="center"><a href="docs/assets/current/alpine-tarn.png"><img src="docs/assets/current/alpine-tarn.png" width="220" alt="Alpine tarn"></a><br>Alpine tarn</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/alpine-tarn.png"><img src="docs/assets/current/alpine-tarn.png" width="220" alt="Alpine tarn"></a><br>Alpine tarn</td>
     <td align="center"><a href="docs/assets/current/oxbow-lake.png"><img src="docs/assets/current/oxbow-lake.png" width="220" alt="Oxbow lake"></a><br>Oxbow lake</td>
     <td align="center"><a href="docs/assets/current/coastal-stone-arch.png"><img src="docs/assets/current/coastal-stone-arch.png" width="220" alt="Sea arch"></a><br>Sea arch</td>
-    <td align="center"><a href="docs/assets/current/coastal-skerries.png"><img src="docs/assets/current/coastal-skerries.png" width="220" alt="Skerries"></a><br>Skerries</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/coastal-skerries.png"><img src="docs/assets/current/coastal-skerries.png" width="220" alt="Skerries"></a><br>Skerries</td>
     <td align="center"><a href="docs/assets/current/coastal-sea-stack.png"><img src="docs/assets/current/coastal-sea-stack.png" width="220" alt="Sea stack"></a><br>Sea stack</td>
     <td align="center"><a href="docs/assets/current/ridge-view.png"><img src="docs/assets/current/ridge-view.png" width="220" alt="Ridge in daylight"></a><br>Ridge in daylight</td>
-    <td align="center"><a href="docs/assets/current/bay-view.png"><img src="docs/assets/current/bay-view.png" width="220" alt="Bay and headlands"></a><br>Bay and headlands</td>
   </tr>
   <tr>
+    <td align="center"><a href="docs/assets/current/bay-view.png"><img src="docs/assets/current/bay-view.png" width="220" alt="Bay and headlands"></a><br>Bay and headlands</td>
     <td align="center"><a href="docs/assets/current/cliffside.png"><img src="docs/assets/current/cliffside.png" width="220" alt="Cliffside flight"></a><br>Cliffside flight</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/bay-crossing.mp4"><img src="docs/assets/readme/bay-crossing.gif" width="220" alt="Flight over the bay"></a><br><a href="docs/assets/current/bay-crossing.png">Still</a><br>Flight over the bay</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/woodland-stands.mp4"><img src="docs/assets/readme/woodland-stands.gif" width="220" alt="Bush Plane along the wooded slopes"></a><br><a href="docs/assets/current/woodland-stands.png">Still</a><br>Bush Plane along the wooded slopes</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/woodland-stands.mp4"><img src="docs/assets/readme/woodland-stands.gif" width="220" alt="Bush Plane along the wooded slopes"></a><br><a href="docs/assets/current/woodland-stands.png">Still</a><br>Bush Plane along the wooded slopes</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glider-coast.mp4"><img src="docs/assets/readme/glider-coast.gif" width="220" alt="Glider on the coast"></a><br><a href="docs/assets/current/glider-coast.png">Still</a><br>Glider on the coast</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/river-valley.mp4"><img src="docs/assets/readme/river-valley.gif" width="220" alt="Ultralight over a river town"></a><br><a href="docs/assets/current/river-valley.png">Still</a><br>Ultralight over a river town</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-soaring.mp4"><img src="docs/assets/readme/coastal-soaring.gif" width="220" alt="Eagle over the foothills"></a><br><a href="docs/assets/current/coastal-soaring.png">Still</a><br>Eagle over the foothills</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/coastal-soaring.mp4"><img src="docs/assets/readme/coastal-soaring.gif" width="220" alt="Eagle over the foothills"></a><br><a href="docs/assets/current/coastal-soaring.png">Still</a><br>Eagle over the foothills</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/mountain-pass.mp4"><img src="docs/assets/readme/mountain-pass.gif" width="220" alt="Mountain pass"></a><br><a href="docs/assets/current/mountain-pass.png">Still</a><br>Mountain pass</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/ultralight-ridge.mp4"><img src="docs/assets/readme/ultralight-ridge.gif" width="220" alt="Ultralight over a rocky ridge"></a><br><a href="docs/assets/current/ultralight-ridge.png">Still</a><br>Ultralight over a rocky ridge</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/wooded-watershed.mp4"><img src="docs/assets/readme/wooded-watershed.gif" width="220" alt="Eagle over a wooded watershed"></a><br><a href="docs/assets/current/wooded-watershed.png">Still</a><br>Eagle over a wooded watershed</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/wooded-watershed.mp4"><img src="docs/assets/readme/wooded-watershed.gif" width="220" alt="Eagle over a wooded watershed"></a><br><a href="docs/assets/current/wooded-watershed.png">Still</a><br>Eagle over a wooded watershed</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/reedbed-meander.mp4"><img src="docs/assets/readme/reedbed-meander.gif" width="220" alt="Eagle over a reed-lined bend"></a><br><a href="docs/assets/current/reedbed-meander.png">Still</a><br>Eagle over a reed-lined bend</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/eagle-forest-edge.mp4"><img src="docs/assets/readme/eagle-forest-edge.gif" width="220" alt="Eagle along the forest edge"></a><br><a href="docs/assets/current/eagle-forest-edge.png">Still</a><br>Eagle along the forest edge</td>
-    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/wooded-valley-pass.mp4"><img src="docs/assets/readme/wooded-valley-pass.gif" width="220" alt="Ultralight through a wooded valley"></a><br><a href="docs/assets/current/wooded-valley-pass.png">Still</a><br>Ultralight through a wooded valley</td>
   </tr>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/wooded-valley-pass.mp4"><img src="docs/assets/readme/wooded-valley-pass.gif" width="220" alt="Ultralight through a wooded valley"></a><br><a href="docs/assets/current/wooded-valley-pass.png">Still</a><br>Ultralight through a wooded valley</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/dryland-badlands-pass.mp4"><img src="docs/assets/readme/dryland-badlands-pass.gif" width="220" alt="Ultralight through the badlands"></a><br><a href="docs/assets/current/dryland-badlands-pass.png">Still</a><br>Ultralight through the badlands</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/dryland-basin-pass.mp4"><img src="docs/assets/readme/dryland-basin-pass.gif" width="220" alt="Ultralight over desert flats"></a><br><a href="docs/assets/current/dryland-basin-pass.png">Still</a><br>Ultralight over desert flats</td>
   </tr>
@@ -418,6 +431,7 @@ Select a preview to open the full-size clip or screenshot.
 
 <table>
   <tr>
+    <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/cub-valley.mp4"><img src="docs/assets/readme/cub-valley.gif" width="220" alt="Bush Plane following a mountain valley"></a><br><a href="docs/assets/current/cub-valley.png">Still</a><br>Bush Plane following a mountain valley</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/racer-bank.mp4"><img src="docs/assets/readme/racer-bank.gif" width="220" alt="Racer banks around a ridge"></a><br><a href="docs/assets/current/racer-bank.png">Still</a><br>Racer banks around a ridge</td>
     <td align="center"><a href="https://xberenguer.github.io/scenic-flight/assets/current/glider-reflection.gif"><img src="docs/assets/readme/glider-reflection.gif" width="220" alt="Sun glint in a thermal turn"></a><br><a href="docs/assets/current/glider-reflection.png">Still</a><br>Sun glint in a thermal turn</td>
   </tr>
@@ -451,6 +465,58 @@ Select a preview to open the full-size clip or screenshot.
     <td align="center"><a href="docs/assets/picker-6.png"><img src="docs/assets/picker-6.png" width="168" alt="SR-71 Blackbird picker screen"></a><br><a href="docs/assets/turntable-6.gif"><img src="docs/assets/turntable-6.gif" width="168" alt="SR-71 Blackbird turntable"></a><br>SR-71 Blackbird</td>
   </tr>
 </table>
+
+## Rare flight moments
+
+Each flight has a two-in-three chance at a rare moment every 4 min 20 sec. Events last 9.5–14.5 simulated seconds.
+
+### Bald Eagle
+
+Bald Eagle crossing · Talon stretch · Tail fan · Ridge wing tuck
+
+<a href="docs/assets/artwork/flight-moments-7.gif"><img src="docs/assets/artwork/flight-moments-7.gif" width="720" alt="Bald Eagle rare flight moments. Bald Eagle crossing · Talon stretch · Tail fan · Ridge wing tuck"></a>
+
+### Ultralight
+
+Hot-air balloon pass · Ultralight pair · Sailplane passing overhead · Valley lookout turn
+
+<a href="docs/assets/artwork/flight-moments-3.gif"><img src="docs/assets/artwork/flight-moments-3.gif" width="720" alt="Ultralight rare flight moments. Hot-air balloon pass · Ultralight pair · Sailplane passing overhead · Valley lookout turn"></a>
+
+### Glider
+
+Towplane and sailplane crossing · Sailplane joins alongside · Airbrake descent · Slow sideslip
+
+<a href="docs/assets/artwork/flight-moments-4.gif"><img src="docs/assets/artwork/flight-moments-4.gif" width="720" alt="Glider rare flight moments. Towplane and sailplane crossing · Sailplane joins alongside · Airbrake descent · Slow sideslip"></a>
+
+### Bush Plane
+
+Biplane crossing · Bush-plane escort · Survey S-turn · Landing light pass
+
+<a href="docs/assets/artwork/flight-moments-0.gif"><img src="docs/assets/artwork/flight-moments-0.gif" width="720" alt="Bush Plane rare flight moments. Biplane crossing · Bush-plane escort · Survey S-turn · Landing light pass"></a>
+
+### Racer
+
+Aerobatic pair · Wing wag · Straight smoke pass · Rising smoke arc
+
+<a href="docs/assets/artwork/flight-moments-1.gif"><img src="docs/assets/artwork/flight-moments-1.gif" width="720" alt="Racer rare flight moments. Aerobatic pair · Wing wag · Straight smoke pass · Rising smoke arc"></a>
+
+### Sport Jet
+
+Business jet crossing · Wingtip vapor · Arrival lights · Long viewing turn
+
+<a href="docs/assets/artwork/flight-moments-2.gif"><img src="docs/assets/artwork/flight-moments-2.gif" width="720" alt="Sport Jet rare flight moments. Business jet crossing · Wingtip vapor · Arrival lights · Long viewing turn"></a>
+
+### F/A-18 Fighter
+
+Fighter high pass · Section break · Condensation streamers · Shallow bank reversal
+
+<a href="docs/assets/artwork/flight-moments-5.gif"><img src="docs/assets/artwork/flight-moments-5.gif" width="720" alt="F/A-18 Fighter rare flight moments. Fighter high pass · Section break · Condensation streamers · Shallow bank reversal"></a>
+
+### SR-71 Blackbird
+
+Twin high-altitude contrails · Distant Blackbird crossing · Airliner below · Cruise pitch adjustment
+
+<a href="docs/assets/artwork/flight-moments-6.gif"><img src="docs/assets/artwork/flight-moments-6.gif" width="720" alt="SR-71 Blackbird rare flight moments. Twin high-altitude contrails · Distant Blackbird crossing · Airliner below · Cruise pitch adjustment"></a>
 
 ## Artwork gallery
 
@@ -578,6 +644,22 @@ Select a preview to open the full-size clip or screenshot.
 
 ### Deserts and badlands
 
+#### Scrub, gravel bars, dunes, sandstone, and salt crust · 25 variants
+
+<a href="docs/assets/artwork/dry-surfaces.png"><img src="docs/assets/artwork/dry-surfaces.png" width="780" alt="Scrub, gravel bars, dunes, sandstone, and salt crust"></a>
+
+#### Foothill rock and plant groups · 25 variants
+
+<a href="docs/assets/artwork/dry-foothill-models.png"><img src="docs/assets/artwork/dry-foothill-models.png" width="780" alt="Foothill rock and plant groups"></a>
+
+<a href="docs/assets/artwork/dry-foothill-models.gif"><img src="docs/assets/artwork/dry-foothill-models.gif" width="550" alt="Foothill rock and plant groups animated atlas"></a>
+
+#### Sandstone ridges · 25 variants
+
+<a href="docs/assets/artwork/sandstone-ridges.png"><img src="docs/assets/artwork/sandstone-ridges.png" width="780" alt="Sandstone ridges"></a>
+
+<a href="docs/assets/artwork/sandstone-ridges.gif"><img src="docs/assets/artwork/sandstone-ridges.gif" width="550" alt="Sandstone ridges animated atlas"></a>
+
 #### Badlands ravines · 25 variants
 
 <a href="docs/assets/artwork/badlands-ravines.png"><img src="docs/assets/artwork/badlands-ravines.png" width="780" alt="Badlands ravines"></a>
@@ -642,6 +724,10 @@ Select a preview to open the full-size clip or screenshot.
 
 ### Farms and industry
 
+#### Metropolitan outskirts · 25 variants
+
+<a href="docs/assets/artwork/metropolitan-outskirts.png"><img src="docs/assets/artwork/metropolitan-outskirts.png" width="780" alt="Metropolitan outskirts"></a>
+
 #### Cultivated fields · 25 variants
 
 <a href="docs/assets/artwork/cultivated-fields.png"><img src="docs/assets/artwork/cultivated-fields.png" width="780" alt="Cultivated fields"></a>
@@ -685,6 +771,10 @@ Select a preview to open the full-size clip or screenshot.
 <a href="docs/assets/artwork/industrial-landmarks.gif"><img src="docs/assets/artwork/industrial-landmarks.gif" width="550" alt="Industrial landmarks animated atlas"></a>
 
 ### Cities and towns
+
+#### Metropolitan building blocks · 25 variants
+
+<a href="docs/assets/artwork/metropolis-blocks.png"><img src="docs/assets/artwork/metropolis-blocks.png" width="780" alt="Metropolitan building blocks"></a>
 
 #### Highway neighborhoods · 25 variants
 
@@ -804,6 +894,10 @@ Select a preview to open the full-size clip or screenshot.
 
 ### Airfields
 
+#### Metropolitan airport terminals · 5 variants
+
+<a href="docs/assets/artwork/airport-terminals.png"><img src="docs/assets/artwork/airport-terminals.png" width="780" alt="Metropolitan airport terminals"></a>
+
 #### Runway markings · 25 variants
 
 <a href="docs/assets/artwork/runway-markings.png"><img src="docs/assets/artwork/runway-markings.png" width="780" alt="Runway markings"></a>
@@ -858,7 +952,9 @@ Select a preview to open the full-size clip or screenshot.
 
 ## World generation
 
-Cities grow around road approaches and expand where the land allows. The longest of 531 sampled settlements spanned **814 world units**.
+Metropolises cover a broad basin with connected residential, commercial, and industrial districts. Seed 15 spans approximately **23,936 × 24,704 world units**. Ordinary settlements grow along regional roads.
+
+<a href="docs/assets/planning/metropolis-seed-15.png"><img src="docs/assets/planning/metropolis-seed-15.png" width="640" alt="Map of the full metropolis from seed 15"></a>
 
 <table>
   <tr>
@@ -866,6 +962,18 @@ Cities grow around road approaches and expand where the land allows. The longest
     <td align="center"><a href="docs/assets/planning/urban-241--2--4.png"><img src="docs/assets/planning/urban-241--2--4.png" width="320" alt="Map of generated districts and approach roads"></a><br>Longest surveyed settlement · seed 241</td>
   </tr>
 </table>
+
+Metropolitan airports connect two runways to a shared gate apron and a city street.
+
+<a href="docs/assets/planning/metropolitan-airport.png"><img src="docs/assets/planning/metropolitan-airport.png" width="640" alt="Map of the metropolitan airport from seed 19"></a>
+
+Metropolitan trains stop at elevated stations and connect the airport to two city corridors.
+
+<a href="docs/assets/planning/metro-rail-seed-15.png"><img src="docs/assets/planning/metro-rail-seed-15.png" width="640" alt="Metropolitan rail routes and stations in seed 15"></a>
+
+Major city roads continue into villages, farmland, and wooded foothills.
+
+<a href="docs/assets/planning/outskirts-seed-15.png"><img src="docs/assets/planning/outskirts-seed-15.png" width="640" alt="Metropolitan outskirts in seed 15"></a>
 
 [City dimensions, street grids, and placement rules](docs/WORLD-GENERATION.md)
 

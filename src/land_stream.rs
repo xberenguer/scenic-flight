@@ -818,10 +818,11 @@ mod tests {
         let beyond = Key { x: 0, z: 6 };
         for altitude in [22.0, 320.0] {
             let window = Window::new(camera(512.0, 900.0, altitude, 0.0)).unwrap();
-            assert!(!window.visible(distant));
-            assert_eq!(window.rank(distant).map(|rank| rank.0), Some(1));
+            let high = altitude > 300.0;
+            assert_eq!(window.visible(distant), high);
+            assert_eq!(window.rank(distant).map(|rank| rank.0), Some(if high { 0 } else { 1 }));
             assert!(window.keep(distant));
-            assert_eq!(window.rank(skyline).map(|rank| rank.0), Some(SKYLINE_PRIORITY));
+            assert_eq!(window.rank(skyline).map(|rank| rank.0), Some(if high { 1 } else { SKYLINE_PRIORITY }));
             assert!(!window.keep(skyline));
             assert_eq!(window.rank(far_skyline).map(|rank| rank.0), Some(SKYLINE_PRIORITY));
             assert!(window.keys_within(CITY_SCAN).any(|key| key == far_skyline));
@@ -974,7 +975,7 @@ mod tests {
             assert_eq!(window.projected(behind).0, -566.0);
             assert_eq!(window.projected(ahead).0, 1482.0);
             assert_eq!(window.rank(behind).unwrap().0, 2);
-            assert_eq!(window.rank(ahead).unwrap().0, 1);
+            assert_eq!(window.rank(ahead).unwrap().0, if altitude > 300.0 { 0 } else { 1 });
 
             let mut facilities = FacilityStream::<8>::new(world, seed);
             let result = facilities.request(&land, view, true).unwrap().prepare(|| {});

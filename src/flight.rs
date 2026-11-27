@@ -12,7 +12,7 @@ use crate::world::{SEA_LEVEL, Surface, World};
 pub const TICKS_PER_SECOND: u32 = 30;
 const DT: f32 = 1.0 / TICKS_PER_SECOND as f32;
 const THERMAL_ORBIT_TICKS: u16 = 590;
-const BLACKBIRD_PITCH: f32 = 0.53;
+const BLACKBIRD_PITCH: f32 = 0.60;
 const BLACKBIRD_TANKER_SPEED_RATIO: f32 = 0.64;
 const BLACKBIRD_REHEAT_SPEED_GAIN: f32 = 0.06;
 const CHASE_HEIGHT_RATIO: f32 = 0.28;
@@ -76,12 +76,12 @@ impl Aircraft {
 
     fn profile(self) -> Profile {
         const PROFILES: [Profile; 8] = [
-            Profile { speed: 15.5, clearance: 31.0, floor: 10.0, yaw_rate: 0.27,
+            Profile { speed: 15.5, clearance: 41.0, floor: 14.0, yaw_rate: 0.27,
                 chase: 12.0, max_bank: 0.46, turn_response: 0.083, climb: 20.0 },
             Profile { speed: 22.0, clearance: 28.0, floor: 13.0, yaw_rate: 0.50,
                 chase: 14.0, max_bank: 0.72, turn_response: 0.130, climb: 31.0 },
-            Profile { speed: 26.7, clearance: 56.0, floor: 24.0, yaw_rate: 0.26,
-                chase: 18.0, max_bank: 0.36, turn_response: 0.078, climb: 31.0 },
+            Profile { speed: 26.7, clearance: 70.0, floor: 31.0, yaw_rate: 0.23,
+                chase: 18.0, max_bank: 0.29, turn_response: 0.063, climb: 24.0 },
             Profile { speed: 10.2, clearance: 20.0, floor: 9.0, yaw_rate: 0.205,
                 chase: 11.0, max_bank: 0.31, turn_response: 0.057, climb: 15.0 },
             Profile { speed: 13.0, clearance: 31.0, floor: 14.0, yaw_rate: 0.21,
@@ -126,7 +126,7 @@ struct Pose {
     altitude: f32,
     heading: f32,
     bank: f32,
-    climb_rate: f32,
+    attitude_pitch: f32,
     view: View,
 }
 
@@ -153,6 +153,8 @@ pub struct Flight {
     phase: f32,
     turn: f32,
     climb_rate: f32,
+    attitude_pitch: f32,
+    pitch_intent: f32,
     ridge_preview_floor: f32,
     blackbird_cruise_altitude: f32,
     course: f32,
@@ -577,6 +579,10 @@ fn wider_land_departure(
 
 impl Flight {
     pub fn start(world: &World, seed: u64, aircraft: Aircraft) -> Self {
+        if let Some(approach) = world.city_airport_departure().or_else(|| world.city_rail_departure())
+            .or_else(|| world.city_fringe_departure()) {
+            return Self::start_at(world, seed, aircraft, approach);
+        }
         let profile = aircraft.profile();
         let mut approach = launch_point(world, seed, profile);
         if matches!(aircraft, Aircraft::BushPlane | Aircraft::Racer | Aircraft::SportJet
@@ -589,14 +595,24 @@ impl Flight {
 
     fn start_at(world: &World, seed: u64, aircraft: Aircraft, (x, z, heading): (f32, f32, f32)) -> Self {
         let profile = aircraft.profile();
-        let terrain = surface(world, x, z);
-        let ahead = ahead(world, x, z, heading, profile.speed * 2.0);
-        let altitude = if aircraft == Aircraft::Blackbird {
+        let terrain = world.city_approach_height(x, z, surface(world, x, z));
+        let (sin, cos) = sin_cos(heading);
+        let lead = (x + sin * profile.speed * 2.0, z + cos * profile.speed * 2.0);
+        let ahead = world.city_approach_height(lead.0, lead.1, surface(world, lead.0, lead.1));
+        let mut altitude = if aircraft == Aircraft::Blackbird {
             profile.clearance.max(terrain.max(ahead) + profile.floor)
         } else {
             terrain.max(ahead) + profile.clearance
         };
-        let (sin, cos) = sin_cos(heading);
+        let ridge_preview_floor = if aircraft == Aircraft::SportJet {
+            let preview = Self::cruise_terrain_preview(world, aircraft, x, z, heading, 0.0, terrain);
+            // Give a seeded flight enough room from the moment it starts,
+            // while leaving the autopilot a gradual climb into the cruise.
+            altitude = altitude.max(preview + profile.clearance - 12.0);
+            preview
+        } else {
+            0.0
+        };
         let view_x = x - sin * profile.chase;
         let view_z = z - cos * profile.chase;
         let view = View {
@@ -614,12 +630,13 @@ impl Flight {
             thermal_orbit: None, thermal_cooldown: 0, soaring_course: None, solar_lift_available: false,
             next_coastal_pass: (104 + mix(seed ^ 7_583) % 110) * u64::from(TICKS_PER_SECOND),
             coastal_pass: None, phase: fraction(mix(seed ^ 4_697)) * TAU,
-            turn: 0.0, climb_rate: 0.0, ridge_preview_floor: 0.0, blackbird_cruise_altitude: altitude, course: heading, speed: profile.speed,
+            turn: 0.0, climb_rate: 0.0, attitude_pitch: 0.0, pitch_intent: 0.0,
+            ridge_preview_floor, blackbird_cruise_altitude: altitude, course: heading, speed: profile.speed,
             town_approach_staged: false,
             route_intent: RouteIntent::default(),
             scenic_progress: ScenicProgress::new(),
             train_follow: crate::train_follow::TrainFollow::default(),
-            previous_pose: Pose { x, z, altitude, heading, bank: 0.0, climb_rate: 0.0, view },
+            previous_pose: Pose { x, z, altitude, heading, bank: 0.0, attitude_pitch: 0.0, view },
         }
     }
 
@@ -720,7 +737,7 @@ impl Flight {
         visible.altitude = line(before.altitude, self.altitude);
         visible.heading = angle(before.heading, self.heading);
         visible.bank = line(before.bank, self.bank);
-        visible.climb_rate = line(before.climb_rate, self.climb_rate);
+        visible.attitude_pitch = line(before.attitude_pitch, self.attitude_pitch);
         visible.view = View {
             x: line(before.view.x, self.view.x),
             z: line(before.view.z, self.view.z),
@@ -743,8 +760,8 @@ impl Flight {
             .map(|event| event.progress)
     }
 
-    pub(crate) fn climb_rate(&self) -> f32 {
-        self.climb_rate
+    pub(crate) fn attitude_pitch(&self) -> f32 {
+        self.attitude_pitch
     }
 
     pub(crate) fn thermal_turn_elapsed(&self) -> Option<u16> {
@@ -808,7 +825,7 @@ impl Flight {
 
     pub fn update_with_obstacles(&mut self, world: &World, obstruction: impl Fn(f32, f32) -> f32) {
         self.previous_pose = Pose { x: self.x, z: self.z, altitude: self.altitude,
-            heading: self.heading, bank: self.bank, climb_rate: self.climb_rate, view: self.view };
+            heading: self.heading, bank: self.bank, attitude_pitch: self.attitude_pitch, view: self.view };
         let profile = self.aircraft.profile();
         let ridge_guidance = !matches!(self.aircraft, Aircraft::BaldEagle | Aircraft::Blackbird);
         self.ticks += 1;
@@ -900,13 +917,20 @@ impl Flight {
 
         let (sin, cos) = sin_cos(self.heading);
         let old_surface = surface(world, self.x, self.z);
-        let terrain_and_objects = |x, z| surface(world, x, z).max(obstruction(x, z));
+        let terrain_and_objects = |x, z| world.built_height(x, z, surface(world, x, z))
+            .max(obstruction(x, z));
         let near = terrain_and_objects(self.x + sin * profile.speed, self.z + cos * profile.speed);
         let mid = terrain_and_objects(self.x + sin * profile.speed * 2.4, self.z + cos * profile.speed * 2.4);
         let far = terrain_and_objects(self.x + sin * profile.speed * 4.0, self.z + cos * profile.speed * 4.0);
 
         let mut envelope = old_surface.max(near).max(mid - profile.speed * 0.21)
             .max(far - profile.speed * 0.54);
+        if world.has_metropolis() {
+            let lead = profile.speed * 4.0;
+            let city = |x, z| world.city_approach_height(x, z, surface(world, x, z));
+            envelope = envelope.max(city(self.x, self.z))
+                .max(city(self.x + sin * lead, self.z + cos * lead));
+        }
         if self.turn.abs() > 0.09 {
             // During a stronger bank the future track is curved. Check both
             // corridors so a plane has time to climb before reaching a ridge.
@@ -920,16 +944,19 @@ impl Flight {
         }
         if ridge_guidance && train.is_none() {
             if self.ticks == 1 || self.ticks.is_multiple_of(15) {
-                self.ridge_preview_floor = if self.aircraft == Aircraft::BushPlane {
-                    self.bush_terrain_preview(world, profile.speed)
-                } else {
-                    self.ridge_terrain_preview(world, profile, old_surface)
+                self.ridge_preview_floor = match self.aircraft {
+                    Aircraft::BushPlane | Aircraft::SportJet => {
+                        Self::cruise_terrain_preview(world, self.aircraft, self.x, self.z,
+                            self.heading, wrap_angle(self.course - self.heading), old_surface)
+                    }
+                    _ => self.ridge_terrain_preview(world, profile, old_surface),
                 };
             }
             envelope = envelope.max(self.ridge_preview_floor);
         }
         let coastal_pass = if self.aircraft == Aircraft::SportJet {
-            self.coastal_pass(world, old_surface, near, mid)
+            let pass = self.coastal_pass(world, old_surface, near, mid);
+            pass * (1.0 - smoothstep((envelope - old_surface - 5.0) / 14.0))
         } else {
             0.0
         };
@@ -951,7 +978,13 @@ impl Flight {
         }
         let max_climb = profile.climb;
         let climbing = ((desired - self.altitude) * 0.85).clamp(-max_climb * 0.58, max_climb);
-        self.climb_rate += (climbing - self.climb_rate) * 0.12;
+        let climb_response = (climbing - self.climb_rate) * 0.12;
+        let acceleration = match self.aircraft {
+            Aircraft::SportJet => 7.5,
+            Aircraft::BushPlane => 9.0,
+            _ => f32::INFINITY,
+        };
+        self.climb_rate += climb_response.clamp(-acceleration * DT, acceleration * DT);
         self.altitude += self.climb_rate * DT;
         let circle_speed = if thermalling.is_some() { 0.88 } else { 1.0 };
         let energy_speed = (profile.speed * circle_speed - self.climb_rate * 0.17)
@@ -991,7 +1024,26 @@ impl Flight {
                 visual_climb = (self.altitude - self.previous_pose.altitude) / DT;
             }
         }
+        self.update_airframe_pitch(visual_climb);
         self.update_view(world, profile, obstruction, visual_climb);
+    }
+
+    fn update_airframe_pitch(&mut self, visual_climb: f32) {
+        // Follow the actual flight-path slope while limiting how abruptly
+        // the aircraft can respond to a new climb, descent, or reversal.
+        let path_slope = visual_climb / self.speed.max(5.0);
+        let (gain, dive, climb, response, slew) = match self.aircraft {
+            Aircraft::BaldEagle => (1.75, 0.52, 0.42, 0.20, 0.031),
+            Aircraft::Trike | Aircraft::Glider => (1.30, 0.39, 0.30, 0.128, 0.015),
+            Aircraft::BushPlane => (1.25, 0.32, 0.28, 0.113, 0.011),
+            Aircraft::Racer | Aircraft::Fighter => (1.42, 0.40, 0.36, 0.18, 0.027),
+            Aircraft::SportJet => (0.94, 0.21, 0.18, 0.076, 0.005),
+            Aircraft::Blackbird => (0.94, 0.18, 0.16, 0.112, 0.010),
+        };
+        let target = (path_slope * gain).clamp(-dive, climb);
+        self.pitch_intent += (target - self.pitch_intent) * response;
+        let step = (self.pitch_intent - self.attitude_pitch) * response;
+        self.attitude_pitch += step.clamp(-slew, slew);
     }
 
     fn track_bush_pass(&mut self, world: &World) {
@@ -1003,7 +1055,7 @@ impl Flight {
             [55.0, 101.0, 146.0].map(|distance| ahead(world, self.x, self.z, course, distance))
         };
         let forward = elevations(self.course).into_iter().fold(ground, f32::max);
-        if forward < ground + 31.0 || forward < self.altitude + 8.0 {
+        if forward < ground + 31.0 || forward < self.altitude - 11.0 {
             return;
         }
         let mut best = (0.0_f32, forward);
@@ -1044,7 +1096,8 @@ impl Flight {
             ahead(world, self.x, self.z, self.heading + turn * blend, speed * seconds)
         });
         let forward = corridor(desired_turn).into_iter().fold(ground, f32::max);
-        if forward < ground + 36.0 || forward + profile.floor < self.altitude + 13.0
+        let needed_room = if self.aircraft == Aircraft::SportJet { 52.0 } else { profile.floor };
+        if forward < ground + 36.0 || forward + needed_room < self.altitude + 13.0
             || !self.inland_ridge(world, profile.speed)
         {
             return;
@@ -1103,16 +1156,36 @@ impl Flight {
         }))
     }
 
-    fn bush_terrain_preview(&self, world: &World, speed: f32) -> f32 {
-        // The close obstacle envelope is still authoritative. A distant ridge
-        // can start a climb while the Cub has room, with more allowance at range.
-        let turn = wrap_angle(self.course - self.heading).clamp(-0.55, 0.55);
-        [(5.5, 0.54), (7.5, 0.67), (9.5, 0.78)].into_iter()
-            .map(|(seconds, blend)| {
-                let ground = ahead(world, self.x, self.z, self.heading + turn * blend, speed * seconds);
-                ground - (seconds - 2.25) * 4.25
-            })
-            .fold(0.0, f32::max)
+    fn cruise_terrain_preview(
+        world: &World, aircraft: Aircraft, x: f32, z: f32, heading: f32, turn: f32, ground: f32,
+    ) -> f32 {
+        // Start a shallow climb while there is still room. For the jet, include
+        // rising ground beside the route so a narrow slot does not look clear.
+        const JET_TIMES: [f32; 7] = [1.75, 3.5, 5.0, 6.5, 8.0, 10.0, 12.5];
+        const CUB_TIMES: [f32; 5] = [2.5, 4.5, 6.5, 8.5, 10.5];
+        let jet = aircraft == Aircraft::SportJet;
+        let (times, climb_credit): (&[f32], f32) = if jet {
+            (&JET_TIMES, 4.2)
+        } else {
+            (&CUB_TIMES, 3.6)
+        };
+        let turn = turn.clamp(-0.55, 0.55);
+        let speed = aircraft.profile().speed;
+        times.iter().map(|&seconds| {
+            let heading = heading + turn * smoothstep(seconds / 12.5);
+            let (sin, cos) = sin_cos(heading);
+            let distance = speed * seconds;
+            let x = x + sin * distance;
+            let z = z + cos * distance;
+            let mut height = surface(world, x, z);
+            if jet {
+                let shoulder = (distance * 0.24).clamp(14.0, 48.0);
+                let left = surface(world, x - cos * shoulder, z + sin * shoulder);
+                let right = surface(world, x + cos * shoulder, z - sin * shoulder);
+                height = height.max(left.max(right) - 10.0);
+            }
+            height - (seconds - 1.5) * climb_credit
+        }).fold(ground, f32::max)
     }
 
     fn coastal_pass(&mut self, world: &World, ground: f32, near: f32, mid: f32) -> f32 {
@@ -1458,10 +1531,17 @@ impl Flight {
         self.view.z = self.z - cos * profile.chase;
         let desired_height = self.altitude + profile.chase * CHASE_HEIGHT_RATIO;
         self.view.altitude += (desired_height - self.view.altitude) * 0.14;
-        let ground = surface(world, self.view.x, self.view.z).max(obstruction(self.view.x, self.view.z));
+        let ground = world.built_height(
+            self.view.x, self.view.z, surface(world, self.view.x, self.view.z),
+        ).max(obstruction(self.view.x, self.view.z));
         self.view.altitude = self.view.altitude.max(ground + 5.0);
         let base_pitch = if self.aircraft == Aircraft::Blackbird { BLACKBIRD_PITCH } else { 0.15 };
-        self.view.pitch += (base_pitch - visual_climb * 0.002 - self.view.pitch) * 0.12;
+        let (camera_pitch, response) = if self.aircraft == Aircraft::SportJet {
+            (self.attitude_pitch * 0.18, 0.088)
+        } else {
+            (visual_climb * 0.002, 0.12)
+        };
+        self.view.pitch += (base_pitch - camera_pitch - self.view.pitch) * response;
         self.view.bank += (self.bank * 0.24 - self.view.bank) * 0.086;
     }
 }
@@ -1520,7 +1600,7 @@ impl Game {
 
     pub fn stage_town_approach<const N: usize>(&mut self, land: &LandStream<N>) -> bool {
         let (Some(world), Some(flight)) = (&self.world, &mut self.flight) else { return false; };
-        flight.stage_town_approach(world, land)
+        !world.has_metropolis() && flight.stage_town_approach(world, land)
     }
 
     pub fn active(&self) -> Option<(&World, &Flight)> {
@@ -1559,7 +1639,7 @@ impl Game {
         self.startup_untouched = false;
         self.seed_state = self.seed_state.wrapping_add(0x9e37_79b9_7f4a_7c15);
         self.world_seed = mix(self.seed_state);
-        let world = World::new(self.world_seed);
+        let world = World::for_flight_seed(self.world_seed);
         self.flight = Some(Flight::start(&world, self.world_seed, self.aircraft));
         self.world = Some(world);
         self.flight_info = false;
@@ -1603,6 +1683,32 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn airframes_ease_into_pitch_and_the_sport_jet_reverses_gently() {
+        let world = World::new(71);
+        for aircraft in Aircraft::ALL {
+            let mut flight = Flight::start(&world, 71, aircraft);
+            flight.update_airframe_pitch(80.0);
+            let first = flight.attitude_pitch();
+            flight.update_airframe_pitch(80.0);
+            let second = flight.attitude_pitch() - first;
+            assert!(first > 0.0 && second > first && first <= 0.022, "{aircraft:?}");
+            for _ in 0..90 { flight.update_airframe_pitch(80.0); }
+            let peak = flight.attitude_pitch();
+            assert!(peak >= 0.14);
+            for _ in 0..90 {
+                let before = flight.attitude_pitch();
+                flight.update_airframe_pitch(-80.0);
+                let step = before - flight.attitude_pitch();
+                assert!((-0.0005..=0.0311).contains(&step), "{aircraft:?}");
+                if aircraft == Aircraft::SportJet {
+                    assert!(step <= 0.0051 && peak <= 0.1801);
+                }
+            }
+            assert!(flight.attitude_pitch() < -0.14);
+        }
+    }
 
     #[test]
     fn boot_idle_launches_once_and_a_raw_press_cancels_it() {
@@ -1908,7 +2014,9 @@ mod tests {
         let mut cub = Flight::start(&world, seed, Aircraft::BushPlane);
         let start = cub.altitude;
         for _ in 0..120 {
+            let previous_rate = cub.climb_rate;
             cub.update(&world);
+            assert!((cub.climb_rate - previous_rate).abs() <= 9.01 * DT);
         }
         let forward_peak = [47.0, 64.0, 87.0, 113.0].into_iter()
             .map(|distance| ahead(&world, cub.x, cub.z, cub.heading, distance))
@@ -1917,6 +2025,29 @@ mod tests {
         assert!(cub.altitude > forward_peak + 10.0);
         assert!(cub.heading < -0.2);
         assert_eq!(cub.terrain_recoveries, 0);
+    }
+
+    #[test]
+    fn sport_jet_has_room_above_both_sides_of_a_mountain_valley() {
+        let seed = mix(45_u64.wrapping_add(0x9e37_79b9_7f4a_7c15));
+        let world = World::for_flight_seed(seed);
+        let mut jet = Flight::start(&world, seed, Aircraft::SportJet);
+        let mut lowest_margin = f32::INFINITY;
+        for tick in 0..630 {
+            let previous_rate = jet.climb_rate;
+            jet.update(&world);
+            assert!((jet.climb_rate - previous_rate).abs() <= 7.51 * DT);
+            if (180..540).contains(&tick) {
+                let (sin, cos) = sin_cos(jet.heading);
+                for side in [-30.0, 0.0, 30.0] {
+                    let rim = surface(&world, jet.x + sin * 50.0 + cos * side,
+                        jet.z + cos * 50.0 - sin * side);
+                    lowest_margin = lowest_margin.min(jet.altitude - rim);
+                }
+            }
+        }
+        assert!(lowest_margin > 48.0, "valley clearance was {lowest_margin}");
+        assert_eq!(jet.terrain_recoveries, 0);
     }
 
     #[test]

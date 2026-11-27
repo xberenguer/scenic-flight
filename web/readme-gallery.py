@@ -68,7 +68,7 @@ def render(entries, order):
     sections.extend((
         "[Sky and weather](#sky--weather) · [Encounters](#encounters) · [Biomes](#biomes) · "
         "[Built world](#built-world) · [Aircraft](#aircraft) · [Interface](#interface) · "
-        "[Aircraft and picker screens](#aircraft-and-picker-screens) · [Artwork gallery](#artwork-gallery) · "
+        "[Aircraft and picker screens](#aircraft-and-picker-screens) · [Rare flight moments](#rare-flight-moments) · [Artwork gallery](#artwork-gallery) · "
         "[World generation](#world-generation)",
     ))
     categories = dict.fromkeys(["Sky & Weather", "Encounters", "Biomes", "Built World",
@@ -88,6 +88,23 @@ def render(entries, order):
             picker = preview(f"{name} picker screen", f"docs/assets/picker-{index}.png", width=168)
             cards.append((name, f"{picker}<br>{turntable}"))
         sections.append(grid(cards, columns=4))
+
+    moment_file = DOCS / "assets/artwork/flight-moments.tsv"
+    moments = {int(index): names for index, _, *names in (
+        row.split("\t") for row in moment_file.read_text().splitlines()
+    )}
+    sections.extend((
+        "## Rare flight moments",
+        "Each flight has a two-in-three chance at a rare moment every 4 min 20 sec. "
+        "Events last 9.5–14.5 simulated seconds.",
+    ))
+    for entry in aircraft:
+        index, name = entry["asset"], entry["name"]
+        labels = " · ".join(moments[index])
+        sections.extend((f"### {name}", labels, preview(
+            f"{name} rare flight moments. {labels}",
+            f"docs/assets/artwork/flight-moments-{index}.gif", width=720,
+        )))
 
     sections.append("## Artwork gallery")
     groups = order["scenery"]
@@ -111,14 +128,26 @@ def render(entries, order):
                     sections.append(preview(f"{title} animated atlas", f"docs/{animation}", width=550))
     sections.extend((
         "## World generation",
-        "Cities grow around road approaches and expand where the land allows. "
-        "The longest of 531 sampled settlements spanned **814 world units**.",
+        "Metropolises cover a broad basin with connected residential, commercial, and industrial "
+        "districts. Seed 15 spans approximately **23,936 × 24,704 world units**. "
+        "Ordinary settlements grow along regional roads.",
+        preview("Map of the full metropolis from seed 15",
+                "docs/assets/planning/metropolis-seed-15.png", width=640),
         grid([
             ("Largest developed footprint · seed 149", preview(
                 "Map of generated streets and buildings", "docs/assets/planning/urban-149--6--4.png", width=320)),
             ("Longest surveyed settlement · seed 241", preview(
                 "Map of generated districts and approach roads", "docs/assets/planning/urban-241--2--4.png", width=320)),
         ], columns=2),
+        "Metropolitan airports connect two runways to a shared gate apron and a city street.",
+        preview("Map of the metropolitan airport from seed 19",
+                "docs/assets/planning/metropolitan-airport.png", width=640),
+        "Metropolitan trains stop at elevated stations and connect the airport to two city corridors.",
+        preview("Metropolitan rail routes and stations in seed 15",
+                "docs/assets/planning/metro-rail-seed-15.png", width=640),
+        "Major city roads continue into villages, farmland, and wooded foothills.",
+        preview("Metropolitan outskirts in seed 15",
+                "docs/assets/planning/outskirts-seed-15.png", width=640),
         "[City dimensions, street grids, and placement rules](docs/WORLD-GENERATION.md)",
     ))
     return "\n\n".join(sections)

@@ -4,9 +4,53 @@
 
 A world seed determines where terrain, roads, cities, airfields and coastlines form. Flight time advances the sky, weather and encounters over that layout.
 
+## Metropolises
+
+About one in eight world seeds opens over a metropolis. Curved streets and wider avenues share intersections across the whole basin. Four business districts are surrounded by housing, mixed-use streets, industrial yards, campuses, and wooded parks. Each district uses five building-block designs, with varied roof materials, orientations, and heights.
+
+Seed **15** spans approximately **23,936 × 24,704 world units**, measured from developed surfaces on a 32-unit grid. The footprint varies with the seed and includes public parks.
+
+![Map of the generated metropolis in seed 15](assets/planning/metropolis-seed-15.png)
+
+![Metropolitan flight views from the Glider, Blackbird, and Sport Jet](assets/planning/metropolis-flyover.png)
+
+## Aerial visibility
+
+Low flights draw terrain detail out to 800 world units. At high cruise, ground details extend to 1,440 units. The renderer samples roofs and streets more closely beneath high aircraft and spaces out samples on their far approach. Broken cloud layers drift over the terrain according to regional weather. Cloud tops and soft shadows share the same wind, with gaps over the ground in partly cloudy conditions.
+
+![Blackbird above broken clouds and a metropolitan street grid](assets/current/blackbird-city-cruise.png)
+
+## Metropolitan outskirts
+
+Major city roads continue into twelve approaches through farming country. Smaller settlements form near the junctions, and separate woodland patches break up the fields. Vineyards, orchards, and pasture are placed on gentle ground. Villages include cottages, schools and workshops alongside farms, silos and glasshouses.
+
+![The roads and cultivation in the outskirts of the metropolis in seed 15](assets/planning/outskirts-seed-15.png)
+
+[Fly over the outskirts](https://xberenguer.github.io/scenic-flight/play.html?session=642)
+
+## Metropolitan airport
+
+Each metropolis has two parallel runways on a graded site. Taxiways connect both runways to a shared apron with eight gates. Parked aircraft vary by gate. Five terminal plans share a concourse so their jet bridges reach the gates. The site also has hangars, cargo stands, a control tower, parking and a road that joins a city street.
+
+[Fly a metropolitan airport approach](https://xberenguer.github.io/scenic-flight/play.html?session=107)
+
+The map uses the airport in seed **19**. Yellow indicates taxi guidance and white indicates runway and stand markings. The city road meets the airport at the top.
+
+![Generated airport layout with runways, gates, cargo apron and its road connection](assets/planning/metropolitan-airport.png)
+
+## Metropolitan rail
+
+The Crosstown, Central, and Airport lines follow the city's curved streets. Trains stop at platforms, travel on separate tracks in each direction, and reverse at terminals. The airport station is in the terminal forecourt. Two interchanges connect the services on separate levels.
+
+Seed **15** has **42 station sites**. Blue marks Crosstown, red marks Central, and gold marks the Airport line. The larger circles mark interchanges.
+
+![Metropolitan rail routes, airport station, and two interchanges](assets/planning/metro-rail-seed-15.png)
+
+[Fly alongside metropolitan rail](https://xberenguer.github.io/scenic-flight/play.html?session=215)
+
 ## City sizes
 
-The v0.1.120 baseline survey ran from the Racer's starting area in seeds **0–255** using the same terrain, street, waterway and settlement preparation as the flight renderer. It found **531 settlements** in 190 of those 256 starting areas. A settlement includes its core streets, subdivisions and outer boroughs. Distances are in engine world units.
+The survey of ordinary settlements ran from the Racer's starting area in seeds **0–255** using the same terrain, street, waterway and settlement preparation as the flight renderer. It found **531 settlements** in 190 of those 256 starting areas. A settlement includes its core streets, subdivisions and outer boroughs. Distances are in engine world units.
 
 | Measurement | Result |
 | --- | ---: |
@@ -67,6 +111,14 @@ The map below shows seed 93. The accepted highway is about **575 world units** b
 ## Local building finishes
 
 Civic landmarks use finishes selected from local terrain. Coastal areas favor whitewash, blue roofs, slate, and weathered finishes. Dry inland districts favor clay and sandstone. Upland areas use stone, slate, and weathered wood tones. The town and riverfront atlases show 50 individual roof and wall combinations.
+
+## Dry terrain
+
+Scrub, dry washes, dunes, sandstone and salt flats each have five surface patterns. Scrub gathers in patches and thins on steep ground. Washes show gravel bars and silt, dunes have drift and lee marks, sandstone shows bedding, and salt basins show crust and cracks. Broad markings remain visible after small details fade with distance. [Dry surface atlas](assets/artwork/dry-surfaces.png)
+
+Dry foothills use 25 three-dimensional rock and plant groups. Gravel bars and driftwood sit in wash floors. Dune grasses and evening primrose grow on sand, while fragmented ledges and scree occupy rocky slopes. The footprint follows the local grade and clears pavement and water. Larger groups start fading into view before the smaller foreground objects. [Foothill model atlas](assets/artwork/dry-foothill-models.png)
+
+Sandstone ridges form on surveyed dry slopes. There are 25 profiles, including paired fins, stepped escarpments, sawtooth crests, and detached towers. The same profiles shape the near terrain and the distant horizon. Their distant relief fades between 1,050 and 1,400 world units. The survey checks for conflicting land uses before publishing a ridge. [Sandstone ridge atlas](assets/artwork/sandstone-ridges.png)
 
 ## What can appear where
 

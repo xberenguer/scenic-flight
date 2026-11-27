@@ -3,6 +3,7 @@
 mod habitats;
 
 use habitats::Feature;
+use habitats::foothills::Foothill;
 use crate::math::sin_cos;
 use crate::render::{Camera, ScreenProjection, ScreenRect, floor_i32};
 use crate::world::{Sample, Surface};
@@ -10,6 +11,7 @@ use crate::world_mesh::WorldMesh;
 
 const CELL: f32 = 12.0;
 const REACH: f32 = 64.0;
+const FOOTHILL_REACH: f32 = 79.0;
 const HALF_SPAN: f32 = 3.1;
 const HEIGHT: f32 = 4.1;
 
@@ -346,7 +348,7 @@ mod tests {
                         assert!(props.region.is_some());
                         if !matches!(form, Feature::Shore(_) | Feature::Mountain(_) | Feature::Freshwater(_)
                             | Feature::Woodland(_) | Feature::Dryland(_) | Feature::Grassland(_)
-                            | Feature::AlpineGround(_) | Feature::Wetland(_)) {
+                            | Feature::AlpineGround(_) | Feature::Wetland(_) | Feature::Foothill(_)) {
                             forms.insert(form);
                         }
                     }
@@ -1016,6 +1018,76 @@ mod tests {
     }
 
     #[test]
+    fn foothill_catalog_follows_slopes_and_keeps_clear_of_paved_ground() {
+        use std::collections::HashSet;
+
+        let camera = Camera { x: 0.0, z: -13.0, altitude: 29.0, heading: 0.0,
+            pitch: 0.38, bank: 0.0 };
+        let habitats = [(Surface::DryWash, 0.15), (Surface::DuneSand, 0.11),
+            (Surface::MesaApron, 0.21), (Surface::Desert, 0.18), (Surface::Desert, 0.43)];
+        let mut has_long_reach = false;
+        for (group, (surface, slope)) in habitats.into_iter().enumerate() {
+            let height = |x: f32, z: f32| 15.0 + slope * z + 0.06 * x;
+            let raw = |x, z| Sample { surface, elevation: height(x, z) };
+            let developed = |x: f32, z| Sample {
+                surface: if x > 32.0 { Surface::Pavement } else { surface },
+                elevation: height(x, z),
+            };
+            let mut found = HashSet::new();
+            for seed in 0..48 {
+                let scene = DesertProps::gather_with_habitats(camera, (60, 60), seed, true, raw, developed);
+                for prop in scene.props.into_iter().flatten() {
+                    let PropKind::Habitat(Feature::Foothill(form)) = prop.kind else { continue };
+                    assert!(Foothill::GROUPS[group].contains(&form), "{form:?}");
+                    assert!((prop.grade[0] - 0.06).abs() < 0.0001);
+                    assert!((prop.grade[1] - slope).abs() < 0.0001);
+                    let [x, _, z] = prop.origin;
+                    assert!(x + 2.05 * prop.size < 32.0);
+                    has_long_reach |= x * x + (z - camera.z).powi(2) > REACH * REACH;
+                    found.insert(form);
+                }
+            }
+            assert_eq!(found.len(), 5, "surface {surface:?}, slope {slope}: {found:?}");
+        }
+        assert!(has_long_reach);
+    }
+
+    #[test]
+    fn foothill_models_have_distinct_rendered_silhouettes_and_fit_their_bounds() {
+        use std::collections::HashSet;
+
+        const SIDE: usize = 60;
+        let cameras = [
+            Camera { x: -3.5, z: -7.0, altitude: 3.8, heading: 0.464, pitch: 0.30, bank: 0.0 },
+            Camera { x: 7.0, z: -3.5, altitude: 5.5, heading: -1.107, pitch: 0.48, bank: 0.0 },
+        ];
+        let sky = Sky::from_time(41, 0, 0.48);
+        let mut observed = HashSet::new();
+        for form in Foothill::GROUPS.into_iter().flatten() {
+            let form = Feature::Foothill(form);
+            for variant in 0..=u8::MAX {
+                let mut grounded = false;
+                form.draw(variant, |points, _| {
+                    for [x, y, z] in points {
+                        assert!(x.abs() < 2.52 && z.abs() < 2.52 && (0.0..=HEIGHT).contains(&y), "{form:?}");
+                        grounded |= y == 0.0;
+                    }
+                });
+                assert!(grounded, "{form:?}");
+            }
+            let masks = cameras.map(|camera| {
+                let mut pixels = [0; SIDE * SIDE];
+                let mut depth = [u16::MAX; SIDE * SIDE];
+                let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (SIDE, SIDE), camera, &sky).unwrap();
+                form.draw(0, |points, _| mesh.triangle(points, [255; 3]));
+                pixels.map(|color| color != 0)
+            });
+            assert!(masks.iter().all(|mask| mask.contains(&true)), "{form:?}");
+            assert!(observed.insert(masks), "{form:?} duplicates another silhouette");
+        }
+    }
+
+    #[test]
     fn world_seeds_use_every_mesh_variant_of_each_kind() {
         let camera = Camera { x: 17.0, z: -13.0, altitude: 20.0, heading: 0.48, pitch: 0.50, bank: 0.0 };
         let ground = |_, _| Sample { surface: Surface::Desert, elevation: 4.0 };
@@ -1122,8 +1194,9 @@ impl DesertProps {
         let cx = floor_i32(camera.x / CELL);
         let cz = floor_i32(camera.z / CELL);
         let mut count = 0;
-        for tz in cz - 6..=cz + 6 {
-            for tx in cx - 6..=cx + 6 {
+        let search = if habitats { 7 } else { 6 };
+        for tz in cz - search..=cz + search {
+            for tx in cx - search..=cx + search {
                 let id = (u64::from(tx as u32) << 32) | u64::from(tz as u32);
                 let key = crate::math::mix(seed ^ id ^ 0x98c4_c6a8_51ea_759f);
                 let x = (tx as f32 + 0.17 + (key & 63) as f32 * 0.010) * CELL;
@@ -1131,12 +1204,20 @@ impl DesertProps {
                 let [dx, dz] = [x - camera.x, z - camera.z];
                 let distance = dx * dx + dz * dz;
                 let forward = sin * dx + cos * dz;
-                if distance > REACH * REACH || forward < -12.0 {
+                let foothill_candidate = habitats && key >> 52 & 7 < 2;
+                let reach = if foothill_candidate { FOOTHILL_REACH } else { REACH };
+                if distance > reach * reach || forward < -12.0 {
                     continue;
                 }
                 let raw = terrain(x, z);
-                if camera.altitude - raw.elevation >= 72.0 { continue; }
                 let surface = raw.surface;
+                let foothill_candidate = foothill_candidate && (Foothill::supports(surface)
+                    || matches!(surface, Surface::Grass | Surface::Rock) && key >> 40 & 7 < 3);
+                if (!foothill_candidate && distance > REACH * REACH)
+                    || camera.altitude - raw.elevation >= if foothill_candidate { 91.0 } else { 72.0 }
+                {
+                    continue;
+                }
                 let sand = matches!(surface, Surface::Desert | Surface::DuneSand | Surface::Sand);
                 let next_to_water = wetlands && matches!(surface, Surface::Grass | Surface::Forest
                     | Surface::WetMeadow | Surface::ReedMarsh | Surface::RiverSilt);
@@ -1152,8 +1233,17 @@ impl DesertProps {
                 // Test high ground independently of the normal scatter rate.
                 let ice_candidate = habitats && raw.elevation >= 83.0
                     && matches!(surface, Surface::Snow | Surface::Rock | Surface::Grass | Surface::Forest | Surface::GlacierIce);
-                if !sand && !next_to_water && !new_candidate && !farm_candidate && !ice_candidate { continue; }
+                if !sand && !next_to_water && !new_candidate && !farm_candidate
+                    && !ice_candidate && !foothill_candidate
+                {
+                    continue;
+                }
                 let ground = sample(x, z);
+                let foothill = foothill_candidate && Foothill::supports(ground.surface)
+                    && ground.elevation >= crate::world::SEA_LEVEL + 0.95;
+                if !foothill && (distance > REACH * REACH || camera.altitude - raw.elevation >= 72.0) {
+                    continue;
+                }
                 let wet_plant = wetlands
                     && (matches!(ground.surface, Surface::WetMeadow | Surface::ReedMarsh)
                         || ground.surface == Surface::RiverSilt && ground.elevation >= 0.45 && key & 3 == 0);
@@ -1194,10 +1284,14 @@ impl DesertProps {
                         }
                     }
                 }
-                if !wet_plant && !matches!(ground.surface, Surface::Desert | Surface::DuneSand) && feature.is_none() {
+                if !foothill && !wet_plant
+                    && !matches!(ground.surface, Surface::Desert | Surface::DuneSand) && feature.is_none()
+                {
                     continue;
                 }
-                if let Some(form) = feature {
+                if foothill {
+                    size *= 1.36;
+                } else if let Some(form) = feature {
                     size *= match form {
                         Feature::Shore(_) => 1.23,
                         Feature::Farm(_) => 1.45,
@@ -1220,8 +1314,13 @@ impl DesertProps {
                         _ => 1.08,
                     };
                 }
-                let opacity = ((REACH * REACH - distance) / 1500.0).clamp(0.0, 1.0)
-                    * ((66.0 - camera.altitude + ground.elevation) / 18.0).clamp(0.0, 1.0)
+                let (reach, fade_height, fade_width) = if foothill {
+                    (FOOTHILL_REACH, 89.0, 2_750.0)
+                } else {
+                    (REACH, 66.0, 1_500.0)
+                };
+                let opacity = ((reach * reach - distance) / fade_width).clamp(0.0, 1.0)
+                    * ((fade_height - camera.altitude + ground.elevation) / 18.0).clamp(0.0, 1.0)
                     * ((forward + 12.0) / 6.0).clamp(0.0, 1.0);
                 if opacity < 0.02 { continue; }
                 let mountain = matches!(feature, Some(Feature::Mountain(_)));
@@ -1229,10 +1328,11 @@ impl DesertProps {
                 let headland = matches!(feature, Some(Feature::Headland(_)));
                 let alpine = matches!(feature, Some(Feature::AlpineGround(_)));
                 let ice = alpine && ground.surface == Surface::GlacierIce;
-                let contoured = mountain || headland || alpine
+                let contoured = foothill || mountain || headland || alpine
                     || dryland && matches!(ground.surface, Surface::DuneSand | Surface::DryWash);
                 let y = ground.elevation - if contoured { 0.24 } else { 0.14 };
-                let variation = if ice { 3.2 * size } else if contoured { 2.1 * size } else { 0.0 };
+                let variation = if ice { 3.2 * size } else if foothill { 2.6 * size }
+                    else if contoured { 2.1 * size } else { 0.0 };
                 let bounds = [[x - HALF_SPAN * size, y - variation, z - HALF_SPAN * size],
                               [x + HALF_SPAN * size, y + HEIGHT * size + variation, z + HALF_SPAN * size]];
                 let Some(rect) = projection.bounds(bounds) else { continue; };
@@ -1240,11 +1340,15 @@ impl DesertProps {
                 if contoured {
                     // Fit the footprint to the slope, then reject discontinuities
                     // instead of limiting exposed mountains to horizontal pads.
-                    let pad = size * if ice { 1.67 } else if dryland || headland { 1.90 } else { 2.12 };
+                    let pad = size * if ice { 1.67 } else if foothill { 2.06 }
+                        else if dryland || headland { 1.90 } else { 2.12 };
                     let edges = [sample(x - pad, z), sample(x + pad, z),
                                  sample(x, z - pad), sample(x, z + pad)];
                     let supports = if ice {
                         |sample: Sample| matches!(sample.surface, Surface::GlacierIce | Surface::Snow)
+                    } else if foothill {
+                        |sample: Sample| Foothill::supports(sample.surface)
+                            && sample.elevation >= crate::world::SEA_LEVEL + 0.95
                     } else if headland {
                         shore_footing
                     } else {
@@ -1255,22 +1359,37 @@ impl DesertProps {
                     }
                     let [west, east, north, south] = edges.map(|edge| edge.elevation - ground.elevation);
                     grade = [(east - west) / (2.0 * pad), (south - north) / (2.0 * pad)];
-                    let grade_limit = if ice { 1.10 } else { 0.61 };
+                    let grade_limit = if ice { 1.10 } else if foothill { 0.68 } else { 0.61 };
                     let curvature_limit = if ice { 2.10 } else { 1.00 };
-                    if grade[0] * grade[0] + grade[1] * grade[1] > grade_limit * grade_limit
+                    let grade_squared = grade[0] * grade[0] + grade[1] * grade[1];
+                    if grade_squared > grade_limit * grade_limit
                         || (west + east).abs() > curvature_limit || (north + south).abs() > curvature_limit
                     {
                         continue;
                     }
-                    if ice {
+                    if ice || foothill {
                         let step = pad * 0.70;
+                        let allowable_rise = if ice { 1.22 } else { 0.81 };
                         if ![[-step, -step], [step, -step], [-step, step], [step, step]]
                             .into_iter().all(|[dx, dz]| {
                                 let edge = sample(x + dx, z + dz);
-                                supports(edge) && (edge.elevation - ground.elevation - grade[0] * dx - grade[1] * dz).abs() < 1.22
+                                supports(edge) && (edge.elevation - ground.elevation
+                                    - grade[0] * dx - grade[1] * dz).abs() < allowable_rise
                             })
                         {
                             continue;
+                        }
+                    }
+                    if foothill {
+                        feature = Some(Feature::Foothill(Foothill::choose(
+                            ground.surface, grade_squared, key, district,
+                        )));
+                        variant = (variant & 63) | (((district >> 21 & 3) as u8) << 6);
+                        if grade_squared > 0.018 && ground.surface != Surface::DuneSand {
+                            let angle = crate::flight::bearing(grade[0], grade[1]);
+                            let turns = if ground.surface == Surface::DryWash { 4.0 } else { 0.0 };
+                            let yaw = floor_i32(angle * (16.0 / core::f32::consts::TAU) + turns + 0.5);
+                            variant = (variant & !15) | (yaw as u8 & 15);
                         }
                     }
                 } else if feature.is_some() {

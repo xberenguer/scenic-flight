@@ -221,16 +221,13 @@ impl Train {
         loading_end: Option<LoadingEnd>,
         point_at: impl Fn(f32) -> RailPoint,
     ) -> Option<Self> {
-        let projection = ScreenProjection::new(camera, dimensions)?;
         let [center, direction] = trip.position(ticks);
         let engine = Locomotive::for_route(freight_route, trip.high - trip.low, key);
         let freight = (trip.service == TrainService::Freight)
             .then(|| FreightFormation::new(trip.cars, freight_route, key, grain_elevator));
         let cargo_stage = trip.cargo_stage(ticks, loading_end, trip.cars - 2);
         let mut freight_front = center - freight.as_ref().map_or(0.0, |train| train.half_span);
-        let mut region = None;
-        let mut cars = [None; MAX_CARS];
-        for (index, slot) in cars.iter_mut().enumerate().take(trip.cars) {
+        Self::projected(trip.cars, livery(key.rotate_left(5), false), camera, dimensions, |index| {
             let (a, b, length, wagon) = if let Some(train) = &freight {
                 let car = train.cars[index];
                 let a = freight_front;
@@ -242,6 +239,62 @@ impl Train {
                 let middle = center + offset * CAR_PITCH;
                 (point_at(middle - CAR_LENGTH * 0.5), point_at(middle + CAR_LENGTH * 0.5), CAR_LENGTH, None)
             };
+            let first = index == 0;
+            let last = index + 1 == trip.cars;
+            let end = first || last;
+            let leading = (first && direction < 0.0) || (last && direction > 0.0);
+            let vehicle = match trip.service {
+                TrainService::Commuter => Vehicle::Passenger { cab: end },
+                TrainService::RegionalPassenger | TrainService::Express => Vehicle::RegionalPassenger {
+                    cab: end, express: trip.service == TrainService::Express,
+                },
+                TrainService::Freight if end => Vehicle::Engine(engine),
+                TrainService::Freight => {
+                    let (cargo, variant) = wagon?;
+                    Vehicle::Wagon {
+                        color: livery(cargo, true),
+                        variant,
+                        loaded: cargo_stage.present(index - 1),
+                    }
+                }
+            };
+            Some((a, b, length, vehicle, end.then_some(leading)))
+        })
+    }
+
+    pub(crate) fn on_metro(
+        center: f32,
+        direction: f32,
+        count: usize,
+        stripe: [u8; 3],
+        camera: Camera,
+        dimensions: (usize, usize),
+        point_at: impl Fn(f32) -> RailPoint,
+    ) -> Option<Self> {
+        Self::projected(count, stripe, camera, dimensions, |index| {
+            let middle = center + (index as f32 - (count - 1) as f32 * 0.5) * CAR_PITCH;
+            let a = point_at(middle - CAR_LENGTH * 0.5);
+            let b = point_at(middle + CAR_LENGTH * 0.5);
+            let first = index == 0;
+            let last = index + 1 == count;
+            let cab = first || last;
+            let leading = (first && direction < 0.0) || (last && direction > 0.0);
+            Some((a, b, CAR_LENGTH, Vehicle::Passenger { cab }, cab.then_some(leading)))
+        })
+    }
+
+    fn projected(
+        count: usize,
+        stripe: [u8; 3],
+        camera: Camera,
+        dimensions: (usize, usize),
+        mut car_at: impl FnMut(usize) -> Option<(RailPoint, RailPoint, f32, Vehicle, Option<bool>)>,
+    ) -> Option<Self> {
+        let projection = ScreenProjection::new(camera, dimensions)?;
+        let mut region = None;
+        let mut cars = [None; MAX_CARS];
+        for (index, slot) in cars.iter_mut().enumerate().take(count) {
+            let (a, b, length, vehicle, lamp) = car_at(index)?;
             let d = [
                 a.x + (b.x - a.x) * 0.5 - camera.x,
                 a.elevation + (b.elevation - a.elevation) * 0.5 - camera.altitude,
@@ -270,25 +323,6 @@ impl Train {
                     a.z.max(b.z) + margin,
                 ],
             ];
-            let first = index == 0;
-            let last = index + 1 == trip.cars;
-            let end = first || last;
-            let leading = (first && direction < 0.0) || (last && direction > 0.0);
-            let vehicle = match trip.service {
-                TrainService::Commuter => Vehicle::Passenger { cab: end },
-                TrainService::RegionalPassenger | TrainService::Express => Vehicle::RegionalPassenger {
-                    cab: end, express: trip.service == TrainService::Express,
-                },
-                TrainService::Freight if end => Vehicle::Engine(engine),
-                TrainService::Freight => {
-                    let (cargo, variant) = wagon?;
-                    Vehicle::Wagon {
-                        color: livery(cargo, true),
-                        variant,
-                        loaded: cargo_stage.present(index - 1),
-                    }
-                }
-            };
             let car = Car {
                 a,
                 b,
@@ -297,7 +331,7 @@ impl Train {
                 distant_opacity,
                 detail: range < 112.0 * 112.0,
                 vehicle,
-                lamp: end.then_some(leading),
+                lamp,
             };
             let cover = if car.opacity > 0.0 { projection.bounds(bounds) }
                 else { car.distant_region(&projection, dimensions) };
@@ -305,12 +339,7 @@ impl Train {
             *slot = Some(car);
             region = Some(region.map_or(cover, |rect: ScreenRect| rect.union(cover)));
         }
-        let stripe = livery(key.rotate_left(5), false);
-        Some(Self {
-            cars,
-            region: region?,
-            stripe,
-        })
+        Some(Self { cars, region: region?, stripe })
     }
 
     pub fn depth_region(&self) -> ScreenRect {

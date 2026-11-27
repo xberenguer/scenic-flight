@@ -5,6 +5,7 @@ use crate::world::{Sample, Surface};
 
 mod alpine_ground;
 mod dryland;
+pub(super) mod foothills;
 mod farm;
 mod freshwater;
 mod grassland;
@@ -14,6 +15,7 @@ mod shore;
 mod wetland;
 mod woodland;
 use dryland::DrylandFeature;
+use foothills::Foothill;
 use alpine_ground::AlpineGround;
 use farm::FarmFeature;
 use freshwater::FreshwaterFeature;
@@ -38,6 +40,7 @@ pub(super) enum Feature {
     Freshwater(FreshwaterFeature),
     Woodland(WoodlandFeature),
     Dryland(DrylandFeature),
+    Foothill(Foothill),
     Grassland(GrasslandFeature),
     Headland(HeadlandFeature),
     AlpineGround(AlpineGround),
@@ -211,6 +214,7 @@ impl Feature {
             Freshwater(form) => form.draw(&mut model),
             Woodland(form) => form.draw(&mut model),
             Dryland(form) => form.draw(&mut model),
+            Foothill(form) => form.draw([-12, -3, 5, 13][usize::from(variant >> 6)], &mut model),
             Grassland(form) => form.draw(&mut model),
             Headland(form) => form.draw(&mut model),
             AlpineGround(form) => form.draw(&mut model),

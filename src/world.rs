@@ -118,6 +118,7 @@ pub enum Surface {
     LandmarkRoof48,
     LandmarkRoof49,
     LandmarkRoof50,
+    UrbanLot,
 }
 
 impl Surface {
@@ -224,6 +225,7 @@ pub struct Sample {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct World {
     key: [u32; 2],
+    metropolitan: bool,
 }
 
 impl World {
@@ -234,6 +236,92 @@ impl World {
         key ^= key >> 31;
         Self {
             key: [key as u32, (key >> 32) as u32],
+            metropolitan: false,
+        }
+    }
+
+    /// Most seeds use the ordinary terrain. A minority open inside a large,
+    /// continuous city, with ordinary wilderness beyond the basin.
+    pub fn for_flight_seed(seed: u64) -> Self {
+        let mut world = Self::new(seed);
+        world.metropolitan = crate::math::mix(seed ^ 0x6279_97e3) % 8 == 0;
+        world
+    }
+
+    pub fn has_metropolis(&self) -> bool {
+        self.metropolitan
+    }
+
+    pub(crate) fn metropolis(&self) -> Option<crate::metropolis::Metropolis> {
+        self.metropolitan.then(|| {
+            let seed = u64::from(self.key[0]) | (u64::from(self.key[1]) << 32);
+            crate::metropolis::Metropolis::new(seed)
+        })
+    }
+
+    pub fn city_occupies(&self, x: f32, z: f32) -> bool {
+        self.metropolis().is_some_and(|city| city.owns(x, z))
+    }
+
+    pub(crate) fn city_airport_departure(&self) -> Option<(f32, f32, f32)> {
+        self.metropolis()?.airport_departure()
+    }
+
+    pub(crate) fn city_rail_departure(&self) -> Option<(f32, f32, f32)> {
+        self.metropolis()?.rail_departure()
+    }
+
+    pub(crate) fn city_fringe_departure(&self) -> Option<(f32, f32, f32)> {
+        self.metropolis()?.fringe_departure()
+    }
+
+    pub fn metro_transit(&self) -> Option<crate::MetroTransit> {
+        self.metropolis().map(crate::metropolis::Metropolis::transit)
+    }
+
+    pub fn city_surface(&self) -> impl Fn(f32, f32, Sample) -> Option<Sample> + Copy {
+        let city = self.metropolis().map(|city| (city, city.transit()));
+        move |x, z, base| {
+            let (city, rail) = city?;
+            city.overlay_with_transit(rail, x, z, base)
+        }
+    }
+
+    pub(crate) fn built_height(&self, x: f32, z: f32, ground: f32) -> f32 {
+        let Some(city) = self.metropolis() else { return ground; };
+        let base = Sample { elevation: ground, surface: Surface::Grass };
+        let rail = city.transit();
+        city.overlay_with_transit(rail, x, z, base).map_or(ground, |sample| sample.elevation)
+            .max(city.rail_clearance(rail, x, z, ground))
+    }
+
+    pub(crate) fn city_approach_height(&self, x: f32, z: f32, ground: f32) -> f32 {
+        self.metropolis().map_or(ground, |city| ground + city.overflight_height(x, z))
+    }
+
+    fn basin(&self, x: f32, z: f32) -> Option<(f32, f32)> {
+        self.metropolis()?.basin(x, z)
+    }
+
+    // The dry shoreline and the height derive from the same basin. Reuse the
+    // ordinary field outside the blend so unaffected areas stay seed-stable.
+    fn shaped_ground<const SHAPED: bool>(&self, x: f32, z: f32) -> (f32, f32) {
+        let basin = self.basin(x, z);
+        if let Some((height, 1.0)) = basin {
+            return (height, 0.43);
+        }
+        let coast = self.coast(x, z);
+        let natural = if coast <= 0.0 { coast * 19.0 } else {
+            self.land_height::<SHAPED>(x, z, coast)
+        };
+        if let Some((height, weight)) = basin {
+            let blended = mix(natural, height, weight);
+            let shore = if blended <= 0.0 { blended / 19.0 } else {
+                mix(coast.max(0.0), 0.43, weight).max(0.001)
+            };
+            (blended, shore)
+        } else {
+            (natural, coast)
         }
     }
 
@@ -243,12 +331,7 @@ impl World {
     }
 
     pub(crate) fn signed_horizon_height(&self, x: f32, z: f32) -> f32 {
-        let coast = self.coast(x, z);
-        if coast <= 0.0 {
-            coast * 19.0
-        } else {
-            self.land_height::<true>(x, z, coast)
-        }
+        self.shaped_ground::<true>(x, z).0
     }
 
     /// Fixed terrain signal for selecting regional layouts. Collisions and
@@ -258,12 +341,7 @@ impl World {
     }
 
     fn elevation_variant<const SHAPED: bool>(&self, x: f32, z: f32) -> f32 {
-        let coast = self.coast(x, z);
-        if coast <= 0.0 {
-            SEA_LEVEL
-        } else {
-            SEA_LEVEL + self.land_height::<SHAPED>(x, z, coast)
-        }
+        SEA_LEVEL + self.shaped_ground::<SHAPED>(x, z).0.max(0.0)
     }
 
     pub fn sample(&self, x: f32, z: f32) -> Sample {
@@ -271,7 +349,7 @@ impl World {
     }
 
     pub(crate) fn sample_and_shore(&self, x: f32, z: f32) -> (Sample, f32) {
-        let coast = self.coast(x, z);
+        let (height, coast) = self.shaped_ground::<true>(x, z);
         if coast <= 0.0 {
             let surface = if coast < -0.105 {
                 Surface::DeepWater
@@ -281,7 +359,6 @@ impl World {
             return (Sample { elevation: SEA_LEVEL, surface }, coast);
         }
 
-        let height = self.land_height::<true>(x, z, coast);
         #[cfg(feature = "regional-climate")]
         let region = crate::climate::Climate::over_terrain(self, x, z, coast, height);
         let surface = if height < 2.5 {
@@ -319,7 +396,10 @@ impl World {
 
     /// A signed, continuous coast field for route planning. Land is positive.
     pub(crate) fn coast_signal(&self, x: f32, z: f32) -> f32 {
-        self.coast(x, z)
+        if !self.metropolitan {
+            return self.coast(x, z);
+        }
+        self.shaped_ground::<false>(x, z).1
     }
 
     // The sign of this field alone decides whether the ground is dry.

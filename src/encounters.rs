@@ -128,6 +128,154 @@ pub fn fighter_reheat(seed: u64, ticks: u64) -> f32 {
     })
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Pass {
+    Cross,
+    Escort,
+    Overhead,
+    Breakaway,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Visitor {
+    Aircraft(Aircraft),
+    Biplane,
+    Balloon,
+    TowPair,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Effect {
+    Motion { bank: f32, pitch: f32, cycles: f32 },
+    Visitor(Visitor, Pass, u8),
+    Trail { paired: bool, bend: f32, ink: [u8; 3] },
+    Lights { span: f32, ahead: f32 },
+    Airbrakes,
+    Eagle { tuck: f32, flare: f32, talons: f32 },
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MomentSpec {
+    name: &'static str,
+    effect: Effect,
+}
+
+const fn moment(name: &'static str, effect: Effect) -> MomentSpec {
+    MomentSpec { name, effect }
+}
+
+const fn motion(name: &'static str, bank: f32, pitch: f32, cycles: f32) -> MomentSpec {
+    moment(name, Effect::Motion { bank, pitch, cycles })
+}
+
+const fn visitor(name: &'static str, aircraft: Aircraft, pass: Pass, count: u8) -> MomentSpec {
+    moment(name, Effect::Visitor(Visitor::Aircraft(aircraft), pass, count))
+}
+
+const fn trail(name: &'static str, paired: bool, bend: f32, ink: [u8; 3]) -> MomentSpec {
+    moment(name, Effect::Trail { paired, bend, ink })
+}
+
+// Indexed by Aircraft's stable discriminants, not the order in the picker.
+const MOMENTS: [[MomentSpec; 4]; 8] = [
+    [
+        moment("Biplane crossing", Effect::Visitor(Visitor::Biplane, Pass::Cross, 1)),
+        visitor("Bush-plane escort", Aircraft::BushPlane, Pass::Escort, 1),
+        motion("Survey S-turn", 0.21, -0.046, 1.0),
+        moment("Landing light pass", Effect::Lights { span: 0.92, ahead: 0.64 }),
+    ],
+    [
+        visitor("Aerobatic pair", Aircraft::Racer, Pass::Breakaway, 2),
+        motion("Wing wag", 0.40, 0.02, 2.0),
+        trail("Straight smoke pass", false, 0.04, [216, 214, 201]),
+        trail("Rising smoke arc", false, 0.91, [226, 165, 121]),
+    ],
+    [
+        visitor("Business jet crossing", Aircraft::SportJet, Pass::Cross, 1),
+        trail("Wingtip vapor", true, 0.17, [199, 219, 225]),
+        moment("Arrival lights", Effect::Lights { span: 1.42, ahead: 1.42 }),
+        motion("Long viewing turn", 0.14, -0.075, 1.0),
+    ],
+    [
+        moment("Hot-air balloon pass", Effect::Visitor(Visitor::Balloon, Pass::Cross, 1)),
+        visitor("Ultralight pair", Aircraft::Trike, Pass::Escort, 1),
+        visitor("Sailplane passing overhead", Aircraft::Glider, Pass::Overhead, 1),
+        motion("Valley lookout turn", 0.25, -0.08, 0.5),
+    ],
+    [
+        moment("Towplane and sailplane crossing", Effect::Visitor(Visitor::TowPair, Pass::Cross, 1)),
+        visitor("Sailplane joins alongside", Aircraft::Glider, Pass::Escort, 1),
+        moment("Airbrake descent", Effect::Airbrakes),
+        motion("Slow sideslip", -0.20, -0.12, 1.0),
+    ],
+    [
+        visitor("Fighter high pass", Aircraft::Fighter, Pass::Overhead, 1),
+        visitor("Section break", Aircraft::Fighter, Pass::Breakaway, 2),
+        trail("Condensation streamers", true, 0.31, [220, 232, 239]),
+        motion("Shallow bank reversal", 0.32, 0.05, 1.0),
+    ],
+    [
+        trail("Twin high-altitude contrails", true, 0.05, [212, 227, 240]),
+        visitor("Distant Blackbird crossing", Aircraft::Blackbird, Pass::Cross, 1),
+        visitor("Airliner below", Aircraft::SportJet, Pass::Overhead, 1),
+        motion("Cruise pitch adjustment", 0.015, 0.082, 0.5),
+    ],
+    [
+        visitor("Bald Eagle crossing", Aircraft::BaldEagle, Pass::Escort, 1),
+        moment("Talon stretch", Effect::Eagle { tuck: 0.0, flare: 0.07, talons: 1.0 }),
+        moment("Tail fan", Effect::Eagle { tuck: 0.0, flare: 1.0, talons: 0.0 }),
+        moment("Ridge wing tuck", Effect::Eagle { tuck: 1.0, flare: 0.10, talons: 0.0 }),
+    ],
+];
+
+#[derive(Clone, Copy, Debug)]
+pub struct FlightMoment {
+    slot: usize,
+    pub(crate) effect: Effect,
+    pub progress: f32,
+    pub(crate) side: f32,
+}
+
+impl FlightMoment {
+    pub fn slot(self) -> usize { self.slot }
+
+    pub(crate) fn ease(self) -> f32 {
+        smoothstep(self.progress / 0.23) * (1.0 - smoothstep((self.progress - 0.72) / 0.28))
+    }
+}
+
+pub fn moment_catalog(aircraft: Aircraft) -> [&'static str; 4] {
+    MOMENTS[aircraft as usize].map(|spec| spec.name)
+}
+
+/// Rare secondary actions complement the existing airspace encounters. A
+/// proposed window is skipped if a tanker or fighter formation owns the view.
+pub fn flight_moment(aircraft: Aircraft, seed: u64, ticks: u64) -> Option<FlightMoment> {
+    const INTERVAL_SECONDS: u64 = 260;
+    let second = u64::from(TICKS_PER_SECOND);
+    let timing = event_time(seed ^ 0x6b36_671e ^ aircraft as u64, ticks,
+        INTERVAL_SECONDS, 2, 3, 93, 9.5, 5.0)?;
+    if matches!(aircraft, Aircraft::Fighter | Aircraft::Blackbird) {
+        let start = ticks / (INTERVAL_SECONDS * second) * INTERVAL_SECONDS * second + timing.start;
+        let stop = start + timing.duration;
+        let mut tick = start;
+        while tick <= stop + second {
+            let conflict = if aircraft == Aircraft::Blackbird {
+                blackbird_refuel(seed, tick).is_some() || blackbird_reheat(seed, tick) > 0.0
+            } else {
+                formation(aircraft, seed, tick).is_some() || fighter_reheat(seed, tick) > 0.0
+            };
+            if conflict { return None; }
+            tick += second;
+        }
+    }
+    let slot = ((ticks / (INTERVAL_SECONDS * second) + (mix(seed) & 3)) & 3) as usize;
+    Some(FlightMoment {
+        slot, effect: MOMENTS[aircraft as usize][slot].effect, progress: timing.progress,
+        side: if timing.state >> 9 & 1 == 0 { -1.0 } else { 1.0 },
+    })
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Meteor {
     pub head: [f32; 3],
@@ -163,6 +311,8 @@ pub fn meteor(seed: u64, ticks: u64, sky: &Sky) -> Option<Meteor> {
 struct EventTime {
     state: u64,
     progress: f32,
+    start: u64,
+    duration: u64,
 }
 
 fn event_time(
@@ -180,12 +330,44 @@ fn event_time(
     let duration = ((min_seconds + fraction(mix(state ^ 4_679)) * variation_seconds)
         * TICKS_PER_SECOND as f32) as u64;
     let progress = (ticks % interval).checked_sub(start)?;
-    (progress < duration).then_some(EventTime { state, progress: progress as f32 / duration as f32 })
+    (progress < duration).then_some(EventTime {
+        state, progress: progress as f32 / duration as f32, start, duration,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_aircraft_has_four_schedulable_secondary_events() {
+        use std::collections::HashSet;
+        let mut titles = HashSet::new();
+        let second = u64::from(TICKS_PER_SECOND);
+        for aircraft in Aircraft::ALL {
+            let mut found = [false; 4];
+            for name in moment_catalog(aircraft) {
+                assert!(titles.insert(name));
+            }
+            for seed in 0..12 {
+                for tick in (0..second * 2_600).step_by(second as usize) {
+                    let Some(event) = flight_moment(aircraft, seed, tick) else { continue; };
+                    assert!(tick >= 93 * second);
+                    assert!((0.0..1.0).contains(&event.progress));
+                    if aircraft == Aircraft::Blackbird {
+                        assert!(blackbird_refuel(seed, tick).is_none() && blackbird_reheat(seed, tick) == 0.0);
+                    }
+                    if aircraft == Aircraft::Fighter {
+                        assert!(formation(aircraft, seed, tick).is_none() && fighter_reheat(seed, tick) == 0.0);
+                    }
+                    found[event.slot()] = true;
+                }
+                if found.into_iter().all(|seen| seen) { break; }
+            }
+            assert!(found.into_iter().all(|seen| seen), "{aircraft:?}");
+        }
+        assert_eq!(titles.len(), 32);
+    }
 
     #[test]
     fn fighter_reheat_is_short_seeded_and_smooth() {

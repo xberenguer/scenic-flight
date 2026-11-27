@@ -20,7 +20,7 @@ use crate::roads::ROAD_REGION_SIZE;
 use crate::scenery::overlay_alpine;
 use crate::scree_fans::ScreeFan;
 use crate::world::{Sample, Surface, World};
-use crate::world_mesh::{bounds_in_view, WorldMesh};
+use crate::world_mesh::{bounds_in_range, bounds_in_view, WorldMesh};
 
 // A settled camera tile keeps three complete tiles on each side. Even the
 // smallest tile here leaves more room than the longest terrain ray.
@@ -177,7 +177,9 @@ fn survey_dry(
     world: &World, seed: u64, x: i32, z: i32, landmark: Option<DryLandmark>,
     try_mesa: bool, pulse: &mut impl FnMut(),
 ) -> DrySurvey {
-    if try_mesa && landmark.as_ref().is_none_or(|plan| plan.kind() == DryLandmarkKind::CoastalBluff) {
+    if try_mesa && landmark.as_ref().is_none_or(|plan| {
+        matches!(plan.kind(), DryLandmarkKind::CoastalBluff | DryLandmarkKind::Ridge)
+    }) {
         if let Some(mesa) = CaprockMesa::generate_cooperatively(world, seed, x, z, pulse) {
             return DrySurvey::Mesa(mesa);
         }
@@ -309,6 +311,14 @@ impl<T> Site<T> {
         before_first_frame: bool,
         reserve: &mut impl FnMut(NaturalBounds) -> NaturalReservation,
     ) {
+        self.publish_when(before_first_frame || !bounds_in_view(camera, self.bounds), reserve);
+    }
+
+    fn publish_when(
+        &mut self,
+        can_appear: bool,
+        reserve: &mut impl FnMut(NaturalBounds) -> NaturalReservation,
+    ) {
         let state = match self.state {
             Publication::Pending => match reserve(self.bounds) {
                 NaturalReservation::Clear => Publication::Ready,
@@ -317,9 +327,7 @@ impl<T> Site<T> {
             },
             state => state,
         };
-        self.state = if state == Publication::Ready
-            && (before_first_frame || !bounds_in_view(camera, self.bounds))
-        {
+        self.state = if state == Publication::Ready && can_appear {
             Publication::Active
         } else {
             state
@@ -412,6 +420,34 @@ pub struct NaturalStream {
 }
 
 const LOCAL_NATURAL_BOUNDS: usize = 4;
+const RIDGE_REACH: f32 = 1_400.0;
+const RIDGE_FADE_START: f32 = 1_050.0;
+
+/// The silhouette pass uses a short list of published ridges. Their relief
+/// is generated from the same profiles as the detailed terrain.
+pub struct RidgeBackdrop<'a> {
+    ridges: [Option<&'a DryLandmark>; DRY_CAPACITY],
+    eye: [f32; 2],
+}
+
+impl RidgeBackdrop<'_> {
+    #[inline]
+    pub fn height(&self, x: f32, z: f32, elevation: f32) -> f32 {
+        for ridge in self.ridges.iter().map_while(|&ridge| ridge) {
+            let [left, near, right, far] = ridge.bounds();
+            if x >= left && x < right && z >= near && z < far {
+                let [dx, dz] = [x - self.eye[0], z - self.eye[1]];
+                let fade = 1.0 - crate::math::smoothstep(
+                    (dx * dx + dz * dz - RIDGE_FADE_START * RIDGE_FADE_START)
+                        / (RIDGE_REACH * RIDGE_REACH - RIDGE_FADE_START * RIDGE_FADE_START),
+                );
+                let ground = Sample { elevation, surface: Surface::Desert };
+                return elevation + (ridge.overlay(x, z, ground).elevation - elevation) * fade;
+            }
+        }
+        elevation
+    }
+}
 
 /// When only a few landmarks are published, keep their bounds in the frame's
 /// local memory and avoid looking up distant samples in the tile directory.
@@ -763,7 +799,12 @@ impl NaturalStream {
             site.publish(camera, before_first_frame, reserve);
         }
         for site in self.dry.sites_mut().chain(self.cove.iter_mut().map(|cove| &mut cove.site)) {
-            site.publish(camera, before_first_frame, reserve);
+            if site.plan.kind() == DryLandmarkKind::Ridge {
+                let visible = bounds_in_range(camera, site.bounds, RIDGE_REACH);
+                site.publish_when(before_first_frame || !visible, reserve);
+            } else {
+                site.publish(camera, before_first_frame, reserve);
+            }
         }
         if let Some(moraine) = self.moraine.as_mut() {
             moraine.site.publish(camera, before_first_frame, reserve);
@@ -867,6 +908,11 @@ impl NaturalStream {
         self.dry_sites().filter_map(Site::plan)
     }
 
+    pub fn ridge_backdrop(&self, camera: Camera) -> RidgeBackdrop<'_> {
+        let mut ridges = self.dry_landmarks().filter(|plan| plan.kind() == DryLandmarkKind::Ridge);
+        RidgeBackdrop { ridges: core::array::from_fn(|_| ridges.next()), eye: [camera.x, camera.z] }
+    }
+
     /// Screen coverage of the retained natural meshes. Uses the existing
     /// waterfall depth pass so a static cliff does not require another pass.
     pub fn waterfall_region(&self, camera: Camera, dimensions: (usize, usize)) -> Option<ScreenRect> {
@@ -916,6 +962,10 @@ impl NaturalStream {
 
     pub fn has_visible_features(&self, camera: Camera) -> bool {
         self.active_bounds().any(|bounds| bounds_in_view(camera, bounds))
+            || self.dry_landmarks().any(|plan| {
+                plan.kind() == DryLandmarkKind::Ridge
+                    && bounds_in_range(camera, plan.bounds(), crate::render::terrain_detail_distance(camera.altitude))
+            })
     }
 
     pub fn sampler(&self) -> NaturalSampler<'_> {
@@ -1047,6 +1097,81 @@ fn valid_camera(camera: Camera) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn published_ridge_has_the_same_relief_in_detailed_and_distant_terrain() {
+        let mut selected = None;
+        'search: for seed in [0, 1, 2, 7] {
+            let world = World::new(seed);
+            for tz in -7..=7 {
+                for tx in -7..=7 {
+                    if let Some(ridge) = DryLandmark::generate(&world, seed, tx, tz)
+                        .filter(|site| site.kind() == DryLandmarkKind::Ridge)
+                    {
+                        selected = Some((world, seed, ridge));
+                        break 'search;
+                    }
+                }
+            }
+        }
+        let (world, seed, ridge) = selected.expect("a seeded inland ridge");
+        let [x, z] = ridge.center();
+        let center = world.sample(x, z);
+        let camera = Camera { x, z, altitude: center.elevation + 22.0,
+            heading: 0.0, pitch: 0.15, bank: 0.0 };
+        let mut stream = NaturalStream::new(world, seed);
+        stream.preflight(camera, SWEEP, |_| NaturalReservation::Clear);
+        assert!(stream.dry_landmarks().any(|plan| *plan == ridge));
+        let backdrop = stream.ridge_backdrop(camera);
+        let mut lifted = 0;
+        let [left, near, right, far] = ridge.bounds();
+        for row in 0..25 {
+            for col in 0..25 {
+                let x = left + (right - left) * col as f32 / 24.0;
+                let z = near + (far - near) * row as f32 / 24.0;
+                let base = world.sample(x, z);
+                let local = stream.overlay(x, z, base);
+                let distance = backdrop.height(x, z, base.elevation);
+                // The survey can reject edge material, so verify the dry site itself.
+                if base.surface == Surface::Desert {
+                    assert!((distance - local.elevation).abs() < 0.001, "{x} {z}");
+                    lifted += usize::from(local.elevation - base.elevation > 3.0);
+                }
+            }
+        }
+        assert!(lifted >= 15);
+        let distant_camera = Camera { z: camera.z - 1_000.0, altitude: center.elevation + 4.0,
+            pitch: 0.0, ..camera };
+        let distant = stream.ridge_backdrop(distant_camera);
+        let far_camera = Camera { z: camera.z - 1_600.0, ..camera };
+        assert_eq!(stream.ridge_backdrop(far_camera).height(x, z, center.elevation), center.elevation);
+        assert!(!bounds_in_view(distant_camera, ridge.bounds()));
+        assert!(bounds_in_range(distant_camera, ridge.bounds(), RIDGE_REACH));
+
+        let render = |raised: bool| {
+            const SIDE: usize = 112;
+            let sky = crate::sky::Sky::from_time(seed, 0, 0.48);
+            let ground = Sample { elevation: center.elevation, surface: Surface::Desert };
+            let mut pixels = [0; SIDE * SIDE];
+            let mut terrain = [0; SIDE * SIDE];
+            crate::render::render_terrain_layer_region_with_horizon(
+                (|_, _| ground, |_, _, geometry| geometry.surface),
+                |x, z| if raised { distant.height(x, z, ground.elevation) } else { ground.elevation },
+                distant_camera, &sky, &mut pixels, &mut terrain, None, (SIDE, SIDE),
+                |_| {}, |_| None,
+            ).unwrap();
+            pixels
+        };
+        assert!(render(true) != render(false), "the ridge should affect the skyline at 1,000 units");
+
+        let mut rejected = NaturalStream::new(world, seed);
+        rejected.preflight(camera, SWEEP, |bounds| if bounds == ridge.bounds() {
+            NaturalReservation::Reserved
+        } else {
+            NaturalReservation::Clear
+        });
+        assert!(!rejected.dry_landmarks().any(|plan| *plan == ridge));
+    }
 
     const SWEEP: NaturalBudget = NaturalBudget {
         alpine_tiles: 49,

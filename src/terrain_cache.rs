@@ -9,7 +9,7 @@ const FAR_STEP: f32 = 20.0;
 const CRUISE_STEP: f32 = 36.0;
 const CRUISE_NEAR_STEP: f32 = 10.0;
 
-const MATERIALS: [Surface; 113] = [
+const MATERIALS: [Surface; 114] = [
     Surface::DeepWater,
     Surface::Shallows,
     Surface::Sand,
@@ -123,6 +123,7 @@ const MATERIALS: [Surface; 113] = [
     Surface::LandmarkRoof48,
     Surface::LandmarkRoof49,
     Surface::LandmarkRoof50,
+    Surface::UrbanLot,
 ];
 const _: () = {
     let mut index = 0;

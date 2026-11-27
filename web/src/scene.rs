@@ -177,6 +177,8 @@ impl Scene {
                         .rails(view, 112.0)
                         .filter_map(|line| Train::corridor_motion(line, self.seed, flight.ticks)),
                 )
+                .chain(self.world.metro_transit().into_iter()
+                    .flat_map(|rail| rail.motions(&self.world, view, flight.ticks)))
                 .filter_map(|train| flight.train_score(train).map(|score| (score, train)))
                 .min_by(|left, right| left.0.total_cmp(&right.0))
                 .map(|(_, train)| train);
@@ -442,6 +444,8 @@ impl Scene {
         self.ground.follow(&self.world, view.x, view.z);
         self.coast.follow(view.x, view.z);
 
+        let ridges = self.natural.ridge_backdrop(view);
+        let backdrop = |x, z| ridges.height(x, z, self.horizon.backdrop(x, z));
         let sky = Sky::at_position(self.seed, flight.ticks, [view.x, view.altitude, view.z]);
         let conditions = self.weather.observe(self.seed, flight.ticks, view, &sky);
         let sky = sky.with_shower(conditions.shower);
@@ -451,7 +455,7 @@ impl Scene {
         let skyline = self.skyline.prepare_with_additions(
             &self.land, view, flight.ticks, &sky, DIMENSIONS,
             self.facilities.waterfront_silhouettes().chain(self.urban.skyline(&self.land)),
-            |x, z| self.horizon.backdrop(x, z),
+            backdrop,
         );
         self.distant_roads.prepare(
             &self.land,
@@ -459,7 +463,7 @@ impl Scene {
             view,
             flight.ticks,
             DIMENSIONS,
-            |x, z| self.horizon.backdrop(x, z),
+            backdrop,
         );
         let far_bridges = self.distant_bridges.prepare(
             view,
@@ -469,10 +473,10 @@ impl Scene {
             self.rivers
                 .bridges()
                 .chain(self.highways.coastal_links().map(|(_, link)| link.bridge())),
-            |x, z| self.horizon.backdrop(x, z),
+            backdrop,
         );
         let far_airfields = DistantAirfields::prepare(
-            self.facilities.airfields(), view, &sky, DIMENSIONS, |x, z| self.horizon.backdrop(x, z),
+            self.facilities.airfields(), view, &sky, DIMENSIONS, backdrop,
         );
         let visible_cliff = |form: &&scenic_flight::coastal_landforms::CoastalLandform| {
             bounds_in_view(view, form.bounds()) && self.facilities.retains_landmark(form)
@@ -505,10 +509,15 @@ impl Scene {
         let waterfall_region = self.natural.waterfall_region(view, DIMENSIONS);
         let summit_region = self.summits.region(view, DIMENSIONS);
         let route_region = self.routes.depth_region(view, DIMENSIONS);
+        let metropolitan_rail = self.world.metro_transit();
+        let metropolitan_rail_region = metropolitan_rail.and_then(|rail| {
+            rail.depth_region(&self.world, view, DIMENSIONS)
+        });
         let tracks_region = self
             .facilities
             .rails(view, 78.0)
             .filter_map(|line| rail_screen_region(line, view, DIMENSIONS))
+            .chain(metropolitan_rail_region)
             .reduce(ScreenRect::union);
         let corridors = || self.regional_rail.rails(view, view_distance(view.altitude));
         let corridor_region = corridors()
@@ -525,7 +534,9 @@ impl Scene {
                         .filter_map(|line| {
                             Train::on_corridor(line, self.seed, flight.ticks, view, DIMENSIONS)
                         }),
-                ),
+                )
+                .chain(metropolitan_rail.into_iter()
+                    .flat_map(|rail| rail.trains(&self.world, view, DIMENSIONS, flight.ticks))),
         );
         let train_region = trains
             .iter()
@@ -549,8 +560,12 @@ impl Scene {
         let rail = corridors().next().map(|_| self.regional_rail.sampler());
         let has_routes = self.routes.routes().next().is_some();
         let trees = self.ground.tree_sampler().for_view(view.x, view.altitude, view.z);
+        let city = self.world.city_surface();
         let sample = |x, z| {
             let raw = self.terrain.sample(x, z);
+            if let Some(city) = city(x, z, raw) {
+                return city;
+            }
             let road = highways
                 .as_ref()
                 .map_or(raw, |layer| layer.overlay(x, z, raw));
@@ -617,7 +632,7 @@ impl Scene {
             (&sample, |x, z, geometry| {
                 self.ground.visible_material(x, z, geometry)
             }),
-            |x, z| self.horizon.backdrop(x, z),
+            backdrop,
             view,
             &sky,
             pixels,
@@ -658,6 +673,11 @@ impl Scene {
             }
             for line in corridors() {
                 draw_rail_corridor(&mut mesh, line, view, DIMENSIONS);
+            }
+            if metropolitan_rail_region.is_some() {
+                if let Some(rail) = metropolitan_rail {
+                    rail.draw(&self.world, view, &mut mesh);
+                }
             }
             for train in trains.iter().flatten() {
                 train.draw(&mut mesh, sky.daylight);

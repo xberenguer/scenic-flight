@@ -2454,5 +2454,106 @@
     "poster": "assets/current/road-between-towns.png",
     "src": "assets/current/road-between-towns.mp4",
     "note": "The road crosses a planning boundary and joins the existing street grid at both ends."
+  },
+  {
+    "id": "metropolis-flight",
+    "title": "Bald Eagle over a metropolis",
+    "category": "Built World",
+    "aircraft": "Bald Eagle",
+    "biome": "Metropolitan valley",
+    "format": "Video",
+    "poster": "assets/current/metropolis-flight.png",
+    "src": "assets/current/metropolis-flight.mp4"
+  },
+  {
+    "id": "blackbird-city-cruise",
+    "title": "SR-71 above the city and clouds",
+    "category": "Built World",
+    "aircraft": "SR-71 Blackbird",
+    "biome": "Metropolitan valley",
+    "format": "Video",
+    "poster": "assets/current/blackbird-city-cruise.png",
+    "src": "assets/current/blackbird-city-cruise.mp4",
+    "note": "Openings between drifting clouds reveal the street grid below."
+  },
+  {
+    "id": "metropolitan-airport",
+    "title": "Glider over a metropolitan airport",
+    "category": "Built World",
+    "aircraft": "Glider",
+    "biome": "Metropolitan valley",
+    "format": "Video",
+    "poster": "assets/current/metropolitan-airport.png",
+    "src": "assets/current/metropolitan-airport.mp4"
+  },
+  {
+    "id": "sport-jet-climb",
+    "title": "Sport Jet climbing through a mountain valley",
+    "category": "Aircraft",
+    "aircraft": "Sport Jet",
+    "biome": "Alpine valley",
+    "format": "Video",
+    "poster": "assets/current/sport-jet-climb.png",
+    "src": "assets/current/sport-jet-climb.mp4"
+  },
+  {
+    "id": "cub-valley",
+    "title": "Bush Plane following a mountain valley",
+    "category": "Aircraft",
+    "aircraft": "Bush Plane",
+    "biome": "Alpine valley",
+    "format": "Video",
+    "poster": "assets/current/cub-valley.png",
+    "src": "assets/current/cub-valley.mp4"
+  },
+  {
+    "id": "dry-foothills-flight",
+    "title": "Bald Eagle over desert foothills",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Desert foothills",
+    "format": "Video",
+    "poster": "assets/current/dry-foothills-flight.png",
+    "src": "assets/current/dry-foothills-flight.mp4"
+  },
+  {
+    "id": "sandstone-ridge-flight",
+    "title": "Bald Eagle alongside sandstone ridges",
+    "category": "Biomes",
+    "aircraft": "Bald Eagle",
+    "biome": "Sandstone foothills",
+    "format": "Video",
+    "poster": "assets/current/sandstone-ridge-flight.png",
+    "src": "assets/current/sandstone-ridge-flight.mp4"
+  },
+  {
+    "id": "dry-coast-flight",
+    "title": "Ultralight over coastal scrub",
+    "category": "Biomes",
+    "aircraft": "Ultralight",
+    "biome": "Coastal scrub",
+    "format": "Video",
+    "poster": "assets/current/dry-coast-flight.png",
+    "src": "assets/current/dry-coast-flight.mp4"
+  },
+  {
+    "id": "metro-train",
+    "title": "Ultralight passing a metropolitan train",
+    "category": "Built World",
+    "aircraft": "Ultralight",
+    "biome": "Metropolitan valley",
+    "format": "Video",
+    "poster": "assets/current/metro-train.png",
+    "src": "assets/current/metro-train.mp4"
+  },
+  {
+    "id": "outskirts-flyover",
+    "title": "Glider over the city outskirts",
+    "category": "Built World",
+    "aircraft": "Glider",
+    "biome": "Farming country",
+    "format": "Video",
+    "poster": "assets/current/outskirts-flyover.png",
+    "src": "assets/current/outskirts-flyover.mp4"
   }
 ]

@@ -9,8 +9,10 @@ use crate::world::{Sample, Surface, World, SEA_LEVEL};
 
 mod alluvial;
 mod ravine_profiles;
+mod ridges;
 pub use alluvial::FanProfile;
 pub use ravine_profiles::RavineProfile;
+pub use ridges::RidgeProfile;
 
 pub const DRY_LANDMARK_TILE: i32 = 512;
 pub(crate) const MAX_DRY_BASINS: usize = 4;
@@ -29,6 +31,7 @@ pub enum DryLandmarkKind {
     CoastalDune,
     CoastalBluff,
     AlluvialFan,
+    Ridge,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -48,6 +51,7 @@ enum Shape {
     CoastalDune(CoveDune),
     CoastalBluff(CoastalBluff),
     AlluvialFan(alluvial::Fan),
+    Ridge(ridges::Ridge),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -152,6 +156,9 @@ impl DryLandmark {
                 );
                 result
             })
+            .or_else(|| ridges::Ridge::survey(
+                world, origin, mix(seed ^ tile ^ 0x2053_1637_4368_693e), &mut excluded, pulse,
+            ))
     }
 
     fn generate_basin(
@@ -259,6 +266,7 @@ impl DryLandmark {
             Shape::CoastalDune(_) => DryLandmarkKind::CoastalDune,
             Shape::CoastalBluff(_) => DryLandmarkKind::CoastalBluff,
             Shape::AlluvialFan(_) => DryLandmarkKind::AlluvialFan,
+            Shape::Ridge(_) => DryLandmarkKind::Ridge,
         }
     }
 
@@ -283,6 +291,11 @@ impl DryLandmark {
     pub fn fan_profile(&self) -> Option<FanProfile> {
         let Shape::AlluvialFan(fan) = self.shape else { return None };
         Some(FanProfile::ALL[usize::from(fan.profile)])
+    }
+
+    pub fn ridge_profile(&self) -> Option<RidgeProfile> {
+        let Shape::Ridge(ridge) = self.shape else { return None; };
+        Some(ridge.profile)
     }
 
     pub fn ravine_profile(&self) -> Option<&'static RavineProfile> {
@@ -329,7 +342,10 @@ impl DryLandmark {
             Shape::Badlands(ravine) => ravine.overlay([dx, dz], ground),
             Shape::CoastalDune(plan) => plan.overlay([dx, dz], ground),
             Shape::CoastalBluff(plan) => plan.overlay([dx, dz], ground),
+            Shape::Ridge(ridge) if matches!(ground.surface, Surface::Desert | Surface::Grass) =>
+                ridge.overlay([dx, dz], ground),
             _ if ground.surface != Surface::Desert => ground,
+            Shape::Ridge(_) => ground,
             Shape::AlluvialFan(plan) => plan.overlay([dx, dz], ground),
             Shape::SaltPan(footprint) => {
                 let strength = Self::weight(footprint, dx, dz);

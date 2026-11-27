@@ -9,7 +9,9 @@ trap 'rm -rf "$scratch"' EXIT
 SCENIC_ARTWORK_OUTPUT="$scratch" python3 "$tools/artwork/trees/export_tree_crowns.py"
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/streets/export.sh"
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/desert/export.sh"
+SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/dry-surfaces/export.sh"
 game=$(CDPATH='' cd -- "$tools/.." && pwd)
+sh "$tools/artwork/flight-moments/export.sh" "$scratch" "$game/target"
 SCENIC_WAGON_SOURCE="$game/src/train_art/wagons.rs" \
     SCENIC_FREIGHT_CATALOG="$game/src/train_art/freight_catalog.rs" \
     rustc --edition 2024 -O "$tools/artwork/trains/export.rs" \
@@ -49,6 +51,7 @@ ffmpeg -hide_banner -loglevel error -y -framerate 8 -i "$scratch/roadside-%02d.p
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/towers/export.sh"
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/summits/export.sh"
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/mesas/export.sh"
+SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/mesas/export.sh" --ridges
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/countryside/export.sh"
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/coastal-rocks/export.sh"
 SCENIC_ARTWORK_OUTPUT="$scratch" sh "$tools/artwork/lighthouses/export.sh"
@@ -116,6 +119,7 @@ cp "$scratch/coastal-rocks.png" "$scratch/coastal-rocks.gif" "$scratch/coastal-r
 cp "$scratch/towers.png" "$scratch/skyline-landmarks.png" "$scratch/skyline-landmarks.gif" "$scratch/skyline-landmarks.txt" "$assets/"
 cp "$scratch/summit-landmarks.png" "$scratch/summit-landmarks.gif" "$scratch/summit-landmarks.txt" "$assets/"
 cp "$scratch/mesa-profiles.png" "$scratch/mesa-profiles.gif" "$scratch/mesa-profiles.txt" "$assets/"
+cp "$scratch/sandstone-ridges.png" "$scratch/sandstone-ridges.gif" "$scratch/sandstone-ridges.txt" "$assets/"
 cp "$scratch/countryside-buildings.png" "$scratch/countryside-buildings.gif" "$scratch/countryside-buildings.txt" "$assets/"
 cp "$scratch/tree-crown-atlas.png" "$assets/trees.png"
 cp "$scratch/wagons.png" "$scratch/wagons.json" "$scratch/locomotives.png" "$assets/"
@@ -129,12 +133,15 @@ cp "$scratch/coastal-details.png" "$scratch/coastal-details.gif" "$assets/"
 cp "$scratch/farm-details.png" "$scratch/farm-details.gif" "$assets/"
 cp "$scratch/mountain-details.png" "$scratch/mountain-details.gif" "$assets/"
 cp "$scratch/freshwater-details.png" "$scratch/freshwater-details.gif" "$assets/"
+cp "$scratch"/flight-moments-*.gif "$scratch"/flight-moments-*.png "$scratch/flight-moments.tsv" "$assets/"
 cp "$scratch/street-buildings.png" "$scratch/street-buildings.gif" "$assets/"
 cp "$scratch/town-landmarks.png" "$scratch/town-landmarks.gif" "$scratch/town-landmarks.txt" "$assets/"
 cp "$scratch/industrial-landmarks.png" "$scratch/industrial-landmarks.gif" "$scratch/industrial-landmarks.txt" "$assets/"
 cp "$scratch/airfield-buildings.png" "$scratch/airfield-buildings.gif" "$assets/"
 cp "$scratch/woodland-details.png" "$scratch/woodland-details.gif" "$assets/"
 cp "$scratch/dryland-details.png" "$scratch/dryland-details.gif" "$assets/"
+cp "$scratch/dry-surfaces.png" "$assets/"
+cp "$scratch/dry-foothill-models.png" "$scratch/dry-foothill-models.gif" "$assets/"
 cp "$scratch/grassland-details.png" "$scratch/grassland-details.gif" "$assets/"
 cp "$scratch/headland-details.png" "$scratch/headland-details.gif" "$assets/"
 cp "$scratch/alpine-ground-details.png" "$scratch/alpine-ground-details.gif" "$assets/"

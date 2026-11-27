@@ -9,6 +9,12 @@ mod render {
     include!(env!("SCENIC_FLOOR_SOURCE"));
 }
 
+#[allow(dead_code)]
+mod flight {
+    use std::f32::consts::{FRAC_PI_2, PI};
+    include!(env!("SCENIC_BEARING_SOURCE"));
+}
+
 use scenic_flight::{sky, world, world_mesh};
 
 #[allow(dead_code)]
@@ -24,7 +30,9 @@ mod artwork {
 
     fn render_variant(kind: PropKind, variant: u8) -> [u16; SIDE * SIDE] {
         // The fixed view and scale retain the proportions of the models within each sheet.
-        let camera = if matches!(kind, PropKind::Habitat(Feature::Farm(_) | Feature::Mountain(_) | Feature::Freshwater(_) | Feature::Woodland(_) | Feature::Dryland(_) | Feature::Grassland(_))) {
+        let camera = if matches!(kind, PropKind::Habitat(Feature::Foothill(_))) {
+            Camera { x: 2.76, z: -3.83, altitude: 2.82, heading: -0.624, pitch: 0.38, bank: 0.0 }
+        } else if matches!(kind, PropKind::Habitat(Feature::Farm(_) | Feature::Mountain(_) | Feature::Freshwater(_) | Feature::Woodland(_) | Feature::Dryland(_) | Feature::Grassland(_))) {
             Camera { x: 3.7, z: -5.13, altitude: 3.80, heading: -0.624, pitch: 0.36, bank: 0.0 }
         } else {
             Camera { x: 3.1, z: -4.3, altitude: 3.35, heading: -0.624, pitch: 0.36, bank: 0.0 }
@@ -134,6 +142,12 @@ mod artwork {
         model_atlas(out, "grassland", forms.map(Feature::Grassland))
     }
 
+    pub fn foothills(out: &Path) -> std::io::Result<()> {
+        let groups = habitats::foothills::Foothill::GROUPS;
+        let forms = core::array::from_fn(|index| Feature::Foothill(groups[index / 5][index % 5]));
+        model_atlas(out, "foothills", forms)
+    }
+
     pub fn headland(out: &Path) -> std::io::Result<()> {
         use habitats::headland::HeadlandFeature::*;
         let forms = [
@@ -176,6 +190,7 @@ mod artwork {
             "farm" => (64, 16, 20),
             "mountain" | "freshwater" => (54, 21, 23),
             "woodland" | "dryland" | "grassland" => (57, 20, 20),
+            "foothills" => (72, 12, 12),
             "headland" | "alpine-ground" | "wetland" => (72, 12, 12),
             _ => (SIDE, 0, 0),
         };
@@ -268,6 +283,7 @@ fn main() -> std::io::Result<()> {
         Some("--freshwater-only") => artwork::freshwater(output),
         Some("--woodland-only") => artwork::woodland(output),
         Some("--dryland-only") => artwork::dryland(output),
+        Some("--foothills-only") => artwork::foothills(output),
         Some("--grassland-only") => artwork::grassland(output),
         Some("--headland-only") => artwork::headland(output),
         Some("--alpine-ground-only") => artwork::alpine_ground(output),
@@ -280,6 +296,7 @@ fn main() -> std::io::Result<()> {
             artwork::freshwater(output)?;
             artwork::woodland(output)?;
             artwork::dryland(output)?;
+            artwork::foothills(output)?;
             artwork::grassland(output)?;
             artwork::headland(output)?;
             artwork::alpine_ground(output)?;

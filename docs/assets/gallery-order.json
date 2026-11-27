@@ -1,6 +1,14 @@
 {
   "featured": [
+    "metropolis-flight",
+    "blackbird-city-cruise",
+    "metropolitan-airport",
+    "metro-train",
+    "outskirts-flyover",
+    "dry-foothills-flight",
+    "sandstone-ridge-flight",
     "bowed-blue-icefall",
+    "sport-jet-climb",
     "sedge-strand-tarn",
     "linked-downtown",
     "high-cruise",
@@ -165,6 +173,21 @@
       "title": "Deserts and badlands",
       "sections": [
         {
+          "id": "dry-surfaces",
+          "title": "Scrub, gravel bars, dunes, sandstone, and salt crust",
+          "count": 25
+        },
+        {
+          "id": "dry-foothill-models",
+          "title": "Foothill rock and plant groups",
+          "count": 25
+        },
+        {
+          "id": "sandstone-ridges",
+          "title": "Sandstone ridges",
+          "count": 25
+        },
+        {
           "id": "badlands-ravines",
           "title": "Badlands ravines",
           "count": 25
@@ -235,6 +258,11 @@
       "title": "Farms and industry",
       "sections": [
         {
+          "id": "metropolitan-outskirts",
+          "title": "Metropolitan outskirts",
+          "count": 25
+        },
+        {
           "id": "cultivated-fields",
           "title": "Cultivated fields",
           "count": 25
@@ -274,6 +302,11 @@
     {
       "title": "Cities and towns",
       "sections": [
+        {
+          "id": "metropolis-blocks",
+          "title": "Metropolitan building blocks",
+          "count": 25
+        },
         {
           "title": "Highway neighborhoods",
           "id": "frontage-layouts",
@@ -394,6 +427,11 @@
     {
       "title": "Airfields",
       "sections": [
+        {
+          "id": "airport-terminals",
+          "title": "Metropolitan airport terminals",
+          "count": 5
+        },
         {
           "id": "runway-markings",
           "title": "Runway markings",

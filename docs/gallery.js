@@ -1,7 +1,7 @@
 const planeAssets = [
   ['Bush Plane', 'Low and deliberate', 'Climbs early and banks through mountain passes.'],
   ['Racer', 'Quick and agile', 'Sweeps into tighter lowland turns and finds dry exits from islands.'],
-  ['Sport Jet', 'Fast and measured', 'Occasionally drops for a coastal pass.'],
+  ['Sport Jet', 'Fast and measured', 'Gradual pitch changes, shallow banks, and occasional coastal passes.'],
   ['Ultralight', 'Slow and low', 'Can briefly follow a passing train, with a bias toward passengers.'],
   ['Glider', 'Quiet and unhurried', 'Circles strong thermals and gains lift on windward ridges.'],
   ['F/A-18 Fighter', 'Fast and responsive', 'Two- or four-jet formations and twin orange afterburners.'],
@@ -190,6 +190,28 @@ try {
     group.append(element('h3', plane.name), createCard(figures[index], figures[index].src), createCard(pickers[index]));
     return group;
   }));
+  try {
+    const momentIndex = await (await get('./assets/artwork/flight-moments.tsv')).text();
+    const moments = new Map(momentIndex.trim().split('\n').map(row => {
+      const [asset, , ...names] = row.split('\t');
+      return [Number(asset), names];
+    }));
+    qs('#flight-moment-cards').replaceChildren(...planeOrder.map(({ name, asset }) => {
+      const labels = moments.get(asset).join(' · ');
+      const card = element('article', '', 'moment-card');
+      const link = element('a', '');
+      link.href = `assets/artwork/flight-moments-${asset}.gif`;
+      const image = element('img', '');
+      image.loading = 'lazy';
+      image.src = reduceMotion.matches ? `assets/artwork/flight-moments-${asset}.png` : link.href;
+      image.alt = `${name}. ${labels}`;
+      link.append(image);
+      card.append(element('h3', name), element('p', labels), link);
+      return card;
+    }));
+  } catch (error) {
+    qs('#flight-moment-cards').replaceChildren(element('p', error.message));
+  }
   records.reverse();
   renderGallery();
   coverage();

@@ -1,5 +1,6 @@
 use std::{io::{self, Write}, path::Path};
 use scenic_flight::{caprock_mesas::MesaProfile, render::Camera, sky::Sky, world_mesh::WorldMesh};
+use scenic_flight::dry_landmarks::RidgeProfile;
 
 #[path = "../relief.rs"]
 mod relief;
@@ -8,14 +9,33 @@ const TILE: usize = 88;
 const COLS: usize = 5;
 
 fn main() -> io::Result<()> {
-    let path = std::env::args_os().nth(1).expect("Provide an output directory");
+    let mut arguments = std::env::args_os().skip(1);
+    let path = arguments.next().expect("Provide an output directory");
     let output = Path::new(&path);
-    let profiles: Vec<_> = (0..MesaProfile::COUNT).map(|i| MesaProfile::from_index(i).unwrap()).collect();
-    let names = profiles.iter().map(|p| p.name()).collect::<Vec<_>>().join("\n") + "\n";
-    std::fs::write(output.join("mesa-profiles.txt"), names)?;
+    let ridges = arguments.next().is_some_and(|mode| mode == "--ridges");
+    if ridges {
+        let profiles: Vec<_> = (0..RidgeProfile::COUNT).map(|i| RidgeProfile::from_index(i).unwrap()).collect();
+        let names = profiles.iter().map(|profile| profile.name()).collect::<Vec<_>>();
+        export(output, "ridge", "sandstone-ridges", &names, [31.5, 17.3], 7.9, |index, u, v| {
+            profiles[index].study(u, v)
+        })
+    } else {
+        let profiles: Vec<_> = (0..MesaProfile::COUNT).map(|i| MesaProfile::from_index(i).unwrap()).collect();
+        let names = profiles.iter().map(|profile| profile.name()).collect::<Vec<_>>();
+        export(output, "mesa", "mesa-profiles", &names, [24.0, 23.0], 7.1, |index, u, v| {
+            profiles[index].study(u, v)
+        })
+    }
+}
+
+fn export(
+    output: &Path, stem: &str, label_file: &str, names: &[&str], size: [f32; 2], relief_height: f32,
+    study: impl Fn(usize, f32, f32) -> Option<(f32, scenic_flight::world::Surface)>,
+) -> io::Result<()> {
+    std::fs::write(output.join(format!("{label_file}.txt")), names.join("\n") + "\n")?;
     let sky = Sky::from_time(41, 0, 0.48);
     let width = TILE * COLS;
-    let height = TILE * profiles.len().div_ceil(COLS);
+    let height = TILE * names.len().div_ceil(COLS);
     for frame in 0..16 {
         let mut image = vec![[19, 24, 30]; width * height];
         let heading = 0.54 + frame as f32 * std::f32::consts::TAU / 16.0;
@@ -25,18 +45,20 @@ fn main() -> io::Result<()> {
             pitch: ((18.0_f32 - 3.8) / 30.0).atan(),
             bank: 0.0,
         };
-        for (index, &profile) in profiles.iter().enumerate() {
+        for (index, name) in names.iter().enumerate() {
             let mut pixels = [0; TILE*TILE];
             let mut depth = [u16::MAX; TILE*TILE];
             let mut mesh = WorldMesh::new(&mut pixels, &mut depth, (TILE, TILE), view, &sky).unwrap();
-            relief::draw(&mut mesh, [24.0, 23.0], |[u, v]| {
-                profile.study(u, v).map(|(height, surface)| (height * 7.1, surface.sandstone_color().unwrap()))
+            relief::draw(&mut mesh, size, |[u, v]| {
+                study(index, u, v).map(|(height, surface)| {
+                    (height * relief_height, surface.sandstone_color().unwrap())
+                })
             });
             let (left, top) = (index % COLS * TILE, index / COLS * TILE);
-            assert!(pixels.iter().any(|&pixel| pixel != 0), "empty profile for {}", profile.name());
+            assert!(pixels.iter().any(|&pixel| pixel != 0), "empty profile for {name}");
             for (index, pixel) in pixels.into_iter().enumerate().filter(|(_, pixel)| *pixel != 0) {
                 let (x, y) = (index % TILE, index / TILE);
-                assert!((2..TILE-2).contains(&x) && (2..TILE-2).contains(&y), "clipped profile for {}", profile.name());
+                assert!((2..TILE-2).contains(&x) && (2..TILE-2).contains(&y), "clipped profile for {name}");
                 image[(top + y) * width + left + x] = [
                     ((pixel >> 11) * 255 / 31) as u8,
                     (((pixel >> 5) & 63) * 255 / 63) as u8,
@@ -44,7 +66,7 @@ fn main() -> io::Result<()> {
                 ];
             }
         }
-        let file = std::fs::File::create(output.join(format!("mesa-{frame:02}.ppm")))?;
+        let file = std::fs::File::create(output.join(format!("{stem}-{frame:02}.ppm")))?;
         let mut writer = io::BufWriter::new(file);
         writeln!(writer, "P6\n{width} {height}\n255")?;
         for pixel in image { writer.write_all(&pixel)?; }

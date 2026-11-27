@@ -93,7 +93,15 @@ fn render(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     if !(48..=512).contains(&size) {
         return Err("Size must be 48 through 512".into());
     }
-    let world = World::new(seed);
+    let world = if mode == "metropolis" {
+        let world = World::for_flight_seed(seed);
+        if !world.has_metropolis() {
+            return Err("The supplied seed does not contain a metropolis".into());
+        }
+        world
+    } else {
+        World::new(seed)
+    };
     let mut flight = Flight::start(&world, seed, aircraft);
     let mut pixels = vec![0; size * size];
     if mode == "picker" {
@@ -113,6 +121,16 @@ fn render(arguments: &[String]) -> Result<(), Box<dyn Error>> {
     };
     let before = Instant::now();
     match mode.as_str() {
+        "metropolis" => {
+            let city = world.city_surface();
+            render_from_with_sky(
+                |x, z| {
+                    let base = world.sample(x, z);
+                    city(x, z, base).unwrap_or(base)
+                },
+                view, &sky, &mut pixels, size, size,
+            )
+        }
         "cache" => {
             let mut cache = TerrainCache::new();
             cache.reset_for_altitude(world, view.x, view.z, view.altitude);
@@ -132,7 +150,7 @@ fn render(arguments: &[String]) -> Result<(), Box<dyn Error>> {
             )
         }
         "direct" | "new-world" => render_with_sky(&world, view, &sky, &mut pixels, size, size),
-        _ => return Err("Mode must be direct, cache, detailed, picker, or new-world".into()),
+        _ => return Err("Mode must be direct, cache, detailed, picker, new-world, or metropolis".into()),
     }.map_err(|error| format!("Render failed ({error:?})"))?;
     draw_flight_scene(&flight, seed, &sky, &mut pixels, size, size);
     if mode == "new-world" {

@@ -110,7 +110,7 @@ static DETAILS: ConstStaticCell<details::DetailLayers> = ConstStaticCell::new(de
 #[cfg(feature = "streamed-land")]
 static LAND: ConstStaticCell<scenic_flight::land_stream::LandStream> =
     ConstStaticCell::new(scenic_flight::land_stream::LandStream::new());
-#[cfg(feature = "coastal-mesh")]
+#[cfg(all(feature = "coastal-mesh", not(feature = "transport-stream")))]
 static COASTAL_MESH: StaticCell<scenic_flight::coastal_landforms::CoastalLandmarks> = StaticCell::new();
 #[cfg(all(feature = "coastal-mesh", not(feature = "river-stream")))]
 static SCENERY_DEPTH: StaticCell<[u16; LOGICAL_SIDE * LOGICAL_SIDE]> = StaticCell::new();
@@ -570,7 +570,7 @@ fn observe_nearby_train(
     #[cfg(feature = "regional-rail")] regional_rail: &RailStream,
 ) {
     use scenic_flight::train_art::Train;
-    let Some((_, flight)) = game.active() else { return };
+    let Some((world, flight)) = game.active() else { return };
     if !flight.should_observe_trains() {
         return;
     }
@@ -581,6 +581,8 @@ fn observe_nearby_train(
     #[cfg(feature = "regional-rail")]
     let motions = motions.chain(regional_rail.rails(camera, 112.0)
         .filter_map(|line| Train::corridor_motion(line, seed, flight.ticks)));
+    let motions = motions.chain(world.metro_transit().into_iter()
+        .flat_map(|rail| rail.motions(world, camera, flight.ticks)));
     let best = motions.filter_map(|train| flight.train_score(train).map(|score| (score, train)))
         .min_by(|left, right| left.0.total_cmp(&right.0))
         .map(|(_, train)| train);
@@ -776,8 +778,16 @@ fn main() -> ! {
     let urban = scene_memory.place(scenic_flight::land_stream::UrbanStream::<8>::new);
     #[cfg(feature = "urban-background")]
     let mut urban_background = urban_survey::Background::new();
-    #[cfg(feature = "coastal-mesh")]
+    #[cfg(all(feature = "coastal-mesh", not(feature = "transport-stream")))]
     let coastal_mesh = COASTAL_MESH.init_with(scenic_flight::coastal_landforms::CoastalLandmarks::new);
+    #[cfg(all(feature = "coastal-mesh", feature = "transport-stream"))]
+    let coastal_mesh = {
+        use scenic_flight::coastal_landforms::CoastalLandmarks;
+        static EMPTY: CoastalLandmarks = CoastalLandmarks::new();
+        // Keep the internal RAM between static scenery and the main stack
+        // available for surveys and renderer calls.
+        scene_memory.copy_from(&EMPTY)
+    };
     #[cfg(all(feature = "coastal-mesh", not(feature = "river-stream")))]
     let scenery_depth = image_buffer(&SCENERY_DEPTH, u16::MAX);
     #[cfg(feature = "coastal-mesh")]
@@ -1085,9 +1095,10 @@ fn main() -> ! {
             }
             window_started = started;
             esp_println::println!(
-                "flight aircraft={} seed={:016x}",
+                "flight aircraft={} seed={:016x} metropolis={}",
                 game.selected() as u8,
-                seed
+                seed,
+                u8::from(world.has_metropolis()),
             );
         } else {
             let elapsed = now - next_tick;
@@ -1137,6 +1148,7 @@ fn main() -> ! {
         }
 
         let (_world, flight) = game.active().unwrap();
+        let city = _world.city_surface();
         #[cfg(not(feature = "replay-ticks"))]
         let display_pose = flight.display_pose(1.0 - next_tick.saturating_sub(now) as f32 / PERIOD_US as f32);
         #[cfg(not(feature = "replay-ticks"))]
@@ -1191,7 +1203,11 @@ fn main() -> ! {
         #[cfg(feature = "scene-probe")]
         let detail_caches_at = micros();
         #[cfg(feature = "streamed-land")]
-        if frame % 2 == 0 {
+        let metropolis_interior = [(0.0, 0.0), (-1_200.0, -1_200.0), (1_200.0, -1_200.0),
+            (-1_200.0, 1_200.0), (1_200.0, 1_200.0)].into_iter()
+            .all(|(x, z)| _world.city_occupies(camera.x + x, camera.z + z));
+        #[cfg(feature = "streamed-land")]
+        if !metropolis_interior && frame % 2 == 0 {
             use scenic_flight::land_stream::LandBudget;
             land.service(camera, LandBudget {
                 expansions: 8,
@@ -1204,7 +1220,7 @@ fn main() -> ! {
         #[cfg(feature = "scene-probe")]
         let detail_land_at = micros();
         #[cfg(feature = "transport-stream")]
-        if frame % 4 == 0 && (frame >= 240 || !cfg!(feature = "scene-probe")
+        if !metropolis_interior && frame % 4 == 0 && (frame >= 240 || !cfg!(feature = "scene-probe")
             || option_env!("SCENIC_PROFILE_DELAY_SURVEYS").is_none()) {
             #[cfg(feature = "natural-scenery")]
             let summit_scan_due = frame % 32 == 0;
@@ -1227,6 +1243,15 @@ fn main() -> ! {
         }
         #[cfg(feature = "scene-probe")]
         let detail_surveys_at = micros();
+        #[cfg(all(feature = "far-horizon", feature = "natural-scenery"))]
+        let ridge_backdrop = natural.ridge_backdrop(camera);
+        #[cfg(feature = "far-horizon")]
+        let backdrop = |x, z| {
+            let elevation = horizon.backdrop(x, z);
+            #[cfg(feature = "natural-scenery")]
+            let elevation = ridge_backdrop.height(x, z, elevation);
+            elevation
+        };
         #[cfg(feature = "transport-stream")]
         let visible_facilities = facilities.has_visible_facilities(camera);
         #[cfg(feature = "transport-stream")]
@@ -1254,10 +1279,10 @@ fn main() -> ! {
         let has_towers = tower_region.is_some();
         #[cfg(all(feature = "distant-skyline", not(feature = "urban-expansion")))]
         let distant_skyline = skyline.prepare(land, camera, ticks, &sky, scene_dimensions,
-            |x, z| horizon.backdrop(x, z));
+            backdrop);
         #[cfg(feature = "urban-expansion")]
         let distant_skyline = skyline.prepare_with_additions(land, camera, ticks, &sky, scene_dimensions,
-            urban.skyline(land).chain(facilities.waterfront_silhouettes()), |x, z| horizon.backdrop(x, z));
+            urban.skyline(land).chain(facilities.waterfront_silhouettes()), backdrop);
         #[cfg(feature = "distant-skyline")]
         let tower_region = tower_region.into_iter().chain(distant_skyline.bounds())
             .reduce(scenic_flight::render::ScreenRect::union);
@@ -1367,7 +1392,7 @@ fn main() -> ! {
         #[cfg(feature = "distant-roads")]
         let highway_region = {
             distant_roads.prepare(land, highways, camera, ticks, scene_dimensions,
-                |x, z| horizon.backdrop(x, z));
+                backdrop);
             highway_region.into_iter().chain(distant_roads.bounds())
                 .reduce(scenic_flight::render::ScreenRect::union)
         };
@@ -1381,14 +1406,14 @@ fn main() -> ! {
         #[cfg(feature = "distant-bridges")]
         let distant_bridges = bridge_silhouettes.prepare(camera, ticks, &sky, scene_dimensions,
             rivers.bridges().chain(highways.coastal_links().map(|(_, link)| link.bridge())),
-            |x, z| horizon.backdrop(x, z));
+            backdrop);
         #[cfg(feature = "distant-bridges")]
         let distant_bridge_region = distant_bridges.bounds();
         #[cfg(all(feature = "coastal-mesh", not(feature = "distant-bridges")))]
         let distant_bridge_region = None;
         #[cfg(all(feature = "transport-stream", feature = "far-horizon"))]
         let distant_airfields = scenic_flight::distant_airfields::DistantAirfields::prepare(
-            facilities.airfields(), camera, &sky, scene_dimensions, |x, z| horizon.backdrop(x, z),
+            facilities.airfields(), camera, &sky, scene_dimensions, backdrop,
         );
         #[cfg(feature = "coastal-mesh")]
         let distant_airfield_region: Option<scenic_flight::render::ScreenRect> = {
@@ -1398,15 +1423,22 @@ fn main() -> ! {
             { None }
         };
         #[cfg(feature = "coastal-mesh")]
+        let metropolitan_rail = _world.metro_transit();
+        #[cfg(feature = "coastal-mesh")]
+        let metropolitan_rail_region = metropolitan_rail.and_then(|rail| {
+            rail.depth_region(_world, camera, scene_dimensions)
+        });
+        #[cfg(feature = "coastal-mesh")]
         let rail_region: Option<scenic_flight::render::ScreenRect> = {
             #[cfg(feature = "transport-stream")]
             {
                 facilities.rails(camera, LOCAL_RAIL_REACH)
                     .filter_map(|line| scenic_flight::rail_art::rail_screen_region(line, camera, scene_dimensions))
+                    .chain(metropolitan_rail_region)
                     .reduce(scenic_flight::render::ScreenRect::union)
             }
             #[cfg(not(feature = "transport-stream"))]
-            { None }
+            { metropolitan_rail_region }
         };
         #[cfg(feature = "coastal-mesh")]
         let has_rails = rail_region.is_some();
@@ -1431,6 +1463,8 @@ fn main() -> ! {
             let visible = visible.chain(regional_rail.rails(camera, TRAIN_RENDER_REACH).filter_map(|line| {
                 Train::on_corridor(line, seed, ticks, camera, scene_dimensions)
             }));
+            let visible = visible.chain(metropolitan_rail.into_iter()
+                .flat_map(|rail| rail.trains(_world, camera, scene_dimensions, ticks)));
             Train::visible_pair(visible)
         };
         #[cfg(feature = "coastal-mesh")]
@@ -1458,6 +1492,9 @@ fn main() -> ! {
             #[cfg(feature = "sample-probe")]
             if let Some(timer) = &mut timer { timer.mark(sample_probe::CLOCK); }
             let base = terrain.sample(x, z);
+            if let Some(city) = city(x, z, base) {
+                return city;
+            }
             #[cfg(feature = "sample-probe")]
             if let Some(timer) = &mut timer { timer.mark(sample_probe::TERRAIN); }
             #[cfg(feature = "transport-stream")]
@@ -1594,7 +1631,7 @@ fn main() -> ! {
                     render_layers(
                         (&sample, material),
                         #[cfg(feature = "far-horizon")]
-                        |x, z| horizon.backdrop(x, z),
+                        backdrop,
                         camera, &sky, scene, terrain_work, depth, scene_dimensions,
                         checkpoint, ready_sky_tile,
                     )
@@ -1641,6 +1678,9 @@ fn main() -> ! {
                 let (worker_shore, worker_facilities) = (&*shore, &*facilities);
                 let worker_sample = move |x, z| {
                     let raw = worker_terrain.sample(x, z);
+                    if let Some(city) = city(x, z, raw) {
+                        return city;
+                    }
                     let base = worker_highways.as_ref().map_or(raw, |h| h.overlay(x, z, raw));
                     let base = worker_natural.as_ref().map_or(base, |n| n.overlay(x, z, base));
                     let base = worker_details.geometry(x, z, base, &worker_trees);
@@ -1660,7 +1700,7 @@ fn main() -> ! {
                         scenic_flight::render::render_with_packed_terrain_fork_sized::<{ $side }>(
                             &mut display, &sample, material, worker_sample, worker_material,
                             camera, &sky, scene, terrain_work, depth, checkpoint,
-                            ready_sky_tile, |x, z| horizon.backdrop(x, z),
+                            ready_sky_tile, backdrop,
                         )
                     };
                 }
@@ -1806,6 +1846,11 @@ fn main() -> ! {
             if corridor_region.is_some() {
                 for line in regional_rail.rails(camera, scenic_flight::render::view_distance(camera.altitude)) {
                     scenic_flight::rail_art::draw_rail_corridor(&mut mesh, line, camera, scene_dimensions);
+                }
+            }
+            if metropolitan_rail_region.is_some() {
+                if let Some(rail) = metropolitan_rail {
+                    rail.draw(_world, camera, &mut mesh);
                 }
             }
             #[cfg(feature = "transport-stream")]

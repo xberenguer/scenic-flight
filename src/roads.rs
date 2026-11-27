@@ -310,6 +310,13 @@ impl Budget {
 impl RoadPlanner {
     /// Sparse regions can be rejected immediately, using two layout probes.
     pub fn new(world: &World, region_x: i32, region_z: i32) -> Option<Self> {
+        let half = ROAD_REGION_SIZE as f32 * 0.5;
+        if world.city_occupies(
+            region_x as f32 * ROAD_REGION_SIZE as f32 + half,
+            region_z as f32 * ROAD_REGION_SIZE as f32 + half,
+        ) {
+            return None;
+        }
         let (grid, layout) = route_layout(world, region_x, region_z)?;
         Some(Self {
             planner: Planner::empty(world, grid),

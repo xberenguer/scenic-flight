@@ -1025,7 +1025,6 @@ mod quarry_tests {
         assert_eq!(facilities.sampler().overlay(x, z, ground, pavement), pavement);
 
         let sampler = facilities.sampler();
-        assert!(sampler.standalone_solar.is_some());
         let [left, near, right, far] = bounds;
         let mut changed = 0;
         for row in 0..=256 {
@@ -1042,6 +1041,17 @@ mod quarry_tests {
             }
         }
         assert!(changed > 10_000);
+        // The wider view may have prepared other facilities. Check the
+        // standalone optimization with only this solar site in the sampler.
+        let mut isolated = FacilityStream::<8>::new(world, seed);
+        isolated.prepared[0] = facilities.prepared.into_iter().flatten().find(|record| record.key == key);
+        let standalone = isolated.sampler();
+        assert!(standalone.standalone_solar.is_some());
+        let mid = [(left + right) * 0.5, (near + far) * 0.5];
+        let raw = world.sample(mid[0], mid[1]);
+        let developed = land.overlay(mid[0], mid[1], raw);
+        assert_eq!(standalone.overlay(mid[0], mid[1], raw, developed),
+            isolated.overlay(mid[0], mid[1], raw, developed));
     }
 
     #[test]

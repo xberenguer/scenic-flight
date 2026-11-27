@@ -11,10 +11,14 @@ mkdir -p "$assets"
 rustc --edition 2024 -O "$tools/export.rs" \
     --extern "scenic_flight=$target/release/libscenic_flight.rlib" \
     -L "dependency=$target/release/deps" -o "$scratch/export"
-"$scratch/export" "$scratch"
-ffmpeg -v error -y -i "$scratch/mesa-00.ppm" -frames:v 1 "$assets/mesa-profiles.png"
-ffmpeg -v error -y -framerate 8 -i "$scratch/mesa-%02d.ppm" \
+case "${1:-}" in
+    --ridges) stem=ridge; name=sandstone-ridges ;;
+    *) stem=mesa; name=mesa-profiles ;;
+esac
+"$scratch/export" "$scratch" "$@"
+ffmpeg -v error -y -i "$scratch/$stem-00.ppm" -frames:v 1 "$assets/$name.png"
+ffmpeg -v error -y -framerate 8 -i "$scratch/$stem-%02d.ppm" \
     -filter_complex_threads 1 \
     -filter_complex 'split[a][b];[a]palettegen=max_colors=112[p];[b][p]paletteuse=dither=bayer' \
-    -loop 0 "$assets/mesa-profiles.gif"
-cp "$scratch/mesa-profiles.txt" "$assets/"
+    -loop 0 "$assets/$name.gif"
+cp "$scratch/$name.txt" "$assets/"
